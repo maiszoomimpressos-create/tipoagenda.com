@@ -8,7 +8,7 @@ import { Link, useNavigate } from 'react-router-dom'; // Importar useNavigate
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft } from 'lucide-react'; // Importar ícone de seta
+// Removido import de ArrowLeft
 
 // Esquema de validação com Zod
 const signupSchema = z.object({
@@ -32,7 +32,7 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 
 const SignupForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // Inicializar useNavigate
+  // Removido useNavigate, pois o botão de voltar será gerenciado pela AuthPage
 
   const {
     register,
@@ -124,14 +124,7 @@ const SignupForm: React.FC = () => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <Button
-        variant="ghost"
-        className="absolute left-8 top-8 !rounded-button whitespace-nowrap" // Posicionado no canto superior esquerdo
-        onClick={() => navigate('/login')} // Navega para a página de login
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Voltar
-      </Button>
+      {/* Botão "Voltar" removido daqui */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="first-name">Nome</Label>

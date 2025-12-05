@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Link } from 'react-router-dom';
+// Removido import de ArrowLeft
 
 const ForgotPasswordForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -26,6 +27,7 @@ const ForgotPasswordForm: React.FC = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Botão "Voltar" removido daqui */}
       <div>
         <Label htmlFor="email">E-mail</Label>
         <Input
