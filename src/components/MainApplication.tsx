@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Link } from 'react-router-dom'; // Importar Link
+import { Link } from 'react-router-dom';
+import { useSession } from './SessionContextProvider'; // Importar useSession
+import UserDropdownMenu from './UserDropdownMenu'; // Importar o novo componente
 
 const MainApplication: React.FC = () => {
 const [activeSection, setActiveSection] = useState('landing');
@@ -15,6 +17,8 @@ const [showNovoAgendamento, setShowNovoAgendamento] = useState(false);
 const [showNovoCliente, setShowNovoCliente] = useState(false);
 const [showFecharCaixa, setShowFecharCaixa] = useState(false);
 const [showNovoColaborador, setShowNovoColaborador] = useState(false);
+
+const { session, loading } = useSession(); // Usar o hook useSession
 
 // Utility Functions
 const getStatusColor = (status: string) => {
@@ -1469,7 +1473,7 @@ default: return renderLanding();
 return (
 <div className="flex flex-col min-h-screen bg-gray-50">
 {/* Header Section - Always present */}
-<header className="bg-white border-b border-gray-200 px-6 py-4">
+<header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
 <div className="flex items-center justify-between">
 {/* Left side of the header */}
 <div className="flex items-center gap-4">
@@ -1482,44 +1486,44 @@ onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
 <i className="fas fa-bars"></i>
 </Button>
 )}
-<div className="flex items-center gap-3">
+<Link to="/" className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveSection('landing')}>
 <div className="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center">
 <i className="fas fa-calendar-alt text-white"></i>
 </div>
-<h1 className="text-xl font-bold text-gray-900">AgendaFácil</h1>
-</div>
+<h1 className="text-xl font-bold text-gray-900">TipoAgenda</h1>
+</Link>
 </div>
 
 {/* Right side of the header */}
-{activeSection === 'landing' ? (
-<div className="flex items-center gap-3">
-<Link to="/login">
-<Button variant="ghost" className="!rounded-button whitespace-nowrap text-gray-700 hover:bg-gray-100">
-Login
-</Button>
-</Link>
-<Link to="/signup">
-<Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-Cadastrar
-</Button>
-</Link>
-</div>
+{loading ? (
+  <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div> // Placeholder for loading state
+) : session ? (
+  <div className="flex items-center gap-4">
+    <Button variant="ghost" className="!rounded-button cursor-pointer relative">
+      <i className="fas fa-bell text-gray-600"></i>
+      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
+    </Button>
+    <UserDropdownMenu session={session} />
+  </div>
 ) : (
-<div className="flex items-center gap-4">
-<Button variant="ghost" className="!rounded-button cursor-pointer relative">
-<i className="fas fa-bell text-gray-600"></i>
-<span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
-</Button>
-<Avatar className="w-8 h-8 cursor-pointer">
-<AvatarFallback className="bg-gray-200 text-gray-700">AD</AvatarFallback>
-</Avatar>
-</div>
+  <div className="flex items-center gap-3">
+    <Link to="/login">
+      <Button variant="ghost" className="!rounded-button whitespace-nowrap text-gray-700 hover:bg-gray-100">
+        Login
+      </Button>
+    </Link>
+    <Link to="/signup">
+      <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
+        Cadastrar
+      </Button>
+    </Link>
+  </div>
 )}
 </div>
 </header>
 
 {/* Main content area (sidebar + main content) */}
-<div className="flex flex-1">
+<div className="flex flex-1 pt-16"> {/* Adicionado padding-top para compensar o header fixo */}
 {activeSection !== 'landing' && (
 <aside className={`bg-gray-900 text-white transition-all duration-300 ${
 sidebarCollapsed ? 'w-16' : 'w-64'
