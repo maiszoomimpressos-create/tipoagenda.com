@@ -16,9 +16,14 @@ const CompanyRegistrationPage: React.FC = () => {
           <p className="text-gray-700 dark:text-gray-300">
             Esta é a página de cadastro da sua empresa. Em breve, você poderá adicionar todos os detalhes do seu negócio aqui!
           </p>
-          <Button asChild className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-            <Link to="/">Voltar para a Página Inicial</Link>
-          </Button>
+          <div className="flex flex-col gap-4"> {/* Adicionado um flex container para os botões */}
+            <Button asChild className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
+              <Link to="/">Voltar para a Página Inicial</Link>
+            </Button>
+            <Button asChild className="w-full !rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"> {/* Novo botão para o Dashboard */}
+              <Link to="/dashboard">Ir para o Dashboard</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
