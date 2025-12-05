@@ -7,11 +7,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button"; // Importar Button
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
+import { Menu } from 'lucide-react'; // Importar o ícone de hambúrguer
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -21,14 +22,13 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const navigate = useNavigate();
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
-  const userInitials = userEmail.substring(0, 2).toUpperCase();
+  const userName = user?.user_metadata?.first_name || userEmail;
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
     } else {
-      // showSuccess('Logout realizado com sucesso!'); // Handled by SessionContextProvider
       navigate('/login');
     }
   };
@@ -36,15 +36,15 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Avatar className="w-8 h-8 cursor-pointer">
-          <AvatarImage src={user?.user_metadata?.avatar_url || ''} alt="User Avatar" />
-          <AvatarFallback className="bg-gray-200 text-gray-700">{userInitials}</AvatarFallback>
-        </Avatar>
+        <Button variant="ghost" className="flex items-center gap-2 !rounded-button cursor-pointer">
+          <Menu className="h-5 w-5" /> {/* Ícone de hambúrguer */}
+          <span className="hidden md:inline-block text-gray-700">{userName}</span> {/* Exibe o nome ou email */}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col">
-            <span>{user?.user_metadata?.first_name || userEmail}</span>
+            <span>{userName}</span>
             <span className="text-xs text-gray-500">{userEmail}</span>
           </div>
         </DropdownMenuLabel>
