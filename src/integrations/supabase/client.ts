@@ -1,14 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Usando process.env para acessar as variáveis injetadas pelo Vite
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl) {
-  throw new Error('VITE_SUPABASE_URL não está definida nas variáveis de ambiente.');
-}
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY não está definida nas variáveis de ambiente.');
-}
+// Hardcodificando as chaves do Supabase para garantir o funcionamento imediato.
+// ATENÇÃO: Em um ambiente de produção, estas chaves devem ser carregadas de variáveis de ambiente.
+const supabaseUrl = "https://tegyiuktrmcqxkbjxqoc.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRlZ3lpdWt0cm1jcXhrYmp4cW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NDYxMDgsImV4cCI6MjA4MDUyMjEwOH0.bfwrlBY0Sg3u-MEdvSZBBMor6cd17iHBYlrpnhNgGEM";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
