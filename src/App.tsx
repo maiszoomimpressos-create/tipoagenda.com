@@ -11,7 +11,7 @@ import ProfilePage from "./pages/ProfilePage";
 import LandingPage from "./pages/LandingPage";
 import CompanyRegistrationPage from "./pages/CompanyRegistrationPage";
 import DashboardPage from "./pages/DashboardPage";
-import React from "react"; // Importar React para usar React.Fragment
+import React from "react";
 
 const queryClient = new QueryClient();
 
@@ -30,12 +30,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      {/* Envolvendo os filhos em um React.Fragment para garantir que o TooltipProvider receba um único elemento */}
-      <React.Fragment>
-        <Toaster />
-        <Sonner />
+  <React.Fragment> {/* Fragmento raiz para envolver todos os elementos */}
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
         <BrowserRouter>
           <SessionContextProvider>
             <Routes>
@@ -60,9 +57,11 @@ const App = () => (
             </Routes>
           </SessionContextProvider>
         </BrowserRouter>
-      </React.Fragment>
-    </TooltipProvider>
-  </QueryClientProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+    <Toaster /> {/* Toaster global, fora da cadeia de provedores principais */}
+    <Sonner />  {/* Sonner global, fora da cadeia de provedores principais */}
+  </React.Fragment>
 );
 
 export default App;
