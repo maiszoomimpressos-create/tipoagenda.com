@@ -247,7 +247,15 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
             />
             {errors.avatar_url && <p className="col-span-4 text-red-500 text-xs text-right">{errors.avatar_url.message}</p>}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex justify-between items-center"> {/* Ajustado para alinhar os botões */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="!rounded-button whitespace-nowrap"
+            >
+              Voltar
+            </Button>
             <Button type="submit" disabled={loading} className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
               {loading ? 'Salvando...' : 'Salvar alterações'}
             </Button>
