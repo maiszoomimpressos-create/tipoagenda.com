@@ -67,6 +67,7 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        button: "9999px", // Custom border-radius for rounded-button
       },
       keyframes: {
         "accordion-down": {
