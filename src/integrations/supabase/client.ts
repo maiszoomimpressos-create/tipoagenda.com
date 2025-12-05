@@ -3,7 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Verificação explícita para garantir que as chaves estão definidas
+// Adicionando logs para depuração
+console.log('Supabase URL carregada:', supabaseUrl ? 'Presente' : 'Ausente');
+console.log('Supabase Anon Key carregada:', supabaseAnonKey ? 'Presente' : 'Ausente');
 if (!supabaseUrl) {
   throw new Error('VITE_SUPABASE_URL não está definida nas variáveis de ambiente.');
 }
