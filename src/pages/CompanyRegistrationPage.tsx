@@ -11,7 +11,6 @@ const CompanyRegistrationPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
         <CardHeader className="relative flex flex-row items-center justify-center">
-          {/* Envolvendo o botão e o título em um div para resolver o erro 'React.Children.only' */}
           <div className="flex flex-col items-center w-full">
             <Button
               variant="ghost"
@@ -32,6 +31,10 @@ const CompanyRegistrationPage: React.FC = () => {
           </p>
           <Button asChild className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
             <Link to="/">Ir para a Página Inicial</Link>
+          </Button>
+          <Button className="w-full !rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white">
+            <i className="fas fa-building mr-2"></i> {/* Ícone de empresa */}
+            Iniciar Cadastro
           </Button>
         </CardContent>
       </Card>
