@@ -1209,7 +1209,7 @@ const MainApplication: React.FC = () => {
   );
 
   // Determine if the current path is an "app" path (i.e., not landing or auth)
-  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password'].includes(location.pathname);
+  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     // Reset any specific form states when navigating
