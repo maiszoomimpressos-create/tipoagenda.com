@@ -14,4 +14,6 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Explicitamente define o diretório para arquivos .env
+  envDir: './',
 }));
