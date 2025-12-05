@@ -1184,14 +1184,12 @@ const MainApplication: React.FC = () => {
               { codigo: 'FIDELIDADE', tipo: '15% de desconto', validade: '30/11/2025', usos: 78, status: 'pausada' }
             ].map((promocao, index) => (
               <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-ticket-alt text-yellow-600"></i>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{promocao.codigo}</h3>
-                    <p className="text-sm text-gray-600">{promocao.tipo}</p>
-                  </div>
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-ticket-alt text-yellow-600"></i>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{promocao.codigo}</h3>
+                  <p className="text-sm text-gray-600">{promocao.tipo}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Válido até {promocao.validade}</p>
@@ -1209,7 +1207,7 @@ const MainApplication: React.FC = () => {
   );
 
   // Determine if the current path is an "app" path (i.e., not landing or auth)
-  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile'].includes(location.pathname);
+  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     // Reset any specific form states when navigating
