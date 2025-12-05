@@ -7,6 +7,7 @@ import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider, useSession } from "./components/SessionContextProvider";
 import MainApplication from "./components/MainApplication"; // Import MainApplication
+import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
 
 const queryClient = new QueryClient();
 
@@ -35,10 +36,8 @@ const App = () => (
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
-            {/* A Landing Page (parte do MainApplication) será a página de entrada sem proteção */}
             <Route path="/" element={<MainApplication />} />
-            {/* Exemplo de rota protegida, caso você queira adicionar mais tarde */}
-            {/* <Route path="/dashboard-protected" element={<ProtectedRoute><SomeProtectedComponent /></ProtectedRoute>} /> */}
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Rota protegida para o perfil */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
