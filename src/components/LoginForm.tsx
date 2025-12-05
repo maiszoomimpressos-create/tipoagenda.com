@@ -16,6 +16,7 @@ const LoginForm: React.FC = () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      console.error("Erro no login:", error); // Adicionado para depuração
       showError(error.message);
     } else {
       // Success message handled by SessionContextProvider

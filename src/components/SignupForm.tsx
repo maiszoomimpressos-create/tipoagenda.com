@@ -112,6 +112,7 @@ const SignupForm: React.FC = () => {
       },
     });
     if (error) {
+      console.error("Erro no cadastro:", error); // Adicionado para depuração
       showError(error.message);
     } else {
       showSuccess('Verifique seu e-mail para confirmar o cadastro!');
