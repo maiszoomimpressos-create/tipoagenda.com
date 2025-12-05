@@ -7,12 +7,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button"; // Importar Button
+import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
-import { Menu } from 'lucide-react'; // Importar o ícone de hambúrguer
+import { Menu } from 'lucide-react';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -36,9 +36,9 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="flex items-center gap-2 !rounded-button cursor-pointer">
-          <Menu className="h-5 w-5" /> {/* Ícone de hambúrguer */}
-          <span className="hidden md:inline-block text-gray-700">{userName}</span> {/* Exibe o nome ou email */}
+        <Button variant="ghost" className="flex flex-col items-center gap-1 !rounded-button cursor-pointer px-3 py-2"> {/* Alterado para flex-col e ajustado padding */}
+          <Menu className="h-5 w-5" />
+          <span className="text-xs text-gray-700">{userName}</span> {/* Texto menor e sempre visível */}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
