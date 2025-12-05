@@ -18,7 +18,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const pageTitle = path === '/signup' ? 'Se cadastre no TipoAgenda' : 'Bem-vindo ao AgendaFácil';
+  const pageTitle = path === '/signup' ? 'Cadastre-se no TipoAgenda' : 'Bem-vindo ao AgendaFácil';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
