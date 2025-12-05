@@ -27,13 +27,13 @@ const AuthPage: React.FC = () => {
             variables: {
               default: {
                 colors: {
-                  brand: 'hsl(var(--yellow-600))', // Using a custom yellow from your theme
-                  brandAccent: 'hsl(var(--yellow-700))',
+                  brand: '#EAB308', // Tailwind yellow-600
+                  brandAccent: '#CA8A04', // Tailwind yellow-700
                 },
               },
             },
           }}
-          theme="light" // Or "dark" based on your preference
+          theme="light"
           redirectTo={window.location.origin + '/'}
           localization={{
             variables: {
