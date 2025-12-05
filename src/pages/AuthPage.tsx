@@ -18,11 +18,13 @@ const AuthPage: React.FC = () => {
     }
   };
 
+  const pageTitle = path === '/signup' ? 'Se cadastre no TipoAgenda' : 'Bem-vindo ao AgendaFácil';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
         <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-8">
-          Bem-vindo ao AgendaFácil
+          {pageTitle}
         </h2>
         {renderAuthForm()}
       </div>
