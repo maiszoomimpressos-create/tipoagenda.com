@@ -10,6 +10,7 @@ import MainApplication from "./components/MainApplication"; // Import MainApplic
 import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
 import LandingPage from "./pages/LandingPage"; // Import LandingPage
 import CompanyRegistrationPage from "./pages/CompanyRegistrationPage"; // Import CompanyRegistrationPage
+import DashboardPage from "./pages/DashboardPage"; // Import DashboardPage
 
 const queryClient = new QueryClient();
 
@@ -45,8 +46,8 @@ const App = () => (
               <Route index element={<LandingPage />} /> {/* Landing Page como rota index */}
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Rota protegida para o perfil */}
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} /> {/* Nova rota protegida para cadastro de empresa */}
+              <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} /> {/* Rota protegida para o dashboard */}
               {/* Adicione outras rotas da aplicação aqui, por exemplo: */}
-              {/* <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} /> */}
               {/* <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} /> */}
               {/* ... e assim por diante para cada item do menu */}
             </Route>
