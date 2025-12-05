@@ -8,6 +8,7 @@ import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider, useSession } from "./components/SessionContextProvider";
 import MainApplication from "./components/MainApplication"; // Import MainApplication
 import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
+import LandingPage from "./pages/LandingPage"; // Import LandingPage
 
 const queryClient = new QueryClient();
 
@@ -33,11 +34,21 @@ const App = () => (
       <BrowserRouter>
         <SessionContextProvider>
           <Routes>
+            {/* Rotas de autenticação (sem layout) */}
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
-            <Route path="/" element={<MainApplication />} />
-            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Rota protegida para o perfil */}
+
+            {/* Rotas da aplicação (com layout MainApplication) */}
+            <Route path="/" element={<MainApplication />}>
+              <Route index element={<LandingPage />} /> {/* Landing Page como rota index */}
+              <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Rota protegida para o perfil */}
+              {/* Adicione outras rotas da aplicação aqui, por exemplo: */}
+              {/* <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} /> */}
+              {/* <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} /> */}
+              {/* ... e assim por diante para cada item do menu */}
+            </Route>
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
