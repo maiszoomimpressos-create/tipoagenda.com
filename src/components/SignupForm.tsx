@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
-import { Link, useNavigate } from 'react-router-dom'; // Importar useNavigate
+import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-// Removido import de ArrowLeft
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Esquema de validação com Zod
 const signupSchema = z.object({
@@ -21,6 +21,10 @@ const signupSchema = z.object({
   cpf: z.string()
     .min(1, "CPF é obrigatório.")
     .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Formato de CPF inválido (ex: XXX.XXX.XXX-XX)"),
+  birthDate: z.string().min(1, "Data de nascimento é obrigatória."),
+  gender: z.enum(['Masculino', 'Feminino', 'Outro'], {
+    errorMap: () => ({ message: "Gênero é obrigatório." })
+  }),
   password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -32,7 +36,6 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 
 const SignupForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  // Removido useNavigate, pois o botão de voltar será gerenciado pela AuthPage
 
   const {
     register,
@@ -48,6 +51,8 @@ const SignupForm: React.FC = () => {
       email: '',
       phoneNumber: '',
       cpf: '',
+      birthDate: '',
+      gender: undefined, // Initialize as undefined for Select
       password: '',
       confirmPassword: '',
     },
@@ -55,6 +60,7 @@ const SignupForm: React.FC = () => {
 
   const phoneNumberValue = watch('phoneNumber');
   const cpfValue = watch('cpf');
+  const genderValue = watch('gender');
 
   const formatPhoneNumberInput = (value: string) => {
     if (!value) return '';
@@ -99,7 +105,7 @@ const SignupForm: React.FC = () => {
 
   const onSubmit = async (data: SignupFormValues) => {
     setLoading(true);
-    const { email, password, firstName, lastName, phoneNumber, cpf } = data;
+    const { email, password, firstName, lastName, phoneNumber, cpf, birthDate, gender } = data;
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -110,6 +116,8 @@ const SignupForm: React.FC = () => {
           last_name: lastName,
           phone_number: phoneNumber.replace(/\D/g, ''), // Store only digits
           cpf: cpf.replace(/\D/g, ''), // Store only digits
+          birth_date: birthDate,
+          gender: gender,
         },
       },
     });
@@ -124,7 +132,6 @@ const SignupForm: React.FC = () => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Botão "Voltar" removido daqui */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="first-name">Nome</Label>
@@ -185,6 +192,32 @@ const SignupForm: React.FC = () => {
           className="mt-1"
         />
         {errors.cpf && <p className="text-red-500 text-xs mt-1">{errors.cpf.message}</p>}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="birth-date">Data de Nascimento</Label>
+          <Input
+            id="birth-date"
+            type="date"
+            {...register('birthDate')}
+            className="mt-1"
+          />
+          {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate.message}</p>}
+        </div>
+        <div>
+          <Label htmlFor="gender">Gênero</Label>
+          <Select onValueChange={(value) => setValue('gender', value as 'Masculino' | 'Feminino' | 'Outro', { shouldValidate: true })} value={genderValue}>
+            <SelectTrigger id="gender" className="mt-1">
+              <SelectValue placeholder="Selecione o gênero" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Masculino">Masculino</SelectItem>
+              <SelectItem value="Feminino">Feminino</SelectItem>
+              <SelectItem value="Outro">Outro</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender.message}</p>}
+        </div>
       </div>
       <div>
         <Label htmlFor="password">Crie uma senha</Label>

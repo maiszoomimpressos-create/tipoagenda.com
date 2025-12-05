@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Esquema de validação com Zod
 const profileSchema = z.object({
@@ -27,6 +28,10 @@ const profileSchema = z.object({
   cpf: z.string()
     .min(1, "CPF é obrigatório.")
     .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Formato de CPF inválido (ex: XXX.XXX.XXX-XX)"),
+  birth_date: z.string().min(1, "Data de nascimento é obrigatória."),
+  gender: z.enum(['Masculino', 'Feminino', 'Outro'], {
+    errorMap: () => ({ message: "Gênero é obrigatório." })
+  }),
   avatar_url: z.string().url("URL do avatar inválida.").optional().or(z.literal('')),
 });
 
@@ -63,6 +68,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
       last_name: '',
       phone_number: '',
       cpf: '',
+      birth_date: '',
+      gender: undefined,
       avatar_url: '',
     },
   });
@@ -70,6 +77,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   // Watchers for formatted inputs
   const phoneNumberValue = watch('phone_number');
   const cpfValue = watch('cpf');
+  const genderValue = watch('gender');
 
   useEffect(() => {
     if (currentProfile) {
@@ -78,6 +86,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
         last_name: currentProfile.last_name || '',
         phone_number: formatPhoneNumberInput(currentProfile.phone_number || ''),
         cpf: formatCpfInput(currentProfile.cpf || ''),
+        birth_date: currentProfile.birth_date || '',
+        gender: currentProfile.gender || undefined,
         avatar_url: currentProfile.avatar_url || '',
       });
     }
@@ -141,6 +151,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           last_name: data.last_name,
           phone_number: cleanedPhoneNumber,
           cpf: cleanedCpf,
+          birth_date: data.birth_date,
+          gender: data.gender,
           avatar_url: data.avatar_url,
           updated_at: new Date().toISOString(),
         })
@@ -157,6 +169,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           last_name: data.last_name,
           phone_number: cleanedPhoneNumber,
           cpf: cleanedCpf,
+          birth_date: data.birth_date,
+          gender: data.gender,
           avatar_url: data.avatar_url,
         },
       });
@@ -237,6 +251,34 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
             {errors.cpf && <p className="col-span-4 text-red-500 text-xs text-right">{errors.cpf.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="birth_date" className="text-right">
+              Data de Nascimento
+            </Label>
+            <Input
+              id="birth_date"
+              type="date"
+              {...register('birth_date')}
+              className="col-span-3"
+            />
+            {errors.birth_date && <p className="col-span-4 text-red-500 text-xs text-right">{errors.birth_date.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="gender" className="text-right">
+              Gênero
+            </Label>
+            <Select onValueChange={(value) => setValue('gender', value as 'Masculino' | 'Feminino' | 'Outro', { shouldValidate: true })} value={genderValue}>
+              <SelectTrigger id="gender" className="col-span-3">
+                <SelectValue placeholder="Selecione o gênero" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Masculino">Masculino</SelectItem>
+                <SelectItem value="Feminino">Feminino</SelectItem>
+                <SelectItem value="Outro">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.gender && <p className="col-span-4 text-red-500 text-xs text-right">{errors.gender.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="avatar_url" className="text-right">
               URL Avatar
             </Label>
@@ -247,7 +289,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
             />
             {errors.avatar_url && <p className="col-span-4 text-red-500 text-xs text-right">{errors.avatar_url.message}</p>}
           </div>
-          <DialogFooter className="flex justify-between items-center"> {/* Ajustado para alinhar os botões */}
+          <DialogFooter className="flex justify-between items-center">
             <Button
               type="button"
               variant="outline"

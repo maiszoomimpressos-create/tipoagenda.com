@@ -22,7 +22,7 @@ const ProfilePage: React.FC = () => {
       setLoadingProfile(true);
       const { data, error } = await supabase
         .from('profiles')
-        .select('first_name, last_name, phone_number, cpf, avatar_url')
+        .select('first_name, last_name, phone_number, cpf, avatar_url, birth_date, gender')
         .eq('id', session.user.id)
         .single();
 
@@ -100,6 +100,14 @@ const ProfilePage: React.FC = () => {
             <div>
               <Label htmlFor="cpf_display" className="text-sm font-medium text-gray-700 dark:text-gray-300">CPF</Label>
               <Input id="cpf_display" value={profile.cpf ? `${profile.cpf.substring(0,3)}.${profile.cpf.substring(3,6)}.${profile.cpf.substring(6,9)}-${profile.cpf.substring(9)}` : 'N/A'} readOnly className="mt-1 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white" />
+            </div>
+            <div>
+              <Label htmlFor="birth_date_display" className="text-sm font-medium text-gray-700 dark:text-gray-300">Data de Nascimento</Label>
+              <Input id="birth_date_display" value={profile.birth_date || 'N/A'} readOnly className="mt-1 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white" />
+            </div>
+            <div>
+              <Label htmlFor="gender_display" className="text-sm font-medium text-gray-700 dark:text-gray-300">Gênero</Label>
+              <Input id="gender_display" value={profile.gender || 'N/A'} readOnly className="mt-1 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white" />
             </div>
           </div>
           <Button
