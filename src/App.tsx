@@ -10,12 +10,6 @@ import MainApplication from "./components/MainApplication"; // Import MainApplic
 
 const queryClient = new QueryClient();
 
-// Adicionando logs de depuração para variáveis de ambiente
-console.log('App.tsx - Conteúdo de import.meta.env:', import.meta.env);
-console.log('App.tsx - VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
-console.log('App.tsx - VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY);
-
-
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session, loading } = useSession();
 
