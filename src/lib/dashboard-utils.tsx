@@ -66,7 +66,7 @@ export const createFormField = (label: string, name: string, type = 'text', requ
         maxLength={500}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-24 resize-none"
         placeholder={`Digite ${label.toLowerCase()}...`}
-      />
+      ></textarea>
     ) : (
       <Input
         type={type}
