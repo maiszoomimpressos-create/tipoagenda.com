@@ -1525,9 +1525,9 @@ onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
 {/* Main content area (sidebar + main content) */}
 <div className="flex flex-1 pt-16"> {/* Adicionado padding-top para compensar o header fixo */}
 {activeSection !== 'landing' && (
-<aside className={`bg-gray-100 text-gray-800 transition-all duration-300 ${
+<aside className={`bg-gray-900 text-white transition-all duration-300 ${
 sidebarCollapsed ? 'w-16' : 'w-64'
-} min-h-full border-r border-gray-200`}>
+} min-h-full`}>
 <nav className="p-4">
 <ul className="space-y-2">
 {menuItems.map((item) => (
@@ -1536,8 +1536,8 @@ sidebarCollapsed ? 'w-16' : 'w-64'
 onClick={() => setActiveSection(item.id)}
 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
 activeSection === item.id
-? 'bg-yellow-700 text-white' // Active item: darker yellow background, white text
-: 'text-gray-700 hover:bg-gray-200 hover:text-gray-900' // Inactive item: dark gray text, light gray hover
+? 'bg-yellow-600 text-black'
+: 'text-gray-300 hover:bg-gray-800 hover:text-white'
 }`}
 >
 <i className={`${item.icon} text-lg`}></i>
