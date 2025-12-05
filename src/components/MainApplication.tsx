@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Link } from 'react-router-dom'; // Importar Link
 
 const MainApplication: React.FC = () => {
 const [activeSection, setActiveSection] = useState('landing');
@@ -1466,15 +1467,13 @@ default: return renderLanding();
 };
 
 return (
-<div className="min-h-screen bg-gray-50">
-{activeSection === 'landing' ? (
-renderContent()
-) : (
-<>
-{/* Header */}
+<div className="flex flex-col min-h-screen bg-gray-50">
+{/* Header Section - Always present */}
 <header className="bg-white border-b border-gray-200 px-6 py-4">
 <div className="flex items-center justify-between">
+{/* Left side of the header */}
 <div className="flex items-center gap-4">
+{activeSection !== 'landing' && (
 <Button
 variant="ghost"
 className="lg:hidden !rounded-button cursor-pointer"
@@ -1482,6 +1481,7 @@ onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
 >
 <i className="fas fa-bars"></i>
 </Button>
+)}
 <div className="flex items-center gap-3">
 <div className="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center">
 <i className="fas fa-calendar-alt text-white"></i>
@@ -1489,6 +1489,22 @@ onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
 <h1 className="text-xl font-bold text-gray-900">AgendaFácil</h1>
 </div>
 </div>
+
+{/* Right side of the header */}
+{activeSection === 'landing' ? (
+<div className="flex items-center gap-3">
+<Link to="/login">
+<Button variant="ghost" className="!rounded-button whitespace-nowrap text-gray-700 hover:bg-gray-100">
+Login
+</Button>
+</Link>
+<Link to="/signup">
+<Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
+Cadastrar
+</Button>
+</Link>
+</div>
+) : (
 <div className="flex items-center gap-4">
 <Button variant="ghost" className="!rounded-button cursor-pointer relative">
 <i className="fas fa-bell text-gray-600"></i>
@@ -1498,13 +1514,16 @@ onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
 <AvatarFallback className="bg-gray-200 text-gray-700">AD</AvatarFallback>
 </Avatar>
 </div>
+)}
 </div>
 </header>
-<div className="flex">
-{/* Sidebar */}
+
+{/* Main content area (sidebar + main content) */}
+<div className="flex flex-1">
+{activeSection !== 'landing' && (
 <aside className={`bg-gray-900 text-white transition-all duration-300 ${
 sidebarCollapsed ? 'w-16' : 'w-64'
-} min-h-screen`}>
+} min-h-full`}>
 <nav className="p-4">
 <ul className="space-y-2">
 {menuItems.map((item) => (
@@ -1527,13 +1546,11 @@ activeSection === item.id
 </ul>
 </nav>
 </aside>
-{/* Main Content */}
+)}
 <main className="flex-1 p-6">
 {renderContent()}
 </main>
 </div>
-</>
-)}
 </div>
 );
 };
