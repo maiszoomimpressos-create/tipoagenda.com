@@ -5,16 +5,54 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+// Esquema de validação com Zod
+const signupSchema = z.object({
+  firstName: z.string().min(1, "Nome é obrigatório."),
+  lastName: z.string().min(1, "Sobrenome é obrigatório."),
+  email: z.string().email("E-mail inválido."),
+  phoneNumber: z.string()
+    .min(1, "Número de telefone é obrigatório.")
+    .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
+  cpf: z.string()
+    .min(1, "CPF é obrigatório.")
+    .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Formato de CPF inválido (ex: XXX.XXX.XXX-XX)"),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "As senhas não coincidem.",
+  path: ["confirmPassword"],
+});
+
+type SignupFormValues = z.infer<typeof signupSchema>;
 
 const SignupForm: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [cpf, setCpf] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<SignupFormValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      phoneNumber: '',
+      cpf: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const phoneNumberValue = watch('phoneNumber');
+  const cpfValue = watch('cpf');
 
   const formatPhoneNumberInput = (value: string) => {
     if (!value) return '';
@@ -49,22 +87,18 @@ const SignupForm: React.FC = () => {
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatPhoneNumberInput(e.target.value);
-    setPhoneNumber(formattedValue);
+    setValue('phoneNumber', formattedValue, { shouldValidate: true });
   };
 
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatCpfInput(e.target.value);
-    setCpf(formattedValue);
+    setValue('cpf', formattedValue, { shouldValidate: true });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      showError('As senhas não coincidem.');
-      return;
-    }
-
+  const onSubmit = async (data: SignupFormValues) => {
     setLoading(true);
+    const { email, password, firstName, lastName, phoneNumber, cpf } = data;
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -86,7 +120,7 @@ const SignupForm: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="first-name">Nome</Label>
@@ -94,11 +128,10 @@ const SignupForm: React.FC = () => {
             id="first-name"
             type="text"
             placeholder="Seu nome"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            required
+            {...register('firstName')}
             className="mt-1"
           />
+          {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName.message}</p>}
         </div>
         <div>
           <Label htmlFor="last-name">Sobrenome</Label>
@@ -106,11 +139,10 @@ const SignupForm: React.FC = () => {
             id="last-name"
             type="text"
             placeholder="Seu sobrenome"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            required
+            {...register('lastName')}
             className="mt-1"
           />
+          {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName.message}</p>}
         </div>
       </div>
       <div>
@@ -119,11 +151,10 @@ const SignupForm: React.FC = () => {
           id="email"
           type="email"
           placeholder="seu@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
+          {...register('email')}
           className="mt-1"
         />
+        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
       </div>
       <div>
         <Label htmlFor="phone-number">Número de Telefone</Label>
@@ -131,12 +162,12 @@ const SignupForm: React.FC = () => {
           id="phone-number"
           type="tel"
           placeholder="(XX) XXXXX-XXXX"
-          value={phoneNumber}
+          value={phoneNumberValue}
           onChange={handlePhoneNumberChange}
           maxLength={15}
-          required
           className="mt-1"
         />
+        {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber.message}</p>}
       </div>
       <div>
         <Label htmlFor="cpf">CPF</Label>
@@ -144,12 +175,12 @@ const SignupForm: React.FC = () => {
           id="cpf"
           type="text"
           placeholder="XXX.XXX.XXX-XX"
-          value={cpf}
+          value={cpfValue}
           onChange={handleCpfChange}
           maxLength={14}
-          required
           className="mt-1"
         />
+        {errors.cpf && <p className="text-red-500 text-xs mt-1">{errors.cpf.message}</p>}
       </div>
       <div>
         <Label htmlFor="password">Crie uma senha</Label>
@@ -157,11 +188,10 @@ const SignupForm: React.FC = () => {
           id="password"
           type="password"
           placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
+          {...register('password')}
           className="mt-1"
         />
+        {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
       </div>
       <div>
         <Label htmlFor="confirm-password">Confirme a senha</Label>
@@ -169,11 +199,10 @@ const SignupForm: React.FC = () => {
           id="confirm-password"
           type="password"
           placeholder="••••••••"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
+          {...register('confirmPassword')}
           className="mt-1"
         />
+        {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>}
       </div>
       <Button
         type="submit"
