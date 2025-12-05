@@ -3,7 +3,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider, useSession } from "./components/SessionContextProvider";
@@ -36,14 +35,10 @@ const App = () => (
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <MainApplication />
-                </ProtectedRoute>
-              }
-            />
+            {/* A Landing Page (parte do MainApplication) será a página de entrada sem proteção */}
+            <Route path="/" element={<MainApplication />} />
+            {/* Exemplo de rota protegida, caso você queira adicionar mais tarde */}
+            {/* <Route path="/dashboard-protected" element={<ProtectedRoute><SomeProtectedComponent /></ProtectedRoute>} /> */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
