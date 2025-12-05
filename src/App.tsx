@@ -6,10 +6,21 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider, useSession } from "./components/SessionContextProvider";
-import MainApplication from "./components/MainApplication"; // Import MainApplication
-import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
-import LandingPage from "./pages/LandingPage"; // Import LandingPage
-import CompanyRegistrationPage from "./pages/CompanyRegistrationPage"; // Import CompanyRegistrationPage
+import MainApplication from "./components/MainApplication";
+import ProfilePage from "./pages/ProfilePage";
+import LandingPage from "./pages/LandingPage";
+import CompanyRegistrationPage from "./pages/CompanyRegistrationPage";
+import DashboardPage from "./pages/DashboardPage";
+import AgendamentosPage from "./pages/AgendamentosPage";
+import ClientesPage from "./pages/ClientesPage";
+import ColaboradoresPage from "./pages/ColaboradoresPage";
+import FinanceiroPage from "./pages/FinanceiroPage";
+import EstoquePage from "./pages/EstoquePage";
+import RelatoriosPage from "./pages/RelatoriosPage";
+import FidelidadePage from "./pages/FidelidadePage";
+import NovoAgendamentoPage from "./pages/NovoAgendamentoPage";
+import NovoClientePage from "./pages/NovoClientePage";
+import FecharCaixaPage from "./pages/FecharCaixaPage";
 
 const queryClient = new QueryClient();
 
@@ -35,7 +46,7 @@ const App = () => (
       <BrowserRouter>
         <SessionContextProvider>
           <Routes>
-            {/* Rotas de autenticação (sem layout) */}
+            {/* Rotas de autenticação (sem layout MainApplication) */}
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
@@ -43,12 +54,23 @@ const App = () => (
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
               <Route index element={<LandingPage />} /> {/* Landing Page como rota index */}
-              <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Rota protegida para o perfil */}
-              <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} /> {/* Nova rota protegida para cadastro de empresa */}
-              {/* Adicione outras rotas da aplicação aqui, por exemplo: */}
-              {/* <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} /> */}
-              {/* <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} /> */}
-              {/* ... e assim por diante para cada item do menu */}
+              <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
+              
+              {/* Rotas do Dashboard (protegidas) */}
+              <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+              <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
+              <Route path="clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
+              <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
+              <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
+              <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
+              <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
+              <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
+
+              {/* Rotas de formulários específicos (protegidos) */}
+              <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
+              <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
+              <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
