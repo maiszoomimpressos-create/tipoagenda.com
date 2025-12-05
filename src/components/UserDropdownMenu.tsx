@@ -53,6 +53,10 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-user mr-2"></i>
           Meu Perfil
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/register-company')}> {/* Novo item de menu */}
+          <i className="fas fa-building mr-2"></i> {/* Ícone de empresa */}
+          Cadast. Empresa
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate('/settings')}>
           <i className="fas fa-cog mr-2"></i>
           Configurações

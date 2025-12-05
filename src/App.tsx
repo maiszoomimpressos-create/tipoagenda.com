@@ -9,6 +9,7 @@ import { SessionContextProvider, useSession } from "./components/SessionContextP
 import MainApplication from "./components/MainApplication"; // Import MainApplication
 import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
 import LandingPage from "./pages/LandingPage"; // Import LandingPage
+import CompanyRegistrationPage from "./pages/CompanyRegistrationPage"; // Import CompanyRegistrationPage
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/" element={<MainApplication />}>
               <Route index element={<LandingPage />} /> {/* Landing Page como rota index */}
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Rota protegida para o perfil */}
+              <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} /> {/* Nova rota protegida para cadastro de empresa */}
               {/* Adicione outras rotas da aplicação aqui, por exemplo: */}
               {/* <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} /> */}
               {/* <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} /> */}
