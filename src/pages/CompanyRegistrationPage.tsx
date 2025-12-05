@@ -30,7 +30,7 @@ const CompanyRegistrationPage: React.FC = () => {
             Esta é a página de cadastro da sua empresa. Em breve, você poderá adicionar todos os detalhes do seu negócio aqui!
           </p>
           <Button asChild className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-            <Link to="/">Ir para a Página Inicial</Link>
+            <Link to="/dashboard">Ir para Dashboard</Link>
           </Button>
           <Button className="w-full !rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white">
             <i className="fas fa-building mr-2"></i> {/* Ícone de empresa */}
