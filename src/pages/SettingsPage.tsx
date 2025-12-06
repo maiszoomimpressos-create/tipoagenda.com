@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import ContractList from '@/components/ContractList'; // Import the new component
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -44,20 +45,21 @@ const SettingsPage: React.FC = () => {
         </Card>
 
         <Card className="border-gray-200">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-gray-900">Gerenciamento de Contratos</CardTitle>
+            <Button
+              className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+              onClick={() => navigate('/settings/new-contract')}
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Novo Contrato
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-gray-700">
               Crie e gerencie modelos de contratos para sua empresa.
             </p>
-            <Button
-              className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
-              onClick={() => navigate('/settings/new-contract')}
-            >
-              <i className="fas fa-file-contract mr-2"></i>
-              Cadastrar Novo Contrato
-            </Button>
+            <ContractList /> {/* Render the ContractList component here */}
           </CardContent>
         </Card>
       </div>

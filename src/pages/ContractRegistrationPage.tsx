@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,10 +25,12 @@ const ContractRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
+  const { contractId } = useParams<{ contractId: string }>(); // Get contractId from URL
 
   const {
     register,
     handleSubmit,
+    reset, // Use reset to set form values
     formState: { errors },
   } = useForm<ContractFormValues>({
     resolver: zodResolver(contractSchema),
@@ -38,31 +40,77 @@ const ContractRegistrationPage: React.FC = () => {
     },
   });
 
+  const fetchContract = useCallback(async () => {
+    if (contractId) {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('contract_name, contract_content')
+        .eq('id', contractId)
+        .single();
+
+      if (error) {
+        showError('Erro ao carregar contrato: ' + error.message);
+        console.error('Error fetching contract:', error);
+        navigate('/settings'); // Redirect if contract not found or error
+      } else if (data) {
+        reset({
+          contractName: data.contract_name,
+          contractContent: data.contract_content,
+        });
+      }
+      setLoading(false);
+    }
+  }, [contractId, reset, navigate]);
+
+  useEffect(() => {
+    fetchContract();
+  }, [fetchContract]);
+
   const onSubmit = async (data: ContractFormValues) => {
     setLoading(true);
     if (!session?.user) {
-      showError('Você precisa estar logado para cadastrar um contrato.');
+      showError('Você precisa estar logado para cadastrar/atualizar um contrato.');
       setLoading(false);
       return;
     }
 
-    const { error } = await supabase
-      .from('contracts')
-      .insert({
-        user_id: session.user.id,
-        contract_name: data.contractName,
-        contract_content: data.contractContent,
-      });
+    let error;
+    if (contractId) {
+      // Update existing contract
+      const { error: updateError } = await supabase
+        .from('contracts')
+        .update({
+          contract_name: data.contractName,
+          contract_content: data.contractContent,
+        })
+        .eq('id', contractId)
+        .eq('user_id', session.user.id); // Ensure user can only update their own contracts
+      error = updateError;
+    } else {
+      // Insert new contract
+      const { error: insertError } = await supabase
+        .from('contracts')
+        .insert({
+          user_id: session.user.id,
+          contract_name: data.contractName,
+          contract_content: data.contractContent,
+        });
+      error = insertError;
+    }
 
     if (error) {
-      showError('Erro ao cadastrar contrato: ' + error.message);
-      console.error('Error inserting contract:', error);
+      showError('Erro ao ' + (contractId ? 'atualizar' : 'cadastrar') + ' contrato: ' + error.message);
+      console.error('Error saving contract:', error);
     } else {
-      showSuccess('Contrato cadastrado com sucesso!');
+      showSuccess('Contrato ' + (contractId ? 'atualizado' : 'cadastrado') + ' com sucesso!');
       navigate('/settings'); // Go back to settings page
     }
     setLoading(false);
   };
+
+  const pageTitle = contractId ? 'Editar Contrato' : 'Cadastrar Novo Contrato';
+  const buttonText = contractId ? 'Salvar Alterações' : 'Salvar Contrato';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
@@ -77,10 +125,10 @@ const ContractRegistrationPage: React.FC = () => {
             Voltar
           </Button>
           <CardTitle className="text-3xl font-extrabold text-gray-900 dark:text-white mt-8">
-            Cadastrar Novo Contrato
+            {pageTitle}
           </CardTitle>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Preencha os detalhes do novo modelo de contrato.
+            Preencha os detalhes do contrato.
           </p>
         </CardHeader>
         <CardContent>
@@ -105,14 +153,14 @@ const ContractRegistrationPage: React.FC = () => {
                 rows={10}
                 className="mt-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
               />
-              {errors.contractContent && <p className="text-red-500 text-xs mt-1">{errors.contractContent.message}</p>}
+              {errors.contractContent && <p className="col-span-4 text-red-500 text-xs mt-1">{errors.contractContent.message}</p>}
             </div>
             <Button
               type="submit"
               className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base"
               disabled={loading}
             >
-              {loading ? 'Cadastrando...' : 'Salvar Contrato'}
+              {loading ? (contractId ? 'Salvando...' : 'Cadastrando...') : buttonText}
             </Button>
           </form>
         </CardContent>

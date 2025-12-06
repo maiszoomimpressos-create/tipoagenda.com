@@ -22,8 +22,9 @@ import NovoAgendamentoPage from "./pages/NovoAgendamentoPage";
 import NovoClientePage from "./pages/NovoClientePage";
 import FecharCaixaPage from "./pages/FecharCaixaPage";
 import SettingsPage from "./pages/SettingsPage";
-import ContractRegistrationPage from "./pages/ContractRegistrationPage"; // Import the new ContractRegistrationPage
+import ContractRegistrationPage from "./pages/ContractRegistrationPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
+import ContractList from "./components/ContractList"; // Import ContractList
 
 const queryClient = new QueryClient();
 
@@ -92,7 +93,8 @@ const App = () => (
 
               {/* Rotas de Administrador (protegidas por AdminProtectedRoute) */}
               <Route path="settings" element={<AdminProtectedRoute><SettingsPage /></AdminProtectedRoute>} />
-              <Route path="settings/new-contract" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} /> {/* New route */}
+              <Route path="settings/new-contract" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
+              <Route path="settings/edit-contract/:contractId" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} /> {/* New route for editing */}
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
