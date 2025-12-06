@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { validateCnpj, formatCnpjInput, formatZipCodeInput } from '@/utils/validation'; // Import validation utilities
+import ContractAcceptanceModal from '@/components/ContractAcceptanceModal'; // Import the new modal
 
 // Zod schema for company registration
 const companySchema = z.object({
@@ -40,9 +41,9 @@ const companySchema = z.object({
   city: z.string().min(1, "Cidade é obrigatória."),
   state: z.string().min(1, "Estado é obrigatório."),
   company_logo: z.any()
-    .refine((files) => files?.length > 0, "Logo da empresa é obrigatória.") // Now mandatory
-    .refine((files) => files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
-    .refine((files) => ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`),
+    .refine((files) => !files || files.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
+    .refine((files) => !files || files.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
+    .optional(), // Made optional
 });
 
 type CompanyFormValues = z.infer<typeof companySchema>;
@@ -52,6 +53,10 @@ const CompanyRegistrationPage: React.FC = () => {
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
   const [proprietarioRoleId, setProprietarioRoleId] = useState<number | null>(null);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [latestContract, setLatestContract] = useState<{ id: string; contract_name: string; contract_content: string } | null>(null);
+  const [pendingCompanyData, setPendingCompanyData] = useState<CompanyFormValues | null>(null);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
 
   const {
     register,
@@ -85,21 +90,37 @@ const CompanyRegistrationPage: React.FC = () => {
   const phoneNumberValue = watch('phone_number');
 
   useEffect(() => {
-    const fetchProprietarioRoleId = async () => {
-      const { data, error } = await supabase
+    const fetchInitialData = async () => {
+      // Fetch Proprietário role ID
+      const { data: roleData, error: roleError } = await supabase
         .from('role_types')
         .select('id')
         .eq('description', 'Proprietário')
         .single();
 
-      if (error) {
-        console.error('Error fetching Proprietário role ID:', error);
+      if (roleError) {
+        console.error('Error fetching Proprietário role ID:', roleError);
         showError('Erro ao carregar ID do papel de Proprietário.');
-      } else if (data) {
-        setProprietarioRoleId(data.id);
+      } else if (roleData) {
+        setProprietarioRoleId(roleData.id);
+      }
+
+      // Fetch the latest contract
+      const { data: contractData, error: contractError } = await supabase
+        .from('contracts')
+        .select('id, contract_name, contract_content')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (contractError && contractError.code !== 'PGRST116') { // PGRST116 means no rows found
+        console.error('Error fetching latest contract:', contractError);
+        showError('Erro ao carregar o contrato mais recente.');
+      } else if (contractData) {
+        setLatestContract(contractData);
       }
     };
-    fetchProprietarioRoleId();
+    fetchInitialData();
   }, []);
 
   const formatPhoneNumberInput = (value: string) => {
@@ -132,7 +153,7 @@ const CompanyRegistrationPage: React.FC = () => {
     setValue('zip_code', formattedValue, { shouldValidate: true });
   };
 
-  const onSubmit = async (data: CompanyFormValues) => {
+  const handleFormSubmit = async (data: CompanyFormValues) => {
     setLoading(true);
     if (!session?.user) {
       showError('Você precisa estar logado para registrar uma empresa.');
@@ -140,8 +161,8 @@ const CompanyRegistrationPage: React.FC = () => {
       return;
     }
 
-    if (proprietarioRoleId === null) {
-      showError('Não foi possível encontrar o ID do papel de Proprietário. Tente novamente.');
+    if (!latestContract) {
+      showError('Nenhum contrato disponível para aceite. Por favor, contate o suporte.');
       setLoading(false);
       return;
     }
@@ -174,32 +195,48 @@ const CompanyRegistrationPage: React.FC = () => {
       
       imageUrl = publicUrlData.publicUrl;
     }
+    
+    setPendingCompanyData(data);
+    setPendingImageUrl(imageUrl);
+    setIsContractModalOpen(true);
+    setLoading(false); // Release loading for the form, modal will handle its own loading
+  };
+
+  const handleAcceptAndRegister = async () => {
+    setLoading(true); // Set loading for the modal action
+    if (!session?.user || !pendingCompanyData || !latestContract || proprietarioRoleId === null) {
+      showError('Erro interno: dados incompletos para o cadastro da empresa.');
+      setLoading(false);
+      return;
+    }
 
     // Clean CNPJ, CEP and Phone Number for database storage
-    const cleanedCnpj = data.cnpj.replace(/\D/g, '');
-    const cleanedZipCode = data.zip_code.replace(/\D/g, '');
-    const cleanedPhoneNumber = data.phone_number.replace(/\D/g, '');
+    const cleanedCnpj = pendingCompanyData.cnpj.replace(/\D/g, '');
+    const cleanedZipCode = pendingCompanyData.zip_code.replace(/\D/g, '');
+    const cleanedPhoneNumber = pendingCompanyData.phone_number.replace(/\D/g, '');
 
     // Insert company data into Supabase
     const { data: companyData, error: insertError } = await supabase
       .from('companies')
       .insert({
-        name: data.name, // Fantasia
-        razao_social: data.razao_social,
+        name: pendingCompanyData.name, // Fantasia
+        razao_social: pendingCompanyData.razao_social,
         cnpj: cleanedCnpj,
-        ie: data.ie,
-        company_email: data.company_email,
-        phone_number: cleanedPhoneNumber, // New field
-        segment_type: data.segment_type,
-        address: data.address,
-        number: data.number,
-        neighborhood: data.neighborhood,
-        complement: data.complement,
+        ie: pendingCompanyData.ie,
+        company_email: pendingCompanyData.company_email,
+        phone_number: cleanedPhoneNumber,
+        segment_type: pendingCompanyData.segment_type,
+        address: pendingCompanyData.address,
+        number: pendingCompanyData.number,
+        neighborhood: pendingCompanyData.neighborhood,
+        complement: pendingCompanyData.complement,
         zip_code: cleanedZipCode,
-        city: data.city,
-        state: data.state,
+        city: pendingCompanyData.city,
+        state: pendingCompanyData.state,
         user_id: session.user.id,
-        image_url: imageUrl,
+        image_url: pendingImageUrl,
+        contract_accepted: true, // Mark as accepted
+        accepted_contract_id: latestContract.id, // Link to the accepted contract
       })
       .select()
       .single();
@@ -239,6 +276,9 @@ const CompanyRegistrationPage: React.FC = () => {
     }
 
     showSuccess('Empresa cadastrada com sucesso e você foi definido como proprietário!');
+    setIsContractModalOpen(false);
+    setPendingCompanyData(null);
+    setPendingImageUrl(null);
     navigate('/dashboard'); // Redirect to dashboard after successful registration
     setLoading(false);
   };
@@ -288,7 +328,7 @@ const CompanyRegistrationPage: React.FC = () => {
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="razao_social" className="text-sm font-medium text-gray-700 dark:text-gray-300">Razão Social *</Label>
@@ -479,7 +519,7 @@ const CompanyRegistrationPage: React.FC = () => {
             </div>
 
             <div>
-              <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Logo da Empresa *</Label>
+              <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Logo da Empresa (opcional)</Label>
               <Input
                 id="company_logo"
                 type="file"
@@ -495,11 +535,26 @@ const CompanyRegistrationPage: React.FC = () => {
               className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base"
               disabled={loading}
             >
-              {loading ? 'Cadastrando...' : 'Cadastrar Empresa'}
+              {loading ? 'Preparando...' : 'Cadastrar Empresa'}
             </Button>
           </form>
         </CardContent>
       </Card>
+
+      {latestContract && (
+        <ContractAcceptanceModal
+          isOpen={isContractModalOpen}
+          onClose={() => {
+            setIsContractModalOpen(false);
+            setPendingCompanyData(null);
+            setPendingImageUrl(null);
+            setLoading(false); // Ensure main form loading is reset if modal is closed
+          }}
+          contract={latestContract}
+          onAccept={handleAcceptAndRegister}
+          loading={loading}
+        />
+      )}
     </div>
   );
 };
