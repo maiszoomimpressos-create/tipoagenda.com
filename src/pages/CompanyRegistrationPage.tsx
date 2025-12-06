@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +51,7 @@ const CompanyRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [proprietarioRoleId, setProprietarioRoleId] = useState<number | null>(null);
 
   const {
     register,
@@ -82,6 +83,24 @@ const CompanyRegistrationPage: React.FC = () => {
   const cnpjValue = watch('cnpj');
   const zipCodeValue = watch('zip_code');
   const phoneNumberValue = watch('phone_number');
+
+  useEffect(() => {
+    const fetchProprietarioRoleId = async () => {
+      const { data, error } = await supabase
+        .from('role_types')
+        .select('id')
+        .eq('description', 'Proprietário')
+        .single();
+
+      if (error) {
+        console.error('Error fetching Proprietário role ID:', error);
+        showError('Erro ao carregar ID do papel de Proprietário.');
+      } else if (data) {
+        setProprietarioRoleId(data.id);
+      }
+    };
+    fetchProprietarioRoleId();
+  }, []);
 
   const formatPhoneNumberInput = (value: string) => {
     if (!value) return '';
@@ -117,6 +136,12 @@ const CompanyRegistrationPage: React.FC = () => {
     setLoading(true);
     if (!session?.user) {
       showError('Você precisa estar logado para registrar uma empresa.');
+      setLoading(false);
+      return;
+    }
+
+    if (proprietarioRoleId === null) {
+      showError('Não foi possível encontrar o ID do papel de Proprietário. Tente novamente.');
       setLoading(false);
       return;
     }
@@ -190,7 +215,7 @@ const CompanyRegistrationPage: React.FC = () => {
       const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
         p_user_id: session.user.id,
         p_company_id: companyData.id,
-        p_role_type: 'Proprietário' // Assuming 'Proprietário' is a valid role_type description
+        p_role_type_id: proprietarioRoleId // Pass the ID here
       });
 
       if (assignRoleError) {
@@ -203,7 +228,7 @@ const CompanyRegistrationPage: React.FC = () => {
       const { error: setPrimaryError } = await supabase.rpc('set_primary_company_role', {
         p_user_id: session.user.id,
         p_company_id: companyData.id,
-        p_role_type: 'Proprietário'
+        p_role_type_id: proprietarioRoleId // Pass the ID here
       });
 
       if (setPrimaryError) {
@@ -460,22 +485,7 @@ const CompanyRegistrationPage: React.FC = () => {
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 {...register('company_logo')}
-                className="mt-2 
-                  file:text-sm 
-                  file:font-semibold 
-                  file:bg-yellow-600 
-                  file:text-black 
-                  file:border-none 
-                  file:rounded-button 
-                  file:px-4 
-                  file:py-2 
-                  file:mr-4 
-                  hover:file:bg-yellow-700 
-                  dark:file:bg-yellow-700 
-                  dark:file:text-black 
-                  dark:text-gray-300 
-                  dark:border-gray-600
-                  cursor-pointer" // Adicionado cursor-pointer para indicar clicável
+                className="mt-2 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700 dark:file:bg-yellow-700 dark:file:text-black dark:text-gray-300 dark:border-gray-600"
               />
               {errors.company_logo && <p className="text-red-500 text-xs mt-1">{errors.company_logo.message}</p>}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
