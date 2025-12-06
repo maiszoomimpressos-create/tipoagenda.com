@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import ContractList from '@/components/ContractList'; // Import the new component
+import ContractList from '@/components/ContractList';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -59,7 +59,26 @@ const SettingsPage: React.FC = () => {
             <p className="text-gray-700">
               Crie e gerencie modelos de contratos para sua empresa.
             </p>
-            <ContractList /> {/* Render the ContractList component here */}
+            <ContractList />
+          </CardContent>
+        </Card>
+
+        {/* New Card for Segment Management */}
+        <Card className="border-gray-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-gray-900">Gerenciamento de Segmentos</CardTitle>
+            <Button
+              className="!rounded-button whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => navigate('/settings/segments')}
+            >
+              <i className="fas fa-tags mr-2"></i>
+              Gerenciar Segmentos
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-700">
+              Defina e organize os tipos de segmentos para as empresas cadastradas.
+            </p>
           </CardContent>
         </Card>
       </div>
