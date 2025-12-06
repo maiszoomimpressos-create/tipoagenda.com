@@ -21,8 +21,9 @@ import FidelidadePage from "./pages/FidelidadePage";
 import NovoAgendamentoPage from "./pages/NovoAgendamentoPage";
 import NovoClientePage from "./pages/NovoClientePage";
 import FecharCaixaPage from "./pages/FecharCaixaPage";
-import SettingsPage from "./pages/SettingsPage"; // Import the new SettingsPage
-import { useIsAdmin } from "./hooks/useIsAdmin"; // Import the new hook
+import SettingsPage from "./pages/SettingsPage";
+import ContractRegistrationPage from "./pages/ContractRegistrationPage"; // Import the new ContractRegistrationPage
+import { useIsAdmin } from "./hooks/useIsAdmin";
 
 const queryClient = new QueryClient();
 
@@ -42,14 +43,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAdmin, loadingAdminCheck } = useIsAdmin();
-  const { loading: sessionLoading } = useSession(); // Also check session loading
+  const { loading: sessionLoading } = useSession();
 
   if (sessionLoading || loadingAdminCheck) {
     return <div className="min-h-screen flex items-center justify-center">Verificando permissões...</div>;
   }
 
   if (!isAdmin) {
-    // Redirect to dashboard or show an unauthorized message
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -71,7 +71,7 @@ const App = () => (
 
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
-              <Route index element={<LandingPage />} /> {/* Landing Page como rota index */}
+              <Route index element={<LandingPage />} />
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               
@@ -90,8 +90,9 @@ const App = () => (
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
 
-              {/* Nova rota de Configurações do Administrador (protegida por AdminProtectedRoute) */}
+              {/* Rotas de Administrador (protegidas por AdminProtectedRoute) */}
               <Route path="settings" element={<AdminProtectedRoute><SettingsPage /></AdminProtectedRoute>} />
+              <Route path="settings/new-contract" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} /> {/* New route */}
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

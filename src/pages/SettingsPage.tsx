@@ -20,7 +20,7 @@ const SettingsPage: React.FC = () => {
         </Button>
         <h1 className="text-3xl font-bold text-gray-900">Configurações do Administrador</h1>
       </div>
-      <div className="max-w-4xl">
+      <div className="max-w-4xl space-y-6">
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900">Gerenciamento de Usuários e Empresas</CardTitle>
@@ -39,6 +39,24 @@ const SettingsPage: React.FC = () => {
             <Button className="!rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white">
               <i className="fas fa-users-cog mr-2"></i>
               Ir para Gerenciamento
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900">Gerenciamento de Contratos</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-700">
+              Crie e gerencie modelos de contratos para sua empresa.
+            </p>
+            <Button
+              className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+              onClick={() => navigate('/settings/new-contract')}
+            >
+              <i className="fas fa-file-contract mr-2"></i>
+              Cadastrar Novo Contrato
             </Button>
           </CardContent>
         </Card>
