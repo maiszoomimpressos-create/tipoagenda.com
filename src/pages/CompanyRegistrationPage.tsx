@@ -118,42 +118,43 @@ const CompanyRegistrationPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
-        <CardHeader className="relative flex flex-row items-center justify-center">
-          <div className="flex flex-col items-center w-full">
-            <Button
-              variant="ghost"
-              className="absolute left-0 top-0 !rounded-button whitespace-nowrap"
-              onClick={() => navigate(-1)}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-            <CardTitle className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Cadastro de Empresa
-            </CardTitle>
-          </div>
+      <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8">
+        <CardHeader className="relative text-center pb-6">
+          <Button
+            variant="ghost"
+            className="absolute left-0 top-0 !rounded-button whitespace-nowrap text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            onClick={() => navigate(-1)}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
+          <CardTitle className="text-3xl font-extrabold text-gray-900 dark:text-white mt-8">
+            Cadastre Sua Empresa
+          </CardTitle>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Preencha os dados para registrar sua empresa na plataforma.
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
-              <Label htmlFor="name">Nome da Empresa</Label>
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome da Empresa</Label>
               <Input
                 id="name"
                 type="text"
                 placeholder="Nome da sua empresa"
                 {...register('name')}
-                className="mt-1"
+                className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
               />
               {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
             </div>
             <div>
-              <Label htmlFor="segment_type">Segmento</Label>
+              <Label htmlFor="segment_type" className="text-sm font-medium text-gray-700 dark:text-gray-300">Segmento</Label>
               <Select onValueChange={(value) => setValue('segment_type', value, { shouldValidate: true })} value={segmentTypeValue}>
-                <SelectTrigger id="segment_type" className="mt-1">
+                <SelectTrigger id="segment_type" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
                   <SelectValue placeholder="Selecione o segmento da empresa" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="dark:bg-gray-700 dark:text-white">
                   {segmentOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -164,20 +165,20 @@ const CompanyRegistrationPage: React.FC = () => {
               {errors.segment_type && <p className="text-red-500 text-xs mt-1">{errors.segment_type.message}</p>}
             </div>
             <div>
-              <Label htmlFor="company_logo">Logo da Empresa (opcional)</Label>
+              <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Logo da Empresa (opcional)</Label>
               <Input
                 id="company_logo"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 {...register('company_logo')}
-                className="mt-1 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700"
+                className="mt-2 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700 dark:file:bg-yellow-700 dark:file:text-black dark:text-gray-300 dark:border-gray-600"
               />
               {errors.company_logo && <p className="text-red-500 text-xs mt-1">{errors.company_logo.message}</p>}
-              <p className="text-xs text-gray-500 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
             </div>
             <Button
               type="submit"
-              className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+              className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base"
               disabled={loading}
             >
               {loading ? 'Cadastrando...' : 'Cadastrar Empresa'}
