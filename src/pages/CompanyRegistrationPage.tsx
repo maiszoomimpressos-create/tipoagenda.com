@@ -39,7 +39,7 @@ const companySchema = z.object({
     .min(1, "CEP é obrigatório.")
     .regex(/^\d{5}-\d{3}$/, "Formato de CEP inválido (ex: XXXXX-XXX)"),
   city: z.string().min(1, "Cidade é obrigatória."),
-  state: z.string().min(1, "Estado é obrigatório."),
+  state: z.string().min(1, "Estado é obrigatória."),
   company_logo: z.any()
     .refine((files) => !files || files.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
     .refine((files) => !files || files.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
@@ -118,7 +118,7 @@ const CompanyRegistrationPage: React.FC = () => {
         setProprietarioRoleId(roleData.id);
       }
 
-      // Fetch the latest contract
+      // Fetch the latest contract (GLOBAL ACCESS - no user_id filter)
       const { data: contractData, error: contractError } = await supabase
         .from('contracts')
         .select('id, contract_name, contract_content')
@@ -126,11 +126,13 @@ const CompanyRegistrationPage: React.FC = () => {
         .limit(1)
         .single();
 
-      if (contractError && contractError.code !== 'PGRST116') {
+      if (contractError && contractError.code !== 'PGRST116') { // PGRST116 is "No rows found"
         console.error('Error fetching latest contract:', contractError);
         showError('Erro ao carregar o contrato mais recente.');
       } else if (contractData) {
         setLatestContract(contractData);
+      } else {
+        setLatestContract(null); // Explicitly set to null if no contracts found
       }
 
       // Fetch segment types from the database (GLOBAL ACCESS)
@@ -193,7 +195,6 @@ const CompanyRegistrationPage: React.FC = () => {
         if (data.erro) {
           showError('CEP não encontrado.');
           clearAddressFields();
-          setIsAddressFieldsDisabled(false); // Keep fields enabled for manual input
           setError('zip_code', { type: 'manual', message: 'CEP não encontrado.' });
         } else {
           setValue('address', data.logradouro || '');
@@ -201,20 +202,16 @@ const CompanyRegistrationPage: React.FC = () => {
           setValue('city', data.localidade || '');
           setValue('state', data.uf || '');
           clearErrors(['address', 'neighborhood', 'city', 'state', 'zip_code']);
-          setIsAddressFieldsDisabled(false); // Keep fields enabled for manual input
           showSuccess('Endereço preenchido automaticamente!');
         }
       } catch (error) {
         console.error('Erro ao buscar CEP:', error);
         showError('Erro ao buscar CEP. Tente novamente.');
         clearAddressFields();
-        setIsAddressFieldsDisabled(false); // Keep fields enabled for manual input
       } finally {
         setLoading(false);
       }
     } else if (cleanedCep.length < 8) {
-      // If CEP is incomplete, re-enable fields and clear errors
-      setIsAddressFieldsDisabled(false);
       clearErrors('zip_code');
     }
   };
@@ -235,7 +232,7 @@ const CompanyRegistrationPage: React.FC = () => {
     }
 
     if (!latestContract) {
-      showError('Nenhum contrato disponível para aceite. Por favor, contate o suporte.');
+      showError('Nenhum contrato disponível para aceite. Um administrador precisa criar um contrato nas configurações.');
       setLoading(false);
       return;
     }
