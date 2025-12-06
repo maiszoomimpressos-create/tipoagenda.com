@@ -59,6 +59,7 @@ const CompanyRegistrationPage: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [segmentOptions, setSegmentOptions] = useState<{ value: string; label: string }[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
+  // isAddressFieldsDisabled will no longer disable fields, but can still be used for internal logic if needed
   const [isAddressFieldsDisabled, setIsAddressFieldsDisabled] = useState(false);
 
 
@@ -192,7 +193,7 @@ const CompanyRegistrationPage: React.FC = () => {
         if (data.erro) {
           showError('CEP não encontrado.');
           clearAddressFields();
-          setIsAddressFieldsDisabled(false);
+          setIsAddressFieldsDisabled(false); // Keep fields enabled for manual input
           setError('zip_code', { type: 'manual', message: 'CEP não encontrado.' });
         } else {
           setValue('address', data.logradouro || '');
@@ -200,14 +201,14 @@ const CompanyRegistrationPage: React.FC = () => {
           setValue('city', data.localidade || '');
           setValue('state', data.uf || '');
           clearErrors(['address', 'neighborhood', 'city', 'state', 'zip_code']);
-          setIsAddressFieldsDisabled(true); // Disable fields if CEP found
+          setIsAddressFieldsDisabled(false); // Keep fields enabled for manual input
           showSuccess('Endereço preenchido automaticamente!');
         }
       } catch (error) {
         console.error('Erro ao buscar CEP:', error);
         showError('Erro ao buscar CEP. Tente novamente.');
         clearAddressFields();
-        setIsAddressFieldsDisabled(false);
+        setIsAddressFieldsDisabled(false); // Keep fields enabled for manual input
       } finally {
         setLoading(false);
       }
@@ -488,7 +489,7 @@ const CompanyRegistrationPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado *</Label>
-                <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={stateValue} disabled={isAddressFieldsDisabled}>
+                <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={stateValue}>
                   <SelectTrigger id="state" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
                     <SelectValue placeholder="UF" />
                   </SelectTrigger>
@@ -522,7 +523,6 @@ const CompanyRegistrationPage: React.FC = () => {
                   type="text"
                   placeholder="Sua cidade"
                   {...register('city')}
-                  disabled={isAddressFieldsDisabled}
                   className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
                 />
                 {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
@@ -537,7 +537,6 @@ const CompanyRegistrationPage: React.FC = () => {
                   type="text"
                   placeholder="Rua, Avenida, etc."
                   {...register('address')}
-                  disabled={isAddressFieldsDisabled}
                   className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
                 />
                 {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
@@ -563,7 +562,6 @@ const CompanyRegistrationPage: React.FC = () => {
                   type="text"
                   placeholder="Seu bairro"
                   {...register('neighborhood')}
-                  disabled={isAddressFieldsDisabled}
                   className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
                 />
                 {errors.neighborhood && <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>}
