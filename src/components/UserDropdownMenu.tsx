@@ -31,7 +31,8 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
     } else {
-      navigate('/login');
+      showSuccess('Logout realizado com sucesso!'); // Adicionado toast de sucesso
+      navigate('/'); // Redireciona para a Landing Page
     }
   };
 
