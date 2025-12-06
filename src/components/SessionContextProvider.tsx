@@ -24,7 +24,32 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
         if (event === 'SIGNED_IN') {
           showSuccess('Login realizado com sucesso!');
-          navigate('/'); // Redirect to the main application page
+          
+          if (currentSession?.user) {
+            // Fetch user roles to check for Admin and Proprietário
+            const { data: userContext, error } = await supabase
+              .rpc('get_user_context', { p_user_id: currentSession.user.id });
+
+            if (error) {
+              console.error('Error fetching user context for redirection:', error);
+              showError('Erro ao verificar permissões para redirecionamento.');
+              navigate('/'); // Default to home on error
+            } else if (userContext) {
+              const isAdmin = userContext.some(role => role.role_type_description === 'Admin');
+              const isProprietario = userContext.some(role => role.role_type_description === 'Proprietário');
+
+              if (isAdmin && isProprietario) {
+                navigate('/dashboard'); // Redirect to dashboard if both Admin and Proprietário
+              } else {
+                navigate('/'); // Default to home page
+              }
+            } else {
+              navigate('/'); // Default to home page if no user context
+            }
+          } else {
+            navigate('/'); // Default to home page if no user session
+          }
+
         } else if (event === 'SIGNED_OUT') {
           showSuccess('Logout realizado com sucesso!');
           navigate('/login'); // Redirect to login page on sign out
@@ -35,6 +60,20 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           showSuccess('Seu perfil foi atualizado!');
         } else if (event === 'INITIAL_SESSION') {
           // Handle initial session, no toast needed
+          // If there's an initial session, check roles for potential redirection
+          if (currentSession?.user) {
+            const { data: userContext, error } = await supabase
+              .rpc('get_user_context', { p_user_id: currentSession.user.id });
+
+            if (!error && userContext) {
+              const isAdmin = userContext.some(role => role.role_type_description === 'Admin');
+              const isProprietario = userContext.some(role => role.role_type_description === 'Proprietário');
+
+              if (isAdmin && isProprietario && location.pathname === '/') { // Only redirect if currently on landing page
+                navigate('/dashboard');
+              }
+            }
+          }
         }
       }
     );
@@ -42,12 +81,24 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+      // Initial session check for redirection if already logged in
+      if (session?.user && location.pathname === '/') {
+        supabase.rpc('get_user_context', { p_user_id: session.user.id }).then(({ data: userContext, error }) => {
+          if (!error && userContext) {
+            const isAdmin = userContext.some(role => role.role_type_description === 'Admin');
+            const isProprietario = userContext.some(role => role.role_type_description === 'Proprietário');
+            if (isAdmin && isProprietario) {
+              navigate('/dashboard');
+            }
+          }
+        });
+      }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, location.pathname]); // Added location.pathname to dependencies
 
   return (
     <SessionContext.Provider value={{ session, loading }}>
