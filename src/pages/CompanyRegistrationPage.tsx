@@ -12,11 +12,30 @@ import * as z from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
+import { validateCnpj, formatCnpjInput, formatZipCodeInput } from '@/utils/validation'; // Import validation utilities
 
 // Zod schema for company registration
 const companySchema = z.object({
-  name: z.string().min(1, "Nome da empresa é obrigatório."),
+  name: z.string().min(1, "Nome fantasia é obrigatório."),
+  razao_social: z.string().min(1, "Razão social é obrigatória."),
+  cnpj: z.string()
+    .min(1, "CNPJ é obrigatório.")
+    .refine((val) => {
+      const cleanedCnpj = val.replace(/[^\d]+/g, '');
+      return validateCnpj(cleanedCnpj);
+    }, "CNPJ inválido."),
+  ie: z.string().optional(),
+  company_email: z.string().email("E-mail da empresa inválido.").min(1, "E-mail da empresa é obrigatório."),
   segment_type: z.string().min(1, "Segmento é obrigatório."),
+  address: z.string().min(1, "Endereço é obrigatório."),
+  number: z.string().min(1, "Número é obrigatório."),
+  neighborhood: z.string().min(1, "Bairro é obrigatório."),
+  complement: z.string().optional(),
+  zip_code: z.string()
+    .min(1, "CEP é obrigatório.")
+    .regex(/^\d{5}-\d{3}$/, "Formato de CEP inválido (ex: XXXXX-XXX)"),
+  city: z.string().min(1, "Cidade é obrigatória."),
+  state: z.string().min(1, "Estado é obrigatório."),
   company_logo: z.any()
     .refine((files) => files?.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
     .refine((files) => files?.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
@@ -40,11 +59,34 @@ const CompanyRegistrationPage: React.FC = () => {
     resolver: zodResolver(companySchema),
     defaultValues: {
       name: '',
+      razao_social: '',
+      cnpj: '',
+      ie: '',
+      company_email: '',
       segment_type: '',
+      address: '',
+      number: '',
+      neighborhood: '',
+      complement: '',
+      zip_code: '',
+      city: '',
+      state: '',
     },
   });
 
   const segmentTypeValue = watch('segment_type');
+  const cnpjValue = watch('cnpj');
+  const zipCodeValue = watch('zip_code');
+
+  const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatCnpjInput(e.target.value);
+    setValue('cnpj', formattedValue, { shouldValidate: true });
+  };
+
+  const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatZipCodeInput(e.target.value);
+    setValue('zip_code', formattedValue, { shouldValidate: true });
+  };
 
   const onSubmit = async (data: CompanyFormValues) => {
     setLoading(true);
@@ -83,15 +125,32 @@ const CompanyRegistrationPage: React.FC = () => {
       imageUrl = publicUrlData.publicUrl;
     }
 
+    // Clean CNPJ and CEP for database storage
+    const cleanedCnpj = data.cnpj.replace(/[^\d]+/g, '');
+    const cleanedZipCode = data.zip_code.replace(/\D/g, '');
+
     // Insert company data into Supabase
-    const { error: insertError } = await supabase
+    const { data: companyData, error: insertError } = await supabase
       .from('companies')
       .insert({
-        name: data.name,
+        name: data.name, // Fantasia
+        razao_social: data.razao_social,
+        cnpj: cleanedCnpj,
+        ie: data.ie,
+        company_email: data.company_email,
         segment_type: data.segment_type,
+        address: data.address,
+        number: data.number,
+        neighborhood: data.neighborhood,
+        complement: data.complement,
+        zip_code: cleanedZipCode,
+        city: data.city,
+        state: data.state,
         user_id: session.user.id,
         image_url: imageUrl,
-      });
+      })
+      .select()
+      .single();
 
     if (insertError) {
       showError('Erro ao cadastrar empresa: ' + insertError.message);
@@ -99,7 +158,35 @@ const CompanyRegistrationPage: React.FC = () => {
       return;
     }
 
-    showSuccess('Empresa cadastrada com sucesso!');
+    // Assign the user as 'Proprietário' (Owner) of the newly created company
+    if (companyData) {
+      const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
+        p_user_id: session.user.id,
+        p_company_id: companyData.id,
+        p_role_type: 'Proprietário' // Assuming 'Proprietário' is a valid role_type description
+      });
+
+      if (assignRoleError) {
+        showError('Erro ao atribuir papel de proprietário à empresa: ' + assignRoleError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Set this company role as primary for the user
+      const { error: setPrimaryError } = await supabase.rpc('set_primary_company_role', {
+        p_user_id: session.user.id,
+        p_company_id: companyData.id,
+        p_role_type: 'Proprietário'
+      });
+
+      if (setPrimaryError) {
+        showError('Erro ao definir empresa como primária: ' + setPrimaryError.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    showSuccess('Empresa cadastrada com sucesso e você foi definido como proprietário!');
     navigate('/dashboard'); // Redirect to dashboard after successful registration
     setLoading(false);
   };
@@ -116,9 +203,22 @@ const CompanyRegistrationPage: React.FC = () => {
     { value: 'outros', label: 'Outros' },
   ];
 
+  const statesOptions = [
+    { value: 'AC', label: 'Acre' }, { value: 'AL', label: 'Alagoas' }, { value: 'AP', label: 'Amapá' },
+    { value: 'AM', label: 'Amazonas' }, { value: 'BA', label: 'Bahia' }, { value: 'CE', label: 'Ceará' },
+    { value: 'DF', label: 'Distrito Federal' }, { value: 'ES', label: 'Espírito Santo' },
+    { value: 'GO', label: 'Goiás' }, { value: 'MA', label: 'Maranhão' }, { value: 'MT', label: 'Mato Grosso' },
+    { value: 'MS', label: 'Mato Grosso do Sul' }, { value: 'MG', label: 'Minas Gerais' },
+    { value: 'PA', label: 'Pará' }, { value: 'PB', label: 'Paraíba' }, { value: 'PR', label: 'Paraná' },
+    { value: 'PE', label: 'Pernambuco' }, { value: 'PI', label: 'Piauí' }, { value: 'RJ', label: 'Rio de Janeiro' },
+    { value: 'RN', label: 'Rio Grande do Norte' }, { value: 'RS', label: 'Rio Grande do Sul' },
+    { value: 'RO', label: 'Rondônia' }, { value: 'RR', label: 'Roraima' }, { value: 'SC', label: 'Santa Catarina' },
+    { value: 'SP', label: 'São Paulo' }, { value: 'SE', label: 'Sergipe' }, { value: 'TO', label: 'Tocantins' }
+  ];
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8">
+      <Card className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8">
         <CardHeader className="relative text-center pb-6">
           <Button
             variant="ghost"
@@ -137,17 +237,70 @@ const CompanyRegistrationPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="razao_social" className="text-sm font-medium text-gray-700 dark:text-gray-300">Razão Social</Label>
+                <Input
+                  id="razao_social"
+                  type="text"
+                  placeholder="Razão Social da empresa"
+                  {...register('razao_social')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.razao_social && <p className="text-red-500 text-xs mt-1">{errors.razao_social.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome Fantasia</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Nome fantasia da empresa"
+                  {...register('name')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="cnpj" className="text-sm font-medium text-gray-700 dark:text-gray-300">CNPJ</Label>
+                <Input
+                  id="cnpj"
+                  type="text"
+                  placeholder="XX.XXX.XXX/XXXX-XX"
+                  value={cnpjValue}
+                  onChange={handleCnpjChange}
+                  maxLength={18}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.cnpj && <p className="text-red-500 text-xs mt-1">{errors.cnpj.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="ie" className="text-sm font-medium text-gray-700 dark:text-gray-300">Inscrição Estadual (IE)</Label>
+                <Input
+                  id="ie"
+                  type="text"
+                  placeholder="Opcional"
+                  {...register('ie')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.ie && <p className="text-red-500 text-xs mt-1">{errors.ie.message}</p>}
+              </div>
+            </div>
+
             <div>
-              <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome da Empresa</Label>
+              <Label htmlFor="company_email" className="text-sm font-medium text-gray-700 dark:text-gray-300">E-mail da Empresa</Label>
               <Input
-                id="name"
-                type="text"
-                placeholder="Nome da sua empresa"
-                {...register('name')}
+                id="company_email"
+                type="email"
+                placeholder="contato@suaempresa.com"
+                {...register('company_email')}
                 className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
               />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+              {errors.company_email && <p className="text-red-500 text-xs mt-1">{errors.company_email.message}</p>}
             </div>
+
             <div>
               <Label htmlFor="segment_type" className="text-sm font-medium text-gray-700 dark:text-gray-300">Segmento</Label>
               <Select onValueChange={(value) => setValue('segment_type', value, { shouldValidate: true })} value={segmentTypeValue}>
@@ -164,6 +317,100 @@ const CompanyRegistrationPage: React.FC = () => {
               </Select>
               {errors.segment_type && <p className="text-red-500 text-xs mt-1">{errors.segment_type.message}</p>}
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300">Endereço</Label>
+                <Input
+                  id="address"
+                  type="text"
+                  placeholder="Rua, Avenida, etc."
+                  {...register('address')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="number" className="text-sm font-medium text-gray-700 dark:text-gray-300">Número</Label>
+                <Input
+                  id="number"
+                  type="text"
+                  placeholder="123"
+                  {...register('number')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.number && <p className="text-red-500 text-xs mt-1">{errors.number.message}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="neighborhood" className="text-sm font-medium text-gray-700 dark:text-gray-300">Bairro</Label>
+                <Input
+                  id="neighborhood"
+                  type="text"
+                  placeholder="Seu bairro"
+                  {...register('neighborhood')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.neighborhood && <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="complement" className="text-sm font-medium text-gray-700 dark:text-gray-300">Complemento (opcional)</Label>
+                <Input
+                  id="complement"
+                  type="text"
+                  placeholder="Apto, Sala, Bloco"
+                  {...register('complement')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.complement && <p className="text-red-500 text-xs mt-1">{errors.complement.message}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="zip_code" className="text-sm font-medium text-gray-700 dark:text-gray-300">CEP</Label>
+                <Input
+                  id="zip_code"
+                  type="text"
+                  placeholder="XXXXX-XXX"
+                  value={zipCodeValue}
+                  onChange={handleZipCodeChange}
+                  maxLength={9}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.zip_code && <p className="text-red-500 text-xs mt-1">{errors.zip_code.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="city" className="text-sm font-medium text-gray-700 dark:text-gray-300">Cidade</Label>
+                <Input
+                  id="city"
+                  type="text"
+                  placeholder="Sua cidade"
+                  {...register('city')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado</Label>
+                <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={watch('state')}>
+                  <SelectTrigger id="state" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
+                    <SelectValue placeholder="UF" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-700 dark:text-white">
+                    {statesOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state.message}</p>}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Logo da Empresa (opcional)</Label>
               <Input
