@@ -52,7 +52,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
         } else if (event === 'SIGNED_OUT') {
           showSuccess('Logout realizado com sucesso!');
-          navigate('/login'); // Redirect to login page on sign out
+          navigate('/'); // Redireciona para a Landing Page (Home)
         } else if (event === 'PASSWORD_RECOVERY') {
           showSuccess('Verifique seu e-mail para redefinir a senha.');
           navigate('/reset-password');
@@ -98,7 +98,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate, location.pathname]); // Added location.pathname to dependencies
+  }, [navigate, location.pathname]);
 
   return (
     <SessionContext.Provider value={{ session, loading }}>
