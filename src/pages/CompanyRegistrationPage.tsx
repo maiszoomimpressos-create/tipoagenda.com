@@ -132,17 +132,17 @@ const CompanyRegistrationPage: React.FC = () => {
         setLatestContract(contractData);
       }
 
-      // Fetch segment types from the database
+      // Fetch segment types from the database (GLOBAL ACCESS)
       setLoadingSegments(true);
       const { data: segmentsData, error: segmentsError } = await supabase
         .from('segment_types')
         .select('id, name')
-        .eq('user_id', session.user.id)
+        // Removed .eq('user_id', session.user.id) to allow global visibility
         .order('name', { ascending: true });
 
       if (segmentsError) {
+        showError('Erro ao carregar tipos de segmento: ' + segmentsError.message);
         console.error('Error fetching segment types:', segmentsError);
-        showError('Erro ao carregar tipos de segmento.');
       } else if (segmentsData) {
         setSegmentOptions(segmentsData.map(segment => ({ value: segment.id, label: segment.name })));
       }
@@ -294,7 +294,7 @@ const CompanyRegistrationPage: React.FC = () => {
         ie: pendingCompanyData.ie,
         company_email: pendingCompanyData.company_email,
         phone_number: cleanedPhoneNumber,
-        segment_type: pendingCompanyData.segment_type,
+        segment_type: pendingCompanyData.segment_type, // Now stores segment_type ID
         address: pendingCompanyData.address,
         number: pendingCompanyData.number,
         neighborhood: pendingCompanyData.neighborhood,
