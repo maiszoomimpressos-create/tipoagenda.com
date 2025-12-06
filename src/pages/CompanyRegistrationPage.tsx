@@ -460,7 +460,22 @@ const CompanyRegistrationPage: React.FC = () => {
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 {...register('company_logo')}
-                className="mt-2 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700 dark:file:bg-yellow-700 dark:file:text-black dark:text-gray-300 dark:border-gray-600"
+                className="mt-2 
+                  file:text-sm 
+                  file:font-semibold 
+                  file:bg-yellow-600 
+                  file:text-black 
+                  file:border-none 
+                  file:rounded-button 
+                  file:px-4 
+                  file:py-2 
+                  file:mr-4 
+                  hover:file:bg-yellow-700 
+                  dark:file:bg-yellow-700 
+                  dark:file:text-black 
+                  dark:text-gray-300 
+                  dark:border-gray-600
+                  cursor-pointer" // Adicionado cursor-pointer para indicar clicável
               />
               {errors.company_logo && <p className="text-red-500 text-xs mt-1">{errors.company_logo.message}</p>}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
