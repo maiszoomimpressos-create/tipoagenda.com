@@ -26,6 +26,9 @@ const companySchema = z.object({
     }, "CNPJ inválido."),
   ie: z.string().optional(),
   company_email: z.string().email("E-mail da empresa inválido.").min(1, "E-mail da empresa é obrigatório."),
+  phone_number: z.string()
+    .min(1, "Número de telefone é obrigatório.")
+    .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
   segment_type: z.string().min(1, "Segmento é obrigatório."),
   address: z.string().min(1, "Endereço é obrigatório."),
   number: z.string().min(1, "Número é obrigatório."),
@@ -37,9 +40,9 @@ const companySchema = z.object({
   city: z.string().min(1, "Cidade é obrigatória."),
   state: z.string().min(1, "Estado é obrigatório."),
   company_logo: z.any()
-    .refine((files) => files?.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
-    .refine((files) => files?.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
-    .optional(),
+    .refine((files) => files?.length > 0, "Logo da empresa é obrigatória.") // Now mandatory
+    .refine((files) => files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
+    .refine((files) => ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`),
 });
 
 type CompanyFormValues = z.infer<typeof companySchema>;
@@ -63,6 +66,7 @@ const CompanyRegistrationPage: React.FC = () => {
       cnpj: '',
       ie: '',
       company_email: '',
+      phone_number: '',
       segment_type: '',
       address: '',
       number: '',
@@ -77,6 +81,27 @@ const CompanyRegistrationPage: React.FC = () => {
   const segmentTypeValue = watch('segment_type');
   const cnpjValue = watch('cnpj');
   const zipCodeValue = watch('zip_code');
+  const phoneNumberValue = watch('phone_number');
+
+  const formatPhoneNumberInput = (value: string) => {
+    if (!value) return '';
+    let cleaned = value.replace(/\D/g, ''); // Remove non-digits
+    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11); // Limit to 11 digits
+
+    if (cleaned.length <= 2) {
+      return `(${cleaned}`;
+    } else if (cleaned.length <= 7) { // (XX) XXXXX
+      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
+    } else if (cleaned.length <= 11) { // (XX) XXXXX-XXXX
+      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
+    }
+    return cleaned;
+  };
+
+  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatPhoneNumberInput(e.target.value);
+    setValue('phone_number', formattedValue, { shouldValidate: true });
+  };
 
   const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatCnpjInput(e.target.value);
@@ -125,9 +150,10 @@ const CompanyRegistrationPage: React.FC = () => {
       imageUrl = publicUrlData.publicUrl;
     }
 
-    // Clean CNPJ and CEP for database storage
-    const cleanedCnpj = data.cnpj.replace(/[^\d]+/g, '');
+    // Clean CNPJ, CEP and Phone Number for database storage
+    const cleanedCnpj = data.cnpj.replace(/\D/g, '');
     const cleanedZipCode = data.zip_code.replace(/\D/g, '');
+    const cleanedPhoneNumber = data.phone_number.replace(/\D/g, '');
 
     // Insert company data into Supabase
     const { data: companyData, error: insertError } = await supabase
@@ -138,6 +164,7 @@ const CompanyRegistrationPage: React.FC = () => {
         cnpj: cleanedCnpj,
         ie: data.ie,
         company_email: data.company_email,
+        phone_number: cleanedPhoneNumber, // New field
         segment_type: data.segment_type,
         address: data.address,
         number: data.number,
@@ -239,7 +266,7 @@ const CompanyRegistrationPage: React.FC = () => {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="razao_social" className="text-sm font-medium text-gray-700 dark:text-gray-300">Razão Social</Label>
+                <Label htmlFor="razao_social" className="text-sm font-medium text-gray-700 dark:text-gray-300">Razão Social *</Label>
                 <Input
                   id="razao_social"
                   type="text"
@@ -250,7 +277,7 @@ const CompanyRegistrationPage: React.FC = () => {
                 {errors.razao_social && <p className="text-red-500 text-xs mt-1">{errors.razao_social.message}</p>}
               </div>
               <div>
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome Fantasia</Label>
+                <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome Fantasia *</Label>
                 <Input
                   id="name"
                   type="text"
@@ -264,7 +291,7 @@ const CompanyRegistrationPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="cnpj" className="text-sm font-medium text-gray-700 dark:text-gray-300">CNPJ</Label>
+                <Label htmlFor="cnpj" className="text-sm font-medium text-gray-700 dark:text-gray-300">CNPJ *</Label>
                 <Input
                   id="cnpj"
                   type="text"
@@ -289,20 +316,35 @@ const CompanyRegistrationPage: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="company_email" className="text-sm font-medium text-gray-700 dark:text-gray-300">E-mail da Empresa</Label>
-              <Input
-                id="company_email"
-                type="email"
-                placeholder="contato@suaempresa.com"
-                {...register('company_email')}
-                className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
-              />
-              {errors.company_email && <p className="text-red-500 text-xs mt-1">{errors.company_email.message}</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="company_email" className="text-sm font-medium text-gray-700 dark:text-gray-300">E-mail da Empresa *</Label>
+                <Input
+                  id="company_email"
+                  type="email"
+                  placeholder="contato@suaempresa.com"
+                  {...register('company_email')}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.company_email && <p className="text-red-500 text-xs mt-1">{errors.company_email.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="phone_number" className="text-sm font-medium text-gray-700 dark:text-gray-300">Telefone *</Label>
+                <Input
+                  id="phone_number"
+                  type="tel"
+                  placeholder="(XX) XXXXX-XXXX"
+                  value={phoneNumberValue}
+                  onChange={handlePhoneNumberChange}
+                  maxLength={15}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.phone_number && <p className="text-red-500 text-xs mt-1">{errors.phone_number.message}</p>}
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="segment_type" className="text-sm font-medium text-gray-700 dark:text-gray-300">Segmento</Label>
+              <Label htmlFor="segment_type" className="text-sm font-medium text-gray-700 dark:text-gray-300">Segmento *</Label>
               <Select onValueChange={(value) => setValue('segment_type', value, { shouldValidate: true })} value={segmentTypeValue}>
                 <SelectTrigger id="segment_type" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
                   <SelectValue placeholder="Selecione o segmento da empresa" />
@@ -320,7 +362,7 @@ const CompanyRegistrationPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
-                <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300">Endereço</Label>
+                <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300">Endereço *</Label>
                 <Input
                   id="address"
                   type="text"
@@ -331,7 +373,7 @@ const CompanyRegistrationPage: React.FC = () => {
                 {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
               </div>
               <div>
-                <Label htmlFor="number" className="text-sm font-medium text-gray-700 dark:text-gray-300">Número</Label>
+                <Label htmlFor="number" className="text-sm font-medium text-gray-700 dark:text-gray-300">Número *</Label>
                 <Input
                   id="number"
                   type="text"
@@ -345,7 +387,7 @@ const CompanyRegistrationPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="neighborhood" className="text-sm font-medium text-gray-700 dark:text-gray-300">Bairro</Label>
+                <Label htmlFor="neighborhood" className="text-sm font-medium text-gray-700 dark:text-gray-300">Bairro *</Label>
                 <Input
                   id="neighborhood"
                   type="text"
@@ -370,7 +412,7 @@ const CompanyRegistrationPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="zip_code" className="text-sm font-medium text-gray-700 dark:text-gray-300">CEP</Label>
+                <Label htmlFor="zip_code" className="text-sm font-medium text-gray-700 dark:text-gray-300">CEP *</Label>
                 <Input
                   id="zip_code"
                   type="text"
@@ -383,7 +425,7 @@ const CompanyRegistrationPage: React.FC = () => {
                 {errors.zip_code && <p className="text-red-500 text-xs mt-1">{errors.zip_code.message}</p>}
               </div>
               <div>
-                <Label htmlFor="city" className="text-sm font-medium text-gray-700 dark:text-gray-300">Cidade</Label>
+                <Label htmlFor="city" className="text-sm font-medium text-gray-700 dark:text-gray-300">Cidade *</Label>
                 <Input
                   id="city"
                   type="text"
@@ -394,7 +436,7 @@ const CompanyRegistrationPage: React.FC = () => {
                 {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
               </div>
               <div>
-                <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado</Label>
+                <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado *</Label>
                 <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={watch('state')}>
                   <SelectTrigger id="state" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
                     <SelectValue placeholder="UF" />
@@ -412,7 +454,7 @@ const CompanyRegistrationPage: React.FC = () => {
             </div>
 
             <div>
-              <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Logo da Empresa (opcional)</Label>
+              <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Logo da Empresa *</Label>
               <Input
                 id="company_logo"
                 type="file"
