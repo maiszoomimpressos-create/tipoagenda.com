@@ -13,6 +13,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import { useIsAdmin } from '@/hooks/useIsAdmin'; // Import the new hook
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -23,6 +24,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
+  const { isAdmin, loadingAdminCheck } = useIsAdmin(); // Use the hook
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -36,9 +38,9 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="flex flex-col items-center gap-1 !rounded-button cursor-pointer px-3 py-2"> {/* Alterado para flex-col e ajustado padding */}
+        <Button variant="ghost" className="flex flex-col items-center gap-1 !rounded-button cursor-pointer px-3 py-2">
           <Menu className="h-5 w-5" />
-          <span className="text-xs text-gray-700">{userName}</span> {/* Texto menor e sempre visível */}
+          <span className="text-xs text-gray-700">{userName}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -53,14 +55,16 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-user mr-2"></i>
           Meu Perfil
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/register-company')}> {/* Novo item de menu */}
-          <i className="fas fa-building mr-2"></i> {/* Ícone de empresa */}
+        <DropdownMenuItem onClick={() => navigate('/register-company')}>
+          <i className="fas fa-building mr-2"></i>
           Cadast. Empresa
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/settings')}>
-          <i className="fas fa-cog mr-2"></i>
-          Configurações
-        </DropdownMenuItem>
+        {!loadingAdminCheck && isAdmin && ( // Conditionally render if user is admin
+          <DropdownMenuItem onClick={() => navigate('/settings')}>
+            <i className="fas fa-cog mr-2"></i>
+            Configurações Admin
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
           <i className="fas fa-sign-out-alt mr-2"></i>

@@ -21,6 +21,8 @@ import FidelidadePage from "./pages/FidelidadePage";
 import NovoAgendamentoPage from "./pages/NovoAgendamentoPage";
 import NovoClientePage from "./pages/NovoClientePage";
 import FecharCaixaPage from "./pages/FecharCaixaPage";
+import SettingsPage from "./pages/SettingsPage"; // Import the new SettingsPage
+import { useIsAdmin } from "./hooks/useIsAdmin"; // Import the new hook
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,22 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { loading: sessionLoading } = useSession(); // Also check session loading
+
+  if (sessionLoading || loadingAdminCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões...</div>;
+  }
+
+  if (!isAdmin) {
+    // Redirect to dashboard or show an unauthorized message
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -71,6 +89,9 @@ const App = () => (
               <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
+
+              {/* Nova rota de Configurações do Administrador (protegida por AdminProtectedRoute) */}
+              <Route path="settings" element={<AdminProtectedRoute><SettingsPage /></AdminProtectedRoute>} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
