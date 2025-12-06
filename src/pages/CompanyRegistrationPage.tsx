@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +59,7 @@ const CompanyRegistrationPage: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [segmentOptions, setSegmentOptions] = useState<{ value: string; label: string }[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
+  const [isAddressFieldsDisabled, setIsAddressFieldsDisabled] = useState(false);
 
 
   const {
@@ -66,6 +67,8 @@ const CompanyRegistrationPage: React.FC = () => {
     handleSubmit,
     setValue,
     watch,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),
@@ -91,6 +94,7 @@ const CompanyRegistrationPage: React.FC = () => {
   const cnpjValue = watch('cnpj');
   const zipCodeValue = watch('zip_code');
   const phoneNumberValue = watch('phone_number');
+  const stateValue = watch('state'); // Watch state value for potential city filtering (future)
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -172,9 +176,53 @@ const CompanyRegistrationPage: React.FC = () => {
     setValue('cnpj', formattedValue, { shouldValidate: true });
   };
 
-  const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formattedValue = formatZipCodeInput(e.target.value);
+  const handleZipCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const formattedValue = formatZipCodeInput(rawValue);
     setValue('zip_code', formattedValue, { shouldValidate: true });
+
+    const cleanedCep = rawValue.replace(/\D/g, '');
+
+    if (cleanedCep.length === 8) {
+      setLoading(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`);
+        const data = await response.json();
+
+        if (data.erro) {
+          showError('CEP não encontrado.');
+          clearAddressFields();
+          setIsAddressFieldsDisabled(false);
+          setError('zip_code', { type: 'manual', message: 'CEP não encontrado.' });
+        } else {
+          setValue('address', data.logradouro || '');
+          setValue('neighborhood', data.bairro || '');
+          setValue('city', data.localidade || '');
+          setValue('state', data.uf || '');
+          clearErrors(['address', 'neighborhood', 'city', 'state', 'zip_code']);
+          setIsAddressFieldsDisabled(true); // Disable fields if CEP found
+          showSuccess('Endereço preenchido automaticamente!');
+        }
+      } catch (error) {
+        console.error('Erro ao buscar CEP:', error);
+        showError('Erro ao buscar CEP. Tente novamente.');
+        clearAddressFields();
+        setIsAddressFieldsDisabled(false);
+      } finally {
+        setLoading(false);
+      }
+    } else if (cleanedCep.length < 8) {
+      // If CEP is incomplete, re-enable fields and clear errors
+      setIsAddressFieldsDisabled(false);
+      clearErrors('zip_code');
+    }
+  };
+
+  const clearAddressFields = () => {
+    setValue('address', '');
+    setValue('neighborhood', '');
+    setValue('city', '');
+    setValue('state', '');
   };
 
   const handleFormSubmit = async (data: CompanyFormValues) => {
@@ -246,7 +294,7 @@ const CompanyRegistrationPage: React.FC = () => {
         ie: pendingCompanyData.ie,
         company_email: pendingCompanyData.company_email,
         phone_number: cleanedPhoneNumber,
-        segment_type: pendingCompanyData.segment_type, // Now stores segment_type ID
+        segment_type: pendingCompanyData.segment_type,
         address: pendingCompanyData.address,
         number: pendingCompanyData.number,
         neighborhood: pendingCompanyData.neighborhood,
@@ -436,6 +484,51 @@ const CompanyRegistrationPage: React.FC = () => {
               {errors.segment_type && <p className="text-red-500 text-xs mt-1">{errors.segment_type.message}</p>}
             </div>
 
+            {/* Reordered Address Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado *</Label>
+                <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={stateValue} disabled={isAddressFieldsDisabled}>
+                  <SelectTrigger id="state" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
+                    <SelectValue placeholder="UF" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-700 dark:text-white">
+                    {statesOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="zip_code" className="text-sm font-medium text-gray-700 dark:text-gray-300">CEP *</Label>
+                <Input
+                  id="zip_code"
+                  type="text"
+                  placeholder="XXXXX-XXX"
+                  value={zipCodeValue}
+                  onChange={handleZipCodeChange}
+                  maxLength={9}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.zip_code && <p className="text-red-500 text-xs mt-1">{errors.zip_code.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="city" className="text-sm font-medium text-gray-700 dark:text-gray-300">Cidade *</Label>
+                <Input
+                  id="city"
+                  type="text"
+                  placeholder="Sua cidade"
+                  {...register('city')}
+                  disabled={isAddressFieldsDisabled}
+                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                />
+                {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300">Endereço *</Label>
@@ -444,6 +537,7 @@ const CompanyRegistrationPage: React.FC = () => {
                   type="text"
                   placeholder="Rua, Avenida, etc."
                   {...register('address')}
+                  disabled={isAddressFieldsDisabled}
                   className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
                 />
                 {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
@@ -469,6 +563,7 @@ const CompanyRegistrationPage: React.FC = () => {
                   type="text"
                   placeholder="Seu bairro"
                   {...register('neighborhood')}
+                  disabled={isAddressFieldsDisabled}
                   className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
                 />
                 {errors.neighborhood && <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>}
@@ -483,49 +578,6 @@ const CompanyRegistrationPage: React.FC = () => {
                   className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
                 />
                 {errors.complement && <p className="text-red-500 text-xs mt-1">{errors.complement.message}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="zip_code" className="text-sm font-medium text-gray-700 dark:text-gray-300">CEP *</Label>
-                <Input
-                  id="zip_code"
-                  type="text"
-                  placeholder="XXXXX-XXX"
-                  value={zipCodeValue}
-                  onChange={handleZipCodeChange}
-                  maxLength={9}
-                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
-                />
-                {errors.zip_code && <p className="text-red-500 text-xs mt-1">{errors.zip_code.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="city" className="text-sm font-medium text-gray-700 dark:text-gray-300">Cidade *</Label>
-                <Input
-                  id="city"
-                  type="text"
-                  placeholder="Sua cidade"
-                  {...register('city')}
-                  className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
-                />
-                {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado *</Label>
-                <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={watch('state')}>
-                  <SelectTrigger id="state" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
-                    <SelectValue placeholder="UF" />
-                  </SelectTrigger>
-                  <SelectContent className="dark:bg-gray-700 dark:text-white">
-                    {statesOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state.message}</p>}
               </div>
             </div>
 
