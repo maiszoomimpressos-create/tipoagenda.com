@@ -23,7 +23,8 @@ import NovoClientePage from "./pages/NovoClientePage";
 import FecharCaixaPage from "./pages/FecharCaixaPage";
 import SettingsPage from "./pages/SettingsPage";
 import ContractRegistrationPage from "./pages/ContractRegistrationPage";
-import SegmentManagementPage from "./pages/SegmentManagementPage"; // Import the new page
+import SegmentManagementPage from "./pages/SegmentManagementPage";
+import ServicesPage from "./pages/ServicesPage"; // Import the new ServicesPage
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -80,6 +81,7 @@ const App = () => (
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
+              <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} /> {/* Nova rota para Serviços */}
               <Route path="clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
               <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
@@ -96,7 +98,7 @@ const App = () => (
               <Route path="settings" element={<AdminProtectedRoute><SettingsPage /></AdminProtectedRoute>} />
               <Route path="settings/new-contract" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
               <Route path="settings/edit-contract/:contractId" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
-              <Route path="settings/segments" element={<AdminProtectedRoute><SegmentManagementPage /></AdminProtectedRoute>} /> {/* New route for segment management */}
+              <Route path="settings/segments" element={<AdminProtectedRoute><SegmentManagementPage /></AdminProtectedRoute>} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
