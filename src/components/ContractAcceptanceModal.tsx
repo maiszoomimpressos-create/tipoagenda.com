@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
+// Removido import de ScrollArea, usando div com overflow-y-auto
 
 interface ContractAcceptanceModalProps {
   isOpen: boolean;
@@ -32,9 +32,41 @@ const ContractAcceptanceModal: React.FC<ContractAcceptanceModalProps> = ({
   loading,
 }) => {
   const [accepted, setAccepted] = useState(false);
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Reset states when modal opens
+    if (isOpen) {
+      setAccepted(false);
+      setScrolledToBottom(false);
+      // Check if already at bottom on initial render (for short contracts)
+      const checkScroll = () => {
+        if (scrollRef.current) {
+          const { scrollHeight, clientHeight } = scrollRef.current;
+          if (scrollHeight <= clientHeight) {
+            setScrolledToBottom(true);
+          }
+        }
+      };
+      // Give a small delay to ensure content is rendered before checking scroll
+      const timer = setTimeout(checkScroll, 100); 
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      // Check if user has scrolled to the very bottom (with a small tolerance)
+      if (scrollTop + clientHeight >= scrollHeight - 5) { 
+        setScrolledToBottom(true);
+      }
+    }
+  };
 
   if (!contract) {
-    return null; // Or render a loading/error state
+    return null; // Ou renderizar um estado de carregamento/erro
   }
 
   return (
@@ -46,18 +78,23 @@ const ContractAcceptanceModal: React.FC<ContractAcceptanceModalProps> = ({
             Por favor, leia o contrato abaixo e aceite os termos para continuar com o cadastro da sua empresa.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 p-4 border rounded-md my-4">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 p-4 border rounded-md my-4 overflow-y-auto"
+        >
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
               {contract.contract_content}
             </p>
           </div>
-        </ScrollArea>
+        </div>
         <div className="flex items-center space-x-2 mt-4">
           <Checkbox
             id="terms"
             checked={accepted}
             onCheckedChange={(checked) => setAccepted(!!checked)}
+            disabled={!scrolledToBottom}
           />
           <Label htmlFor="terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
             Eu li e aceito os termos do contrato.
