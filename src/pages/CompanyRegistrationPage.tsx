@@ -363,6 +363,18 @@ const CompanyRegistrationPage: React.FC = () => {
         setLoading(false);
         return;
       }
+
+      // NEW: Update user's type in 'type_user' table to 'PROPRIETARIO'
+      const { error: updateTypeError } = await supabase
+        .from('type_user')
+        .update({ cod: 'PROPRIETARIO', descr: 'Proprietário' })
+        .eq('user_id', session.user.id);
+
+      if (updateTypeError) {
+        showError('Erro ao atualizar tipo de usuário para Proprietário: ' + updateTypeError.message);
+        console.error('Error updating type_user:', updateTypeError);
+        // Continue with the flow even if this update fails, as company and role are already set
+      }
     }
 
     showSuccess('Empresa cadastrada com sucesso e você foi definido como proprietário!');
