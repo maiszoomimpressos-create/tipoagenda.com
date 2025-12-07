@@ -24,7 +24,8 @@ import FecharCaixaPage from "./pages/FecharCaixaPage";
 import SettingsPage from "./pages/SettingsPage";
 import ContractRegistrationPage from "./pages/ContractRegistrationPage";
 import SegmentManagementPage from "./pages/SegmentManagementPage";
-import ServicesPage from "./pages/ServicesPage"; // Import the new ServicesPage
+import ServicesPage from "./pages/ServicesPage";
+import NewServicePage from "./pages/NewServicePage"; // Import the new NewServicePage
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -81,7 +82,8 @@ const App = () => (
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
-              <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} /> {/* Nova rota para Serviços */}
+              <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} />
+              <Route path="novo-servico" element={<ProtectedRoute><NewServicePage /></ProtectedRoute>} /> {/* Nova rota para adicionar serviço */}
               <Route path="clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
               <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
