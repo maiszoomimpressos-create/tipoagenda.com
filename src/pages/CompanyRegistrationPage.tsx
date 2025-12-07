@@ -111,9 +111,9 @@ const CompanyRegistrationPage: React.FC = () => {
         .eq('description', 'Proprietário')
         .single();
 
-      if (roleError) {
+      if (roleError || !roleData) { // Added !roleData check
         console.error('Error fetching Proprietário role ID:', roleError);
-        showError('Erro ao carregar ID do papel de Proprietário.');
+        showError('Erro ao carregar ID do papel de Proprietário. Certifique-se de que o papel "Proprietário" existe na tabela role_types com ID 1.');
       } else if (roleData) {
         setProprietarioRoleId(roleData.id);
       }
@@ -273,8 +273,23 @@ const CompanyRegistrationPage: React.FC = () => {
 
   const handleAcceptAndRegister = async () => {
     setLoading(true);
-    if (!session?.user || !pendingCompanyData || !latestContract || proprietarioRoleId === null) {
-      showError('Erro interno: dados incompletos para o cadastro da empresa.');
+    if (!session?.user) {
+      showError('Você precisa estar logado para registrar uma empresa.');
+      setLoading(false);
+      return;
+    }
+    if (!pendingCompanyData) {
+      showError('Erro interno: dados do formulário da empresa estão faltando. Por favor, tente novamente.');
+      setLoading(false);
+      return;
+    }
+    if (!latestContract) {
+      showError('Nenhum contrato disponível para aceite. Um administrador precisa criar um contrato nas configurações.');
+      setLoading(false);
+      return;
+    }
+    if (proprietarioRoleId === null) {
+      showError('Erro interno: o papel de Proprietário não foi encontrado. Um administrador precisa criar o papel "Proprietário" na tabela role_types com ID 1.');
       setLoading(false);
       return;
     }
