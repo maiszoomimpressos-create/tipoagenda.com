@@ -6,9 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from 'react-router-dom';
 import { createButton } from '@/lib/dashboard-utils';
 import { supabase } from '@/integrations/supabase/client';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { Edit, Trash2 } from 'lucide-react'; // Importar ícones
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar componentes de diálogo
 
 interface Service {
   id: string;
@@ -26,6 +28,8 @@ const ServicesPage: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState<string | null>(null);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -72,6 +76,33 @@ const ServicesPage: React.FC = () => {
     service.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleDeleteClick = (serviceId: string) => {
+    setServiceToDelete(serviceId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (serviceToDelete && session?.user && primaryCompanyId) {
+      setLoadingServices(true);
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', serviceToDelete)
+        .eq('company_id', primaryCompanyId); // Ensure user can only delete services from their primary company
+
+      if (error) {
+        showError('Erro ao excluir serviço: ' + error.message);
+        console.error('Error deleting service:', error);
+      } else {
+        showSuccess('Serviço excluído com sucesso!');
+        fetchServices(); // Refresh the list
+      }
+      setLoadingServices(false);
+      setIsDeleteDialogOpen(false);
+      setServiceToDelete(null);
+    }
+  };
+
   if (loadingPrimaryCompany || loadingServices) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -109,7 +140,7 @@ const ServicesPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Serviços</h1>
-        {createButton(() => navigate('/novo-servico'), 'fas fa-plus', 'Adicionar Serviço')}
+        {createButton(() => navigate('/servicos/new'), 'fas fa-plus', 'Adicionar Serviço')}
       </div>
 
       <div className="flex gap-4">
@@ -142,11 +173,33 @@ const ServicesPage: React.FC = () => {
                       <p className="text-sm text-gray-600">{service.category} • {service.duration_minutes} min</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="flex items-center gap-2">
                     <p className="font-bold text-yellow-600">R$ {service.price.toFixed(2).replace('.', ',')}</p>
                     <Badge className={`${getStatusColor(service.status)} text-white text-xs`}>
                       {service.status}
                     </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!rounded-button whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent card click if card itself becomes clickable
+                        navigate(`/servicos/edit/${service.id}`);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="!rounded-button whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent card click
+                        handleDeleteClick(service.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -154,6 +207,26 @@ const ServicesPage: React.FC = () => {
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={loadingServices}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={loadingServices}>
+              {loadingServices ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

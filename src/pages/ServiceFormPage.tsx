@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom'; // Importar useParams
 import { ArrowLeft } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,11 +41,13 @@ const serviceSchema = z.object({
 
 type ServiceFormValues = z.infer<typeof serviceSchema>;
 
-const NewServicePage: React.FC = () => {
+const ServiceFormPage: React.FC = () => {
   const navigate = useNavigate();
+  const { serviceId } = useParams<{ serviceId: string }>(); // Get serviceId from URL
   const { session } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [loading, setLoading] = useState(false);
+  const isEditing = !!serviceId;
 
   const {
     register,
@@ -59,8 +61,8 @@ const NewServicePage: React.FC = () => {
     defaultValues: {
       name: '',
       description: '',
-      price: '0.00' as any, // Cast to any because Zod expects number after transform, but we initialize with string
-      duration_minutes: '0' as any, // Same here
+      price: '0.00' as any,
+      duration_minutes: '0' as any,
       category: '',
       status: 'Ativo',
     },
@@ -68,18 +70,49 @@ const NewServicePage: React.FC = () => {
 
   const statusValue = watch('status');
   const categoryValue = watch('category');
-  const priceValue = watch('price'); // Watch price to display formatted value
+  const priceValue = watch('price');
+
+  const fetchService = useCallback(async () => {
+    if (serviceId && primaryCompanyId) {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('services')
+        .select('name, description, price, duration_minutes, category, status')
+        .eq('id', serviceId)
+        .eq('company_id', primaryCompanyId)
+        .single();
+
+      if (error) {
+        showError('Erro ao carregar serviço: ' + error.message);
+        console.error('Error fetching service:', error);
+        navigate('/servicos'); // Redirect if service not found or error
+      } else if (data) {
+        reset({
+          name: data.name,
+          description: data.description || '',
+          price: data.price.toFixed(2).replace('.', ','), // Format for display
+          duration_minutes: data.duration_minutes.toString(),
+          category: data.category,
+          status: data.status as 'Ativo' | 'Inativo',
+        });
+      }
+      setLoading(false);
+    }
+  }, [serviceId, primaryCompanyId, reset, navigate]);
 
   useEffect(() => {
     if (!session && !loadingPrimaryCompany) {
-      showError('Você precisa estar logado para adicionar um serviço.');
+      showError('Você precisa estar logado para gerenciar serviços.');
       navigate('/login');
     }
     if (!primaryCompanyId && !loadingPrimaryCompany && session) {
-      showError('Você precisa ter uma empresa primária cadastrada para adicionar serviços.');
-      navigate('/register-company'); // Or another appropriate page
+      showError('Você precisa ter uma empresa primária cadastrada para gerenciar serviços.');
+      navigate('/register-company');
     }
-  }, [session, primaryCompanyId, loadingPrimaryCompany, navigate]);
+    if (isEditing) {
+      fetchService();
+    }
+  }, [session, primaryCompanyId, loadingPrimaryCompany, navigate, isEditing, fetchService]);
 
   const onSubmit = async (data: ServiceFormValues) => {
     setLoading(true);
@@ -90,40 +123,63 @@ const NewServicePage: React.FC = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('services')
-        .insert({
-          company_id: primaryCompanyId,
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          duration_minutes: data.duration_minutes,
-          category: data.category,
-          status: data.status,
-        });
+      let error;
+      if (isEditing) {
+        // Update existing service
+        const { error: updateError } = await supabase
+          .from('services')
+          .update({
+            name: data.name,
+            description: data.description,
+            price: data.price,
+            duration_minutes: data.duration_minutes,
+            category: data.category,
+            status: data.status,
+          })
+          .eq('id', serviceId)
+          .eq('company_id', primaryCompanyId);
+        error = updateError;
+      } else {
+        // Insert new service
+        const { error: insertError } = await supabase
+          .from('services')
+          .insert({
+            company_id: primaryCompanyId,
+            name: data.name,
+            description: data.description,
+            price: data.price,
+            duration_minutes: data.duration_minutes,
+            category: data.category,
+            status: data.status,
+          });
+        error = insertError;
+      }
 
       if (error) {
         throw error;
       }
 
-      showSuccess('Serviço cadastrado com sucesso!');
-      reset(); // Clear form
+      showSuccess('Serviço ' + (isEditing ? 'atualizado' : 'cadastrado') + ' com sucesso!');
+      reset(); // Clear form if new, or keep values if editing
       navigate('/servicos'); // Go back to services list
     } catch (error: any) {
-      console.error('Erro ao cadastrar serviço:', error);
-      showError('Erro ao cadastrar serviço: ' + error.message);
+      console.error('Erro ao salvar serviço:', error);
+      showError('Erro ao salvar serviço: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loadingPrimaryCompany) {
+  if (loadingPrimaryCompany || (isEditing && loading)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-700">Carregando informações da empresa...</p>
+        <p className="text-gray-700">Carregando informações do serviço...</p>
       </div>
     );
   }
+
+  const pageTitle = isEditing ? 'Editar Serviço' : 'Adicionar Novo Serviço';
+  const buttonText = isEditing ? 'Salvar Alterações' : 'Salvar Serviço';
 
   return (
     <div className="space-y-6">
@@ -136,7 +192,7 @@ const NewServicePage: React.FC = () => {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
-        <h1 className="text-3xl font-bold text-gray-900">Adicionar Novo Serviço</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
       </div>
       <div className="max-w-2xl">
         <Card className="border-gray-200">
@@ -149,7 +205,7 @@ const NewServicePage: React.FC = () => {
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Ex: Corte Tradicional"
+                  placeholder="Ex: Corte de Cabelo"
                   {...register('name')}
                   className="mt-1 border-gray-300 text-sm"
                 />
@@ -175,7 +231,7 @@ const NewServicePage: React.FC = () => {
                   </Label>
                   <Input
                     id="price"
-                    type="text" // Keep as text to allow comma input
+                    type="text"
                     placeholder="0,00"
                     {...register('price')}
                     className="mt-1 border-gray-300 text-sm"
@@ -208,8 +264,10 @@ const NewServicePage: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="Cabelo">Cabelo</SelectItem>
                       <SelectItem value="Barba">Barba</SelectItem>
-                      <SelectItem value="Cabelo e Barba">Cabelo e Barba</SelectItem>
                       <SelectItem value="Estética">Estética</SelectItem>
+                      <SelectItem value="Automotivo">Automotivo</SelectItem>
+                      <SelectItem value="Saúde">Saúde</SelectItem>
+                      <SelectItem value="Consultoria">Consultoria</SelectItem>
                       <SelectItem value="Outros">Outros</SelectItem>
                     </SelectContent>
                   </Select>
@@ -246,7 +304,7 @@ const NewServicePage: React.FC = () => {
                   className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black flex-1"
                   disabled={loading}
                 >
-                  {loading ? 'Salvando...' : 'Salvar Serviço'}
+                  {loading ? (isEditing ? 'Salvando...' : 'Cadastrando...') : buttonText}
                 </Button>
               </div>
             </form>
@@ -257,4 +315,4 @@ const NewServicePage: React.FC = () => {
   );
 };
 
-export default NewServicePage;
+export default ServiceFormPage;
