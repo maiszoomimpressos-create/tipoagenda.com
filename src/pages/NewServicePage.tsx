@@ -19,7 +19,19 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 const serviceSchema = z.object({
   name: z.string().min(1, "O nome do serviço é obrigatório."),
   description: z.string().optional(),
-  price: z.string().regex(/^\d+(\.\d{1,2})?$/, "Preço inválido. Use formato 0.00").transform(Number),
+  price: z.preprocess(
+    (val) => {
+      if (typeof val === 'string') {
+        // Replace comma with dot for numeric conversion
+        return val.replace(',', '.');
+      }
+      return val;
+    },
+    z.string()
+      .regex(/^\d+(\.\d{1,2})?$/, "Preço inválido. Use formato 0.00 ou 0,00")
+      .transform(Number)
+      .refine(val => !isNaN(val), "Preço inválido.") // Ensure it's a valid number after transform
+  ),
   duration_minutes: z.string().regex(/^\d+$/, "Duração inválida. Use apenas números.").transform(Number),
   category: z.string().min(1, "A categoria é obrigatória."),
   status: z.enum(['Ativo', 'Inativo'], {
@@ -47,8 +59,8 @@ const NewServicePage: React.FC = () => {
     defaultValues: {
       name: '',
       description: '',
-      price: '0.00',
-      duration_minutes: '0',
+      price: '0.00' as any, // Cast to any because Zod expects number after transform, but we initialize with string
+      duration_minutes: '0' as any, // Same here
       category: '',
       status: 'Ativo',
     },
@@ -56,6 +68,7 @@ const NewServicePage: React.FC = () => {
 
   const statusValue = watch('status');
   const categoryValue = watch('category');
+  const priceValue = watch('price'); // Watch price to display formatted value
 
   useEffect(() => {
     if (!session && !loadingPrimaryCompany) {
@@ -162,8 +175,8 @@ const NewServicePage: React.FC = () => {
                   </Label>
                   <Input
                     id="price"
-                    type="text" // Use text to allow custom formatting if needed, but validate as number
-                    placeholder="0.00"
+                    type="text" // Keep as text to allow comma input
+                    placeholder="0,00"
                     {...register('price')}
                     className="mt-1 border-gray-300 text-sm"
                   />
