@@ -233,7 +233,7 @@ const CompanyRegistrationPage: React.FC = () => {
 
     if (!latestContract) {
       showError('Nenhum contrato disponível para aceite. Um administrador precisa criar um contrato nas configurações.');
-      setLoading(false);
+      setLoading(false); // Stop loading if no contract
       return;
     }
 
@@ -254,7 +254,7 @@ const CompanyRegistrationPage: React.FC = () => {
 
       if (uploadError) {
         showError('Erro ao fazer upload da imagem: ' + uploadError.message);
-        setLoading(false);
+        setLoading(false); // Stop loading on upload error
         return;
       }
 
@@ -268,7 +268,7 @@ const CompanyRegistrationPage: React.FC = () => {
     setPendingCompanyData(data);
     setPendingImageUrl(imageUrl);
     setIsContractModalOpen(true);
-    setLoading(false);
+    setLoading(false); // Stop loading and open modal
   };
 
   const handleAcceptAndRegister = async () => {
@@ -606,7 +606,7 @@ const CompanyRegistrationPage: React.FC = () => {
             setIsContractModalOpen(false);
             setPendingCompanyData(null);
             setPendingImageUrl(null);
-            setLoading(false);
+            setLoading(false); // Ensure loading is reset when modal is closed
           }}
           contract={latestContract}
           onAccept={handleAcceptAndRegister}
