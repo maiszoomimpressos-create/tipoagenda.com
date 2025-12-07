@@ -13,7 +13,8 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useIsAdmin } from '@/hooks/useIsAdmin'; // Import the new hook
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsProprietario } from '@/hooks/useIsProprietario'; // Import the new hook
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -24,7 +25,8 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
-  const { isAdmin, loadingAdminCheck } = useIsAdmin(); // Use the hook
+  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario(); // Use the new hook
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -60,6 +62,12 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-building mr-2"></i>
           Cadast. Empresa
         </DropdownMenuItem>
+        {!loadingProprietarioCheck && isProprietario && ( // Conditionally render if user is Proprietário
+          <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+            <i className="fas fa-chart-line mr-2"></i>
+            Dashboard
+          </DropdownMenuItem>
+        )}
         {!loadingAdminCheck && isAdmin && ( // Conditionally render if user is admin
           <DropdownMenuItem onClick={() => navigate('/settings')}>
             <i className="fas fa-cog mr-2"></i>
