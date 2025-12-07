@@ -327,7 +327,12 @@ const CompanyRegistrationPage: React.FC = () => {
       // Check for unique constraint violation on 'name' (PostgreSQL error code 23505)
       if (insertError.code === '23505' && insertError.message.includes('companies_name_key')) {
         showError('Já existe uma empresa cadastrada com este Nome Fantasia. Por favor, escolha outro.');
-      } else {
+      } 
+      // Check for unique constraint violation on 'cnpj' (PostgreSQL error code 23505)
+      else if (insertError.code === '23505' && insertError.message.includes('companies_cnpj_key')) {
+        showError('Já existe uma empresa cadastrada com este CNPJ. Por favor, verifique o CNPJ ou entre em contato com o suporte.');
+      }
+      else {
         showError('Erro ao cadastrar empresa: ' + insertError.message);
       }
       setLoading(false);
