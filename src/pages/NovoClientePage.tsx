@@ -21,11 +21,29 @@ const newClientSchema = z.object({
   nascimento: z.string()
     .min(1, "Data de nascimento é obrigatória.")
     .refine((val) => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalize today's date to compare only date part
+      // Ensure the format is YYYY-MM-DD, which is what type="date" inputs provide
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(val)) {
+        return false; // Invalid format (e.g., 5 digits for year, or DD/MM/YYYY)
+      }
+
       const birthDate = new Date(val);
+      // Check if the parsed date is a valid date (not "Invalid Date")
+      if (isNaN(birthDate.getTime())) {
+        return false;
+      }
+
+      // Explicitly check the year length from the parsed date object
+      const year = birthDate.getFullYear();
+      if (String(year).length !== 4) {
+        return false;
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize today's date
+
       return birthDate <= today;
-    }, "Data de nascimento não pode ser no futuro."),
+    }, "Data de nascimento inválida, ano deve ter 4 dígitos e não pode ser no futuro."),
   endereco: z.string().optional(),
   observacoes: z.string().max(500, "Máximo de 500 caracteres.").optional(),
   status: z.string().optional(), // Assuming default value or selection
@@ -169,6 +187,7 @@ const NovoClientePage: React.FC = () => {
                     type="date"
                     {...register('nascimento')}
                     className="mt-1 border-gray-300 text-sm"
+                    max={new Date().toISOString().split('T')[0]} // Define a data máxima como hoje
                   />
                   {errors.nascimento && <p className="text-red-500 text-xs mt-1">{errors.nascimento.message}</p>}
                 </div>
