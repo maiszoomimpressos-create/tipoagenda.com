@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -10,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client'; // Assuming client registration will use supabase
+import { formatZipCodeInput } from '@/utils/validation'; // Importar a função de formatação de CEP
 
 // Zod schema for new client registration
 const newClientSchema = z.object({
@@ -21,32 +23,36 @@ const newClientSchema = z.object({
   nascimento: z.string()
     .min(1, "Data de nascimento é obrigatória.")
     .refine((val) => {
-      // Ensure the format is YYYY-MM-DD, which is what type="date" inputs provide
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(val)) {
-        return false; // Invalid format (e.g., 5 digits for year, or DD/MM/YYYY)
+        return false;
       }
-
       const birthDate = new Date(val);
-      // Check if the parsed date is a valid date (not "Invalid Date")
       if (isNaN(birthDate.getTime())) {
         return false;
       }
-
-      // Explicitly check the year length from the parsed date object
       const year = birthDate.getFullYear();
       if (String(year).length !== 4) {
         return false;
       }
-
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalize today's date
-
+      today.setHours(0, 0, 0, 0);
       return birthDate <= today;
     }, "Data de nascimento inválida, ano deve ter 4 dígitos e não pode ser no futuro."),
-  endereco: z.string().optional(),
+  
+  // Novos campos de endereço
+  zip_code: z.string()
+    .min(1, "CEP é obrigatório.")
+    .regex(/^\d{5}-\d{3}$/, "Formato de CEP inválido (ex: XXXXX-XXX)"),
+  state: z.string().min(1, "Estado é obrigatório."),
+  city: z.string().min(1, "Cidade é obrigatória."),
+  address: z.string().min(1, "Endereço é obrigatório."),
+  number: z.string().min(1, "Número é obrigatório."),
+  neighborhood: z.string().min(1, "Bairro é obrigatório."),
+  complement: z.string().optional(),
+
   observacoes: z.string().max(500, "Máximo de 500 caracteres.").optional(),
-  status: z.string().optional(), // Assuming default value or selection
+  status: z.string().optional(),
   pontos: z.preprocess(
     (val) => (val === '' ? undefined : Number(val)),
     z.number().min(0, "Pontos não podem ser negativos.").optional()
@@ -64,6 +70,8 @@ const NovoClientePage: React.FC = () => {
     handleSubmit,
     setValue,
     watch,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<NewClientFormValues>({
     resolver: zodResolver(newClientSchema),
@@ -72,7 +80,13 @@ const NovoClientePage: React.FC = () => {
       telefone: '',
       email: '',
       nascimento: '',
-      endereco: '',
+      zip_code: '',
+      state: '',
+      city: '',
+      address: '',
+      number: '',
+      neighborhood: '',
+      complement: '',
       observacoes: '',
       status: 'novo',
       pontos: 0,
@@ -80,17 +94,19 @@ const NovoClientePage: React.FC = () => {
   });
 
   const telefoneValue = watch('telefone');
+  const zipCodeValue = watch('zip_code');
+  const stateValue = watch('state');
 
   const formatPhoneNumberInput = (value: string) => {
     if (!value) return '';
-    let cleaned = value.replace(/\D/g, ''); // Remove non-digits
-    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11); // Limit to 11 digits
+    let cleaned = value.replace(/\D/g, '');
+    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
 
     if (cleaned.length <= 2) {
       return `(${cleaned}`;
-    } else if (cleaned.length <= 7) { // (XX) XXXXX
+    } else if (cleaned.length <= 7) {
       return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
-    } else if (cleaned.length <= 11) { // (XX) XXXXX-XXXX
+    } else if (cleaned.length <= 11) {
       return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
     }
     return cleaned;
@@ -99,6 +115,50 @@ const NovoClientePage: React.FC = () => {
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatPhoneNumberInput(e.target.value);
     setValue('telefone', formattedValue, { shouldValidate: true });
+  };
+
+  const clearAddressFields = () => {
+    setValue('address', '');
+    setValue('neighborhood', '');
+    setValue('city', '');
+    setValue('state', '');
+  };
+
+  const handleZipCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const formattedValue = formatZipCodeInput(rawValue);
+    setValue('zip_code', formattedValue, { shouldValidate: true });
+
+    const cleanedCep = rawValue.replace(/\D/g, '');
+
+    if (cleanedCep.length === 8) {
+      setLoading(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`);
+        const data = await response.json();
+
+        if (data.erro) {
+          showError('CEP não encontrado.');
+          clearAddressFields();
+          setError('zip_code', { type: 'manual', message: 'CEP não encontrado.' });
+        } else {
+          setValue('address', data.logradouro || '');
+          setValue('neighborhood', data.bairro || '');
+          setValue('city', data.localidade || '');
+          setValue('state', data.uf || '');
+          clearErrors(['address', 'neighborhood', 'city', 'state', 'zip_code']);
+          showSuccess('Endereço preenchido automaticamente!');
+        }
+      } catch (error) {
+        console.error('Erro ao buscar CEP:', error);
+        showError('Erro ao buscar CEP. Tente novamente.');
+        clearAddressFields();
+      } finally {
+        setLoading(false);
+      }
+    } else if (cleanedCep.length < 8) {
+      clearErrors('zip_code');
+    }
   };
 
   const onSubmit = async (data: NewClientFormValues) => {
@@ -116,6 +176,19 @@ const NovoClientePage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const statesOptions = [
+    { value: 'AC', label: 'Acre' }, { value: 'AL', label: 'Alagoas' }, { value: 'AP', label: 'Amapá' },
+    { value: 'AM', label: 'Amazonas' }, { value: 'BA', label: 'Bahia' }, { value: 'CE', label: 'Ceará' },
+    { value: 'DF', label: 'Distrito Federal' }, { value: 'ES', label: 'Espírito Santo' },
+    { value: 'GO', label: 'Goiás' }, { value: 'MA', label: 'Maranhão' }, { value: 'MT', label: 'Mato Grosso' },
+    { value: 'MS', label: 'Mato Grosso do Sul' }, { value: 'MG', label: 'Minas Gerais' },
+    { value: 'PA', label: 'Pará' }, { value: 'PB', label: 'Paraíba' }, { value: 'PR', label: 'Paraná' },
+    { value: 'PE', label: 'Pernambuco' }, { value: 'PI', label: 'Piauí' }, { value: 'RJ', label: 'Rio de Janeiro' },
+    { value: 'RN', label: 'Rio Grande do Norte' }, { value: 'RS', label: 'Rio Grande do Sul' },
+    { value: 'RO', label: 'Rondônia' }, { value: 'RR', label: 'Roraima' }, { value: 'SC', label: 'Santa Catarina' },
+    { value: 'SP', label: 'São Paulo' }, { value: 'SE', label: 'Sergipe' }, { value: 'TO', label: 'Tocantins' }
+  ];
 
   return (
     <div className="space-y-6">
@@ -192,33 +265,103 @@ const NovoClientePage: React.FC = () => {
                   {errors.nascimento && <p className="text-red-500 text-xs mt-1">{errors.nascimento.message}</p>}
                 </div>
               </div>
-              <div>
-                <Label htmlFor="endereco">
-                  Endereço Completo
-                </Label>
-                <Input
-                  id="endereco"
-                  type="text"
-                  placeholder="Rua, número, bairro, cidade, CEP"
-                  {...register('endereco')}
-                  className="mt-1 border-gray-300 text-sm"
-                />
-                {errors.endereco && <p className="text-red-500 text-xs mt-1">{errors.endereco.message}</p>}
+
+              {/* Novos campos de endereço */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Endereço</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="zip_code" className="text-sm font-medium text-gray-700 dark:text-gray-300">CEP *</Label>
+                    <Input
+                      id="zip_code"
+                      type="text"
+                      placeholder="XXXXX-XXX"
+                      value={zipCodeValue}
+                      onChange={handleZipCodeChange}
+                      maxLength={9}
+                      className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                    />
+                    {errors.zip_code && <p className="text-red-500 text-xs mt-1">{errors.zip_code.message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="state" className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado *</Label>
+                    <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} value={stateValue}>
+                      <SelectTrigger id="state" className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500">
+                        <SelectValue placeholder="UF" />
+                      </SelectTrigger>
+                      <SelectContent className="dark:bg-gray-700 dark:text-white">
+                        {statesOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state.message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="city" className="text-sm font-medium text-gray-700 dark:text-gray-300">Cidade *</Label>
+                    <Input
+                      id="city"
+                      type="text"
+                      placeholder="Sua cidade"
+                      {...register('city')}
+                      className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                    />
+                    {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div className="md:col-span-2">
+                    <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300">Endereço *</Label>
+                    <Input
+                      id="address"
+                      type="text"
+                      placeholder="Rua, Avenida, etc."
+                      {...register('address')}
+                      className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                    />
+                    {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="number" className="text-sm font-medium text-gray-700 dark:text-gray-300">Número *</Label>
+                    <Input
+                      id="number"
+                      type="text"
+                      placeholder="123"
+                      {...register('number')}
+                      className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                    />
+                    {errors.number && <p className="text-red-500 text-xs mt-1">{errors.number.message}</p>}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <Label htmlFor="neighborhood" className="text-sm font-medium text-gray-700 dark:text-gray-300">Bairro *</Label>
+                  <Input
+                    id="neighborhood"
+                    type="text"
+                    placeholder="Seu bairro"
+                    {...register('neighborhood')}
+                    className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                  />
+                  {errors.neighborhood && <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>}
+                </div>
+
+                <div className="mt-4">
+                  <Label htmlFor="complement" className="text-sm font-medium text-gray-700 dark:text-gray-300">Complemento (opcional)</Label>
+                  <Input
+                    id="complement"
+                    type="text"
+                    placeholder="Apto, Sala, Bloco"
+                    {...register('complement')}
+                    className="mt-2 h-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-yellow-500 focus:ring-yellow-500"
+                  />
+                  {errors.complement && <p className="text-red-500 text-xs mt-1">{errors.complement.message}</p>}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="observacoes">
-                  Preferências e Observações
-                </Label>
-                <textarea
-                  id="observacoes"
-                  maxLength={500}
-                  {...register('observacoes')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-24 resize-none mt-1"
-                  placeholder="Corte preferido, alergias, observações especiais..."
-                ></textarea>
-                <p className="text-xs text-gray-500 mt-1">Máximo 500 caracteres</p>
-                {errors.observacoes && <p className="text-red-500 text-xs mt-1">{errors.observacoes.message}</p>}
-              </div>
+
               <div className="border-t pt-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Configurações Iniciais</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
