@@ -114,6 +114,11 @@ serve(async (req) => {
       });
     }
 
+    // --- Adicionando logs para depuração ---
+    console.log('Edge Function Debug: User ID (creator):', user.id);
+    console.log('Edge Function Debug: Company ID (primary company of creator):', companyId);
+    // --- Fim dos logs de depuração ---
+
     // Insert client data into the public.clients table
     const { data: clientData, error: insertClientError } = await supabaseAdmin
       .from('clients')
