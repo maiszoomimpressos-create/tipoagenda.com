@@ -1,14 +1,108 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getStatusColor, createButton, mockData } from '@/lib/dashboard-utils';
+import { getStatusColor, createButton } from '@/lib/dashboard-utils';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { showError } from '@/utils/toast';
+import { useSession } from '@/components/SessionContextProvider';
+import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+
+interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  points: number;
+  // Adicione outros campos se precisar exibi-los, como email, birth_date, etc.
+}
 
 const ClientesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { session, loading: sessionLoading } = useSession();
+  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchClients = useCallback(async () => {
+    if (sessionLoading || loadingPrimaryCompany) {
+      return; // Aguarda a sessão e a empresa primária carregarem
+    }
+
+    if (!session?.user) {
+      setClients([]);
+      setLoadingClients(false);
+      return;
+    }
+
+    if (!primaryCompanyId) {
+      setClients([]);
+      setLoadingClients(false);
+      return;
+    }
+
+    setLoadingClients(true);
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, phone, status, points')
+      .eq('company_id', primaryCompanyId)
+      .order('name', { ascending: true });
+
+    if (error) {
+      showError('Erro ao carregar clientes: ' + error.message);
+      console.error('Error fetching clients:', error);
+      setClients([]);
+    } else if (data) {
+      setClients(data as Client[]);
+    }
+    setLoadingClients(false);
+  }, [session, primaryCompanyId, sessionLoading, loadingPrimaryCompany]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
+
+  const filteredClients = clients.filter(client =>
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.phone.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (sessionLoading || loadingPrimaryCompany || loadingClients) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-700">Carregando clientes...</p>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-500">Você precisa estar logado para ver os clientes.</p>
+      </div>
+    );
+  }
+
+  if (!primaryCompanyId) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-700 text-center mb-4">
+          Você precisa ter uma empresa primária cadastrada para gerenciar clientes.
+        </p>
+        <Button
+          className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+          onClick={() => navigate('/register-company')}
+        >
+          <i className="fas fa-building mr-2"></i>
+          Cadastrar Empresa
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -19,38 +113,47 @@ const ClientesPage: React.FC = () => {
 
       <div className="flex gap-4">
         <div className="flex-1">
-          <Input placeholder="Buscar cliente..." className="border-gray-300 text-sm" />
+          <Input
+            placeholder="Buscar cliente..."
+            className="border-gray-300 text-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
         {createButton(() => {}, 'fas fa-filter', 'Filtros', 'outline')}
       </div>
 
       <div className="grid gap-4">
-        {mockData.clientes.map((cliente) => (
-          <Card key={cliente.id} className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-12 h-12">
-                    <AvatarFallback className="bg-gray-200 text-gray-700">
-                      {cliente.nome.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{cliente.nome}</h3>
-                    <p className="text-sm text-gray-600">{cliente.telefone}</p>
+        {filteredClients.length === 0 ? (
+          <p className="text-gray-600">Nenhum cliente encontrado para sua empresa. Cadastre um novo cliente para começar!</p>
+        ) : (
+          filteredClients.map((cliente) => (
+            <Card key={cliente.id} className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="w-12 h-12">
+                      <AvatarFallback className="bg-gray-200 text-gray-700">
+                        {cliente.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{cliente.name}</h3>
+                      <p className="text-sm text-gray-600">{cliente.phone ? `(${cliente.phone.substring(0,2)}) ${cliente.phone.substring(2,7)}-${cliente.phone.substring(7)}` : 'N/A'}</p>
+                    </div>
                   </div>
+                  <div className="text-center">
+                    {/* Visitas não está no DB, então exibimos apenas pontos */}
+                    <p className="text-sm text-yellow-600">{cliente.points} pontos</p>
+                  </div>
+                  <Badge className={`${getStatusColor(cliente.status)} text-xs`}>
+                    {cliente.status.toUpperCase()}
+                  </Badge>
                 </div>
-                <div className="text-center">
-                  <p className="font-semibold text-gray-900">{cliente.visitas} visitas</p>
-                  <p className="text-sm text-yellow-600">{cliente.pontos} pontos</p>
-                </div>
-                <Badge className={`${getStatusColor(cliente.status)} text-xs`}>
-                  {cliente.status.toUpperCase()}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );
