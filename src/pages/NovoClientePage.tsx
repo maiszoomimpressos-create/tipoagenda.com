@@ -21,7 +21,7 @@ const newClientSchema = z.object({
   telefone: z.string()
     .min(1, "Telefone é obrigatório.")
     .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
-  email: z.string().email("E-mail inválido.").min(1, "E-mail é obrigatório."),
+  email: z.string().email("E-mail inválido.").min(1, "E-mail é obrigatório."), // Corrigido para ser obrigatório
   nascimento: z.string()
     .min(1, "Data de nascimento é obrigatória.")
     .refine((val) => {
