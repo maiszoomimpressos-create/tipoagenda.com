@@ -25,6 +25,7 @@ serve(async (req) => {
     // Verify the user's session (the one calling this function)
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('Edge Function Error: Unauthorized - No Authorization header');
       return new Response(JSON.stringify({ error: 'Unauthorized: No Authorization header' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -35,8 +36,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
     if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token' }), {
+      console.error('Edge Function Error: Auth error -', userError?.message || 'User not found');
+      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token or user not found' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -45,6 +46,7 @@ serve(async (req) => {
     const { clientEmail, clientName, companyId, clientPhone, clientBirthDate, clientZipCode, clientState, clientCity, clientAddress, clientNumber, clientNeighborhood, clientComplement, clientObservations, clientStatus, clientPoints } = await req.json();
 
     if (!clientEmail || !clientName || !companyId || !clientPhone || !clientBirthDate || !clientZipCode || !clientState || !clientCity || !clientAddress || !clientNumber || !clientNeighborhood) {
+      console.error('Edge Function Error: Missing required client data');
       return new Response(JSON.stringify({ error: 'Missing required client data' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -71,7 +73,7 @@ serve(async (req) => {
       .single();
 
     if (roleError || !userCompanyRoles) {
-      console.error('Role check error:', roleError);
+      console.error('Edge Function Error: Role check error -', roleError?.message || 'User not authorized for this company');
       return new Response(JSON.stringify({ error: 'Forbidden: User not authorized for this company' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -86,7 +88,7 @@ serve(async (req) => {
       .single();
 
     if (roleTypeFetchError || !roleTypeData || !['Proprietário', 'Admin'].includes(roleTypeData.description)) {
-      console.error('Role type description error:', roleTypeFetchError);
+      console.error('Edge Function Error: Role type description error -', roleTypeFetchError?.message || 'User does not have sufficient privileges');
       return new Response(JSON.stringify({ error: 'Forbidden: User does not have sufficient privileges for this company' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -100,11 +102,12 @@ serve(async (req) => {
         phone: clientPhone,
         birth_date: clientBirthDate,
       },
-      redirectTo: `${Deno.env.get('SITE_URL')}/login?invited=true`, // Redirect to login after invite acceptance
+      // Use a fallback for SITE_URL if not explicitly set in environment variables
+      redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/login?invited=true`,
     });
 
     if (inviteError) {
-      console.error('Invite user error:', inviteError);
+      console.error('Edge Function Error: Invite user error -', inviteError.message);
       return new Response(JSON.stringify({ error: inviteError.message }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -137,7 +140,7 @@ serve(async (req) => {
       .single();
 
     if (insertClientError) {
-      console.error('Insert client error:', insertClientError);
+      console.error('Edge Function Error: Insert client error -', insertClientError.message);
       // If client insertion fails, consider rolling back the user invite (more complex)
       return new Response(JSON.stringify({ error: insertClientError.message }), {
         status: 500,
@@ -150,8 +153,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
-    console.error('Edge Function error:', error);
+  } catch (error: any) {
+    console.error('Edge Function Error: Uncaught exception -', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
