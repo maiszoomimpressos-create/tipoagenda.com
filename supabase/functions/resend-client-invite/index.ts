@@ -43,11 +43,11 @@ serve(async (req) => {
       });
     }
 
-    const { clientEmail, clientName, companyId, clientPhone, clientBirthDate, clientZipCode, clientState, clientCity, clientAddress, clientNumber, clientNeighborhood, clientComplement, clientObservations, clientStatus, clientPoints } = await req.json();
+    const { clientEmail, companyId } = await req.json();
 
-    if (!clientEmail || !clientName || !companyId || !clientPhone || !clientBirthDate || !clientZipCode || !clientState || !clientCity || !clientAddress || !clientNumber || !clientNeighborhood) {
-      console.error('Edge Function Error: Missing required client data');
-      return new Response(JSON.stringify({ error: 'Missing required client data' }), {
+    if (!clientEmail || !companyId) {
+      console.error('Edge Function Error: Missing required data for resend');
+      return new Response(JSON.stringify({ error: 'Missing required client email or company ID' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -95,65 +95,21 @@ serve(async (req) => {
       });
     }
 
-    // Invite the client as a new user
-    const { data: invitedUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(clientEmail, {
-      data: {
-        full_name: clientName, // Store full name in user_metadata
-        phone: clientPhone,
-        birth_date: clientBirthDate,
-      },
+    // Resend the invitation email
+    const { data: resendData, error: resendError } = await supabaseAdmin.auth.admin.inviteUserByEmail(clientEmail, {
       // Redirect to the signup page so the client can set their password
       redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
     });
 
-    if (inviteError) {
-      console.error('Edge Function Error: Invite user error -', inviteError.message);
-      return new Response(JSON.stringify({ error: inviteError.message }), {
+    if (resendError) {
+      console.error('Edge Function Error: Resend invite error -', resendError.message);
+      return new Response(JSON.stringify({ error: resendError.message }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // --- Adicionando logs para depuração ---
-    console.log('Edge Function Debug: User ID (creator):', user.id);
-    console.log('Edge Function Debug: Company ID (primary company of creator):', companyId);
-    // --- Fim dos logs de depuração ---
-
-    // Insert client data into the public.clients table
-    const { data: clientData, error: insertClientError } = await supabaseAdmin
-      .from('clients')
-      .insert({
-        user_id: user.id, // The user who created this client
-        company_id: companyId,
-        client_auth_id: invitedUser.user?.id, // Link to the newly invited user's auth ID
-        name: clientName,
-        phone: clientPhone,
-        email: clientEmail,
-        birth_date: clientBirthDate,
-        zip_code: clientZipCode,
-        state: clientState,
-        city: clientCity,
-        address: clientAddress,
-        number: clientNumber,
-        neighborhood: clientNeighborhood,
-        complement: clientComplement,
-        observations: clientObservations,
-        status: clientStatus,
-        points: clientPoints,
-      })
-      .select()
-      .single();
-
-    if (insertClientError) {
-      console.error('Edge Function Error: Insert client error -', insertClientError.message);
-      // If client insertion fails, consider rolling back the user invite (more complex)
-      return new Response(JSON.stringify({ error: insertClientError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(JSON.stringify({ message: 'Client invited and registered successfully', client: clientData }), {
+    return new Response(JSON.stringify({ message: 'Invitation email resent successfully', user: resendData.user }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

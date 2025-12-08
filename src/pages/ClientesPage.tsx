@@ -7,15 +7,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getStatusColor, createButton } from '@/lib/dashboard-utils';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast'; // Importar showSuccess
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Edit } from 'lucide-react'; // Importar o ícone de edição
+import { Edit, MailCheck } from 'lucide-react'; // Importar o ícone MailCheck
 
 interface Client {
   id: string;
   name: string;
   phone: string;
+  email: string; // Adicionar email para o reenvio
   status: string;
   points: number;
   // Adicione outros campos se precisar exibi-los, como email, birth_date, etc.
@@ -28,6 +29,7 @@ const ClientesPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null); // Estado para controlar o loading do reenvio
 
   const fetchClients = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany) {
@@ -49,7 +51,7 @@ const ClientesPage: React.FC = () => {
     setLoadingClients(true);
     const { data, error } = await supabase
       .from('clients')
-      .select('id, name, phone, status, points')
+      .select('id, name, phone, email, status, points') // Incluir email
       .eq('company_id', primaryCompanyId)
       .order('name', { ascending: true });
 
@@ -69,8 +71,41 @@ const ClientesPage: React.FC = () => {
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.phone.toLowerCase().includes(searchTerm.toLowerCase())
+    client.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleResendInvite = async (client: Client) => {
+    if (!session?.access_token || !primaryCompanyId) {
+      showError('Erro de autenticação ou empresa primária não encontrada.');
+      return;
+    }
+
+    setResendingInviteId(client.id);
+    try {
+      const response = await supabase.functions.invoke('resend-client-invite', {
+        body: JSON.stringify({
+          clientEmail: client.email,
+          companyId: primaryCompanyId,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      showSuccess(`Convite reenviado para ${client.email} com sucesso!`);
+    } catch (error: any) {
+      console.error('Erro ao reenviar convite:', error);
+      showError('Erro ao reenviar convite: ' + (error.message || 'Erro desconhecido.'));
+    } finally {
+      setResendingInviteId(null);
+    }
+  };
 
   if (sessionLoading || loadingPrimaryCompany || loadingClients) {
     return (
@@ -143,7 +178,7 @@ const ClientesPage: React.FC = () => {
                       <p className="text-sm text-gray-600">{cliente.phone ? `(${cliente.phone.substring(0,2)}) ${cliente.phone.substring(2,7)}-${cliente.phone.substring(7)}` : 'N/A'}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2"> {/* Adicionado flex para alinhar pontos e botão */}
+                  <div className="flex items-center gap-2"> {/* Adicionado flex para alinhar pontos e botões */}
                     <div className="text-center">
                       <p className="text-sm text-yellow-600">{cliente.points} pontos</p>
                     </div>
@@ -160,6 +195,22 @@ const ClientesPage: React.FC = () => {
                       }}
                     >
                       <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!rounded-button whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Evita que o clique no botão acione o clique no card
+                        handleResendInvite(cliente);
+                      }}
+                      disabled={resendingInviteId === cliente.id} // Desabilita durante o reenvio
+                    >
+                      {resendingInviteId === cliente.id ? (
+                        <i className="fas fa-spinner fa-spin h-4 w-4"></i> // Ícone de loading
+                      ) : (
+                        <MailCheck className="h-4 w-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
