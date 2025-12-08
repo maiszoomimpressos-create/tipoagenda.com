@@ -26,7 +26,8 @@ import ContractRegistrationPage from "./pages/ContractRegistrationPage";
 import SegmentManagementPage from "./pages/SegmentManagementPage";
 import ServicesPage from "./pages/ServicesPage";
 import ServiceFormPage from "./pages/ServiceFormPage";
-import EditClientPage from "./pages/EditClientPage"; // Import the new EditClientPage
+import EditClientPage from "./pages/EditClientPage";
+import CollaboratorFormPage from "./pages/CollaboratorFormPage"; // Import the new CollaboratorFormPage
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -87,14 +88,16 @@ const App = () => (
               <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
               <Route path="servicos/edit/:serviceId" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
               <Route path="clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
-              <Route path="clientes/edit/:clientId" element={<ProtectedRoute><EditClientPage /></ProtectedRoute>} /> {/* Nova rota para editar cliente */}
+              <Route path="clientes/edit/:clientId" element={<ProtectedRoute><EditClientPage /></ProtectedRoute>} />
               <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
+              <Route path="colaboradores/new" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} /> {/* Nova rota para adicionar colaborador */}
+              <Route path="colaboradores/edit/:collaboratorId" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} /> {/* Nova rota para editar colaborador */}
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
 
-              {/* Rotas de formulários específicos (protegidos) */}
+              {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
