@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0'; // Updated to 2.46.0
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,6 +69,17 @@ serve(async (req) => {
       }
     );
 
+    console.log('Edge Function Debug (resend-client-invite): Checking admin client structure...');
+    console.log('Edge Function Debug (resend-client-invite): typeof supabaseAdmin.auth:', typeof supabaseAdmin.auth);
+    console.log('Edge Function Debug (resend-client-invite): supabaseAdmin.auth object:', JSON.stringify(supabaseAdmin.auth, null, 2));
+    console.log('Edge Function Debug (resend-client-invite): typeof supabaseAdmin.auth.admin:', typeof supabaseAdmin.auth.admin);
+    if (supabaseAdmin.auth.admin) {
+      console.log('Edge Function Debug (resend-client-invite): supabaseAdmin.auth.admin object:', JSON.stringify(supabaseAdmin.auth.admin, null, 2));
+      console.log('Edge Function Debug (resend-client-invite): Methods on supabaseAdmin.auth.admin:', Object.keys(supabaseAdmin.auth.admin));
+    } else {
+      console.log('Edge Function Debug (resend-client-invite): supabaseAdmin.auth.admin is undefined or null. Admin client might not be initialized correctly.');
+    }
+
     // Check if the calling user (user.id) is an admin/proprietor of the companyId
     const { data: userCompanyRoles, error: roleError } = await supabaseAdmin
       .from('user_companies')
@@ -111,17 +122,35 @@ serve(async (req) => {
     let resendOperationMessage = '';
 
     // First, check if a user with this email already exists in auth.users
-    const { data: existingUser, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.getUserByEmail(clientEmail);
-
-    if (fetchExistingUserError && fetchExistingUserError.message !== 'User not found') {
-      console.error('Edge Function Error (resend-client-invite): Error checking for existing user -', fetchExistingUserError.message);
-      return new Response(JSON.stringify({ error: 'Error checking for existing user: ' + fetchExistingUserError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    let existingUser = null;
+    if (supabaseAdmin.auth.admin && typeof supabaseAdmin.auth.admin.getUserByEmail === 'function') {
+      console.log('Edge Function Debug (resend-client-invite): Using getUserByEmail.');
+      const { data, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.getUserByEmail(clientEmail);
+      if (fetchExistingUserError && fetchExistingUserError.message !== 'User not found') {
+        console.error('Edge Function Error (resend-client-invite): Error checking for existing user -', fetchExistingUserError.message);
+        return new Response(JSON.stringify({ error: 'Error checking for existing user: ' + fetchExistingUserError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      existingUser = data?.user;
+    } else {
+      console.warn('Edge Function Warning (resend-client-invite): getUserByEmail not found on supabaseAdmin.auth.admin. Falling back to listUsers.');
+      // Fallback to listUsers if getUserByEmail is not available
+      const { data, error: listUsersError } = await supabaseAdmin.auth.admin.listUsers({
+        filter: clientEmail, // CORRECTED: Use 'filter' for email search
       });
+      if (listUsersError) {
+        console.error('Edge Function Error (resend-client-invite): Error listing users as fallback -', listUsersError.message);
+        return new Response(JSON.stringify({ error: 'Error checking for existing user (fallback): ' + listUsersError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      existingUser = data?.users?.[0];
     }
 
-    if (existingUser?.user) {
+    if (existingUser) {
       // User already exists, send a magic link or password reset link
       console.log('Edge Function Debug (resend-client-invite): User already exists, sending magic link.');
       const { error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
