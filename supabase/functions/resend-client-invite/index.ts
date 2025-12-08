@@ -107,23 +107,62 @@ serve(async (req) => {
       });
     }
 
-    // Resend the invitation email
-    const { data: resendData, error: resendError } = await supabaseAdmin.auth.admin.inviteUserByEmail(clientEmail, {
-      // Redirect to the signup page so the client can set their password
-      redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
-    });
+    let resendOperationError = null;
+    let resendOperationMessage = '';
 
-    if (resendError) {
-      console.error('Edge Function Error (resend-client-invite): Resend invite error -', resendError.message);
-      return new Response(JSON.stringify({ error: resendError.message }), {
+    // First, check if a user with this email already exists in auth.users
+    const { data: existingUser, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.getUserByEmail(clientEmail);
+
+    if (fetchExistingUserError && fetchExistingUserError.message !== 'User not found') {
+      console.error('Edge Function Error (resend-client-invite): Error checking for existing user -', fetchExistingUserError.message);
+      return new Response(JSON.stringify({ error: 'Error checking for existing user: ' + fetchExistingUserError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (existingUser?.user) {
+      // User already exists, send a magic link or password reset link
+      console.log('Edge Function Debug (resend-client-invite): User already exists, sending magic link.');
+      const { error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink', // Sends a link to sign in or set password
+        email: clientEmail,
+        options: {
+          redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`, // Redirect to signup to set password
+        },
+      });
+
+      if (magicLinkError) {
+        resendOperationError = magicLinkError;
+        resendOperationMessage = 'Erro ao enviar link mágico: ' + magicLinkError.message;
+      } else {
+        resendOperationMessage = 'Link de acesso enviado com sucesso para o e-mail do cliente existente.';
+      }
+    } else {
+      // User does not exist, proceed with inviteUserByEmail
+      console.log('Edge Function Debug (resend-client-invite): User does not exist, inviting new user.');
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(clientEmail, {
+        redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
+      });
+
+      if (inviteError) {
+        resendOperationError = inviteError;
+        resendOperationMessage = 'Erro ao convidar novo usuário: ' + inviteError.message;
+      } else {
+        resendOperationMessage = 'Convite enviado com sucesso para o novo cliente.';
+      }
+    }
+
+    if (resendOperationError) {
+      console.error('Edge Function Error (resend-client-invite): Resend operation failed -', resendOperationError.message);
+      return new Response(JSON.stringify({ error: resendOperationMessage }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Edge Function Debug (resend-client-invite): Invitation email resent successfully for:', clientEmail);
-
-    return new Response(JSON.stringify({ message: 'Invitation email resent successfully', user: resendData.user }), {
+    console.log('Edge Function Debug (resend-client-invite): Resend operation completed successfully.');
+    return new Response(JSON.stringify({ message: resendOperationMessage }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
