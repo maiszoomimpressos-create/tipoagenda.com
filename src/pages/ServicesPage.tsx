@@ -166,7 +166,7 @@ const ServicesPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-cut text-gray-600 text-xl"></i>
+                      <i className="fas fa-briefcase text-gray-600 text-xl"></i> {/* Ícone alterado para 'briefcase' */}
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900">{service.name}</h3>
