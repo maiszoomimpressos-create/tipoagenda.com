@@ -25,7 +25,8 @@ import SettingsPage from "./pages/SettingsPage";
 import ContractRegistrationPage from "./pages/ContractRegistrationPage";
 import SegmentManagementPage from "./pages/SegmentManagementPage";
 import ServicesPage from "./pages/ServicesPage";
-import ServiceFormPage from "./pages/ServiceFormPage"; // Import the renamed ServiceFormPage
+import ServiceFormPage from "./pages/ServiceFormPage";
+import EditClientPage from "./pages/EditClientPage"; // Import the new EditClientPage
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -83,9 +84,10 @@ const App = () => (
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
               <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} />
-              <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} /> {/* Rota para adicionar serviço */}
-              <Route path="servicos/edit/:serviceId" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} /> {/* Nova rota para editar serviço */}
+              <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
+              <Route path="servicos/edit/:serviceId" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
               <Route path="clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
+              <Route path="clientes/edit/:clientId" element={<ProtectedRoute><EditClientPage /></ProtectedRoute>} /> {/* Nova rota para editar cliente */}
               <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />

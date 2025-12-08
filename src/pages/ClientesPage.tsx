@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { Edit } from 'lucide-react'; // Importar o ícone de edição
 
 interface Client {
   id: string;
@@ -142,13 +143,25 @@ const ClientesPage: React.FC = () => {
                       <p className="text-sm text-gray-600">{cliente.phone ? `(${cliente.phone.substring(0,2)}) ${cliente.phone.substring(2,7)}-${cliente.phone.substring(7)}` : 'N/A'}</p>
                     </div>
                   </div>
-                  <div className="text-center">
-                    {/* Visitas não está no DB, então exibimos apenas pontos */}
-                    <p className="text-sm text-yellow-600">{cliente.points} pontos</p>
+                  <div className="flex items-center gap-2"> {/* Adicionado flex para alinhar pontos e botão */}
+                    <div className="text-center">
+                      <p className="text-sm text-yellow-600">{cliente.points} pontos</p>
+                    </div>
+                    <Badge className={`${getStatusColor(cliente.status)} text-xs`}>
+                      {cliente.status.toUpperCase()}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!rounded-button whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Evita que o clique no botão acione o clique no card (se houver)
+                        navigate(`/clientes/edit/${cliente.id}`);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Badge className={`${getStatusColor(cliente.status)} text-xs`}>
-                    {cliente.status.toUpperCase()}
-                  </Badge>
                 </div>
               </CardContent>
             </Card>
