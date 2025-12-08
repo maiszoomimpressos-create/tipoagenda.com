@@ -25,7 +25,7 @@ serve(async (req) => {
     // Verify the user's session (the one calling this function)
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      console.error('Edge Function Error: Unauthorized - No Authorization header');
+      console.error('Edge Function Error (invite-client): Unauthorized - No Authorization header');
       return new Response(JSON.stringify({ error: 'Unauthorized: No Authorization header' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -36,7 +36,7 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
     if (userError || !user) {
-      console.error('Edge Function Error: Auth error -', userError?.message || 'User not found');
+      console.error('Edge Function Error (invite-client): Auth error -', userError?.message || 'User not found');
       return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token or user not found' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -45,8 +45,13 @@ serve(async (req) => {
 
     const { clientEmail, clientName, companyId, clientPhone, clientBirthDate, clientZipCode, clientState, clientCity, clientAddress, clientNumber, clientNeighborhood, clientComplement, clientObservations, clientStatus, clientPoints } = await req.json();
 
+    console.log('Edge Function Debug (invite-client): Received clientEmail:', clientEmail);
+    console.log('Edge Function Debug (invite-client): Received companyId:', companyId);
+    console.log('Edge Function Debug (invite-client): Authenticated user ID:', user.id);
+
+
     if (!clientEmail || !clientName || !companyId || !clientPhone || !clientBirthDate || !clientZipCode || !clientState || !clientCity || !clientAddress || !clientNumber || !clientNeighborhood) {
-      console.error('Edge Function Error: Missing required client data');
+      console.error('Edge Function Error (invite-client): Missing required client data');
       return new Response(JSON.stringify({ error: 'Missing required client data' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -73,7 +78,9 @@ serve(async (req) => {
       .single();
 
     if (roleError || !userCompanyRoles) {
-      console.error('Edge Function Error: Role check error -', roleError?.message || 'User not authorized for this company');
+      console.error('Edge Function Error (invite-client): Role check error -', roleError?.message || 'User not authorized for this company');
+      console.error('Edge Function Debug (invite-client): User ID:', user.id, 'Company ID:', companyId);
+      console.error('Edge Function Debug (invite-client): Role fetch error:', roleError);
       return new Response(JSON.stringify({ error: 'Forbidden: User not authorized for this company' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -87,8 +94,13 @@ serve(async (req) => {
       .eq('id', userCompanyRoles.role_type)
       .single();
 
+    console.log('Edge Function Debug (invite-client): User role type ID:', userCompanyRoles.role_type);
+    console.log('Edge Function Debug (invite-client): User role type description:', roleTypeData?.description);
+
+
     if (roleTypeFetchError || !roleTypeData || !['Proprietário', 'Admin'].includes(roleTypeData.description)) {
-      console.error('Edge Function Error: Role type description error -', roleTypeFetchError?.message || 'User does not have sufficient privileges');
+      console.error('Edge Function Error (invite-client): Role type description error -', roleTypeFetchError?.message || 'User does not have sufficient privileges');
+      console.error('Edge Function Debug (invite-client): Role type fetch error:', roleTypeFetchError);
       return new Response(JSON.stringify({ error: 'Forbidden: User does not have sufficient privileges for this company' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -107,17 +119,14 @@ serve(async (req) => {
     });
 
     if (inviteError) {
-      console.error('Edge Function Error: Invite user error -', inviteError.message);
+      console.error('Edge Function Error (invite-client): Invite user error -', inviteError.message);
       return new Response(JSON.stringify({ error: inviteError.message }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // --- Adicionando logs para depuração ---
-    console.log('Edge Function Debug: User ID (creator):', user.id);
-    console.log('Edge Function Debug: Company ID (primary company of creator):', companyId);
-    // --- Fim dos logs de depuração ---
+    console.log('Edge Function Debug (invite-client): User invited successfully:', invitedUser.user?.id);
 
     // Insert client data into the public.clients table
     const { data: clientData, error: insertClientError } = await supabaseAdmin
@@ -145,7 +154,7 @@ serve(async (req) => {
       .single();
 
     if (insertClientError) {
-      console.error('Edge Function Error: Insert client error -', insertClientError.message);
+      console.error('Edge Function Error (invite-client): Insert client error -', insertClientError.message);
       // If client insertion fails, consider rolling back the user invite (more complex)
       return new Response(JSON.stringify({ error: insertClientError.message }), {
         status: 500,
@@ -153,13 +162,15 @@ serve(async (req) => {
       });
     }
 
+    console.log('Edge Function Debug (invite-client): Client data inserted successfully:', clientData?.id);
+
     return new Response(JSON.stringify({ message: 'Client invited and registered successfully', client: clientData }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: any) {
-    console.error('Edge Function Error: Uncaught exception -', error.message);
+    console.error('Edge Function Error (invite-client): Uncaught exception -', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
