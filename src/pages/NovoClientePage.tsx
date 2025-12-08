@@ -10,8 +10,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { showSuccess, showError } from '@/utils/toast';
-import { supabase } from '@/integrations/supabase/client'; // Assuming client registration will use supabase
-import { formatZipCodeInput } from '@/utils/validation'; // Importar a função de formatação de CEP
+import { supabase } from '@/integrations/supabase/client';
+import { formatZipCodeInput } from '@/utils/validation';
+import { useSession } from '@/components/SessionContextProvider';
+import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 
 // Zod schema for new client registration
 const newClientSchema = z.object({
@@ -19,7 +21,7 @@ const newClientSchema = z.object({
   telefone: z.string()
     .min(1, "Telefone é obrigatório.")
     .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
-  email: z.string().email("E-mail inválido.").optional().or(z.literal('')),
+  email: z.string().email("E-mail inválido.").min(1, "E-mail é obrigatório."),
   nascimento: z.string()
     .min(1, "Data de nascimento é obrigatória.")
     .refine((val) => {
@@ -40,7 +42,6 @@ const newClientSchema = z.object({
       return birthDate <= today;
     }, "Data de nascimento inválida, ano deve ter 4 dígitos e não pode ser no futuro."),
   
-  // Novos campos de endereço
   zip_code: z.string()
     .min(1, "CEP é obrigatório.")
     .regex(/^\d{5}-\d{3}$/, "Formato de CEP inválido (ex: XXXXX-XXX)"),
@@ -63,6 +64,8 @@ type NewClientFormValues = z.infer<typeof newClientSchema>;
 
 const NovoClientePage: React.FC = () => {
   const navigate = useNavigate();
+  const { session, loading: sessionLoading } = useSession();
+  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [loading, setLoading] = useState(false);
 
   const {
@@ -163,15 +166,61 @@ const NovoClientePage: React.FC = () => {
 
   const onSubmit = async (data: NewClientFormValues) => {
     setLoading(true);
+
+    if (sessionLoading || loadingPrimaryCompany) {
+      showError('Aguarde o carregamento da sessão e da empresa primária.');
+      setLoading(false);
+      return;
+    }
+
+    if (!session?.user) {
+      showError('Você precisa estar logado para cadastrar um cliente.');
+      setLoading(false);
+      navigate('/login');
+      return;
+    }
+
+    if (!primaryCompanyId) {
+      showError('Você precisa ter uma empresa primária cadastrada para cadastrar clientes.');
+      setLoading(false);
+      navigate('/register-company');
+      return;
+    }
+
     try {
-      // Here you would typically insert the new client into your database
-      // For now, we'll just log the data and show a success message
-      console.log('Dados do novo cliente:', data);
-      showSuccess('Cliente cadastrado com sucesso!');
-      navigate('/clientes'); // Navigate back to clients list
+      const response = await supabase.functions.invoke('invite-client', {
+        body: JSON.stringify({
+          clientEmail: data.email,
+          clientName: data.nome,
+          companyId: primaryCompanyId,
+          clientPhone: data.telefone.replace(/\D/g, ''), // Clean phone number for DB
+          clientBirthDate: data.nascimento,
+          clientZipCode: data.zip_code.replace(/\D/g, ''), // Clean zip code for DB
+          clientState: data.state,
+          clientCity: data.city,
+          clientAddress: data.address,
+          clientNumber: data.number,
+          clientNeighborhood: data.neighborhood,
+          clientComplement: data.complement,
+          clientObservations: data.observacoes,
+          clientStatus: data.status,
+          clientPoints: data.pontos,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      showSuccess('Cliente cadastrado e e-mail de convite enviado com sucesso!');
+      navigate('/clientes');
     } catch (error: any) {
       console.error('Erro ao cadastrar cliente:', error);
-      showError('Erro ao cadastrar cliente: ' + error.message);
+      showError('Erro ao cadastrar cliente: ' + (error.message || 'Erro desconhecido.'));
     } finally {
       setLoading(false);
     }
@@ -240,7 +289,7 @@ const NovoClientePage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email">
-                    E-mail
+                    E-mail *
                   </Label>
                   <Input
                     id="email"
@@ -409,9 +458,9 @@ const NovoClientePage: React.FC = () => {
                 <Button
                   type="submit"
                   className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black flex-1"
-                  disabled={loading}
+                  disabled={loading || sessionLoading || loadingPrimaryCompany}
                 >
-                  {loading ? 'Cadastrando...' : 'Cadastrar Cliente'}
+                  {loading || sessionLoading || loadingPrimaryCompany ? 'Cadastrando...' : 'Cadastrar Cliente'}
                 </Button>
               </div>
             </form>
