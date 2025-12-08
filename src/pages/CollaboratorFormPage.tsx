@@ -60,6 +60,7 @@ const CollaboratorFormPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [roleTypes, setRoleTypes] = useState<RoleType[]>([]);
   const [loadingRoleTypes, setLoadingRoleTypes] = useState(true);
+  const [currentCollaboratorData, setCurrentCollaboratorData] = useState<any>(null); // State to hold fetched data for editing
   const isEditing = !!collaboratorId;
 
   const {
@@ -120,6 +121,7 @@ const CollaboratorFormPage: React.FC = () => {
         console.error('Error fetching collaborator:', error);
         navigate('/colaboradores');
       } else if (data) {
+        setCurrentCollaboratorData(data); // Store fetched data
         reset({
           first_name: data.first_name,
           last_name: data.last_name,
@@ -213,19 +215,26 @@ const CollaboratorFormPage: React.FC = () => {
       let error;
       if (isEditing) {
         // Update existing collaborator
+        const updateData: any = {
+          first_name: data.first_name,
+          last_name: data.last_name,
+          // email: data.email, // Email should not be editable after creation
+          phone_number: data.phone_number.replace(/\D/g, ''),
+          hire_date: data.hire_date,
+          role_type_id: data.role_type_id,
+          commission_percentage: data.commission_percentage,
+          status: data.status,
+        };
+        if (avatarUrl) { // Only update avatar_url if a new file was uploaded
+          updateData.avatar_url = avatarUrl;
+        } else if (data.avatar_file && data.avatar_file.length === 0 && currentCollaboratorData?.avatar_url) {
+          // If user explicitly cleared the file input and there was an existing avatar, set it to null
+          updateData.avatar_url = null;
+        }
+
         const { error: updateError } = await supabase
           .from('collaborators')
-          .update({
-            first_name: data.first_name,
-            last_name: data.last_name,
-            email: data.email,
-            phone_number: data.phone_number.replace(/\D/g, ''),
-            hire_date: data.hire_date,
-            role_type_id: data.role_type_id,
-            commission_percentage: data.commission_percentage,
-            status: data.status,
-            avatar_url: avatarUrl || undefined, // Only update if new avatar uploaded
-          })
+          .update(updateData)
           .eq('id', collaboratorId)
           .eq('company_id', primaryCompanyId);
         error = updateError;
@@ -242,7 +251,7 @@ const CollaboratorFormPage: React.FC = () => {
             roleTypeId: data.role_type_id,
             commissionPercentage: data.commission_percentage,
             status: data.status,
-            avatarUrl: avatarUrl,
+            avatarUrl: avatarUrl, // Pass the uploaded avatar URL
           }),
           headers: {
             'Content-Type': 'application/json',
@@ -255,7 +264,7 @@ const CollaboratorFormPage: React.FC = () => {
         }
       }
 
-      if (error) {
+      if (error) { // This `error` variable is only for the `isEditing` path
         throw error;
       }
 

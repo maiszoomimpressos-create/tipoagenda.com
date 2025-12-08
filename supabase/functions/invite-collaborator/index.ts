@@ -107,7 +107,7 @@ serve(async (req) => {
         role_type_id: roleTypeId,
         commission_percentage: commissionPercentage,
         status: status,
-        avatar_url: avatarUrl,
+        avatar_url: avatarUrl, // Pass the avatar URL here
       },
       redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
     });
@@ -136,7 +136,7 @@ serve(async (req) => {
         role_type_id: roleTypeId,
         commission_percentage: commissionPercentage,
         status: status,
-        avatar_url: avatarUrl,
+        avatar_url: avatarUrl, // Pass the avatar URL here
       })
       .select()
       .single();
