@@ -172,25 +172,21 @@ const ColaboradoresPage: React.FC = () => {
                   <h3 className="font-bold text-gray-900 text-lg">{colaborador.first_name} {colaborador.last_name}</h3>
                   <p className="text-gray-600 mb-3">{colaborador.role_description}</p>
                   <div className="space-y-2">
-                    {/* Email */}
-                    <div className="flex flex-wrap justify-between items-baseline">
-                      <span className="text-sm text-gray-600 mr-2">E-mail:</span>
-                      <span className="font-semibold text-gray-900 text-right flex-1 break-words min-w-0">{colaborador.email}</span>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">E-mail:</span>
+                      <span className="font-semibold text-gray-900">{colaborador.email}</span>
                     </div>
-                    {/* Telefone */}
-                    <div className="flex flex-wrap justify-between items-baseline">
-                      <span className="text-sm text-gray-600 mr-2">Telefone:</span>
-                      <span className="font-semibold text-gray-900 text-right flex-1 break-words min-w-0">{colaborador.phone_number ? `(${colaborador.phone_number.substring(0,2)}) ${colaborador.phone_number.substring(2,7)}-${colaborador.phone_number.substring(7)}` : 'N/A'}</span>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Telefone:</span>
+                      <span className="font-semibold text-gray-900">{colaborador.phone_number ? `(${colaborador.phone_number.substring(0,2)}) ${colaborador.phone_number.substring(2,7)}-${colaborador.phone_number.substring(7)}` : 'N/A'}</span>
                     </div>
-                    {/* Comissão */}
-                    <div className="flex flex-wrap justify-between items-baseline">
-                      <span className="text-sm text-gray-600 mr-2">Comissão:</span>
-                      <span className="font-semibold text-gray-900 text-right flex-1 break-words min-w-0">{colaborador.commission_percentage}%</span>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Comissão:</span>
+                      <span className="font-semibold text-gray-900">{colaborador.commission_percentage}%</span>
                     </div>
-                    {/* Status */}
-                    <div className="flex flex-wrap justify-between items-baseline">
-                      <span className="text-sm text-gray-600 mr-2">Status:</span>
-                      <span className="font-semibold text-gray-900 text-right flex-1 break-words min-w-0">{colaborador.status}</span>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <span className="font-semibold text-gray-900">{colaborador.status}</span>
                     </div>
                   </div>
                   <div className="flex justify-center gap-2 mt-4">
