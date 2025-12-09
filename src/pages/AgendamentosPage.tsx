@@ -10,8 +10,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Calendar } from "@/components/ui/calendar"; // Importar Calendar
 
 interface Appointment {
   id: string;
@@ -37,7 +38,7 @@ const AgendamentosPage: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [selectedTab, setSelectedTab] = useState('dia');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // Data selecionada no calendário
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
 
@@ -63,13 +64,28 @@ const AgendamentosPage: React.FC = () => {
           )
         `)
         .eq('company_id', primaryCompanyId)
+        .order('appointment_date', { ascending: true }) // Order by date first
         .order('appointment_time', { ascending: true });
 
-      // Filter by date for 'dia' tab
+      // Filter by date range based on selectedTab and selectedDate
+      let startDate: Date | null = null;
+      let endDate: Date | null = null;
+
       if (selectedTab === 'dia') {
-        query = query.eq('appointment_date', format(selectedDate, 'yyyy-MM-dd'));
+        startDate = startOfDay(selectedDate);
+        endDate = endOfDay(selectedDate);
+      } else if (selectedTab === 'semana') {
+        startDate = startOfWeek(selectedDate, { locale: ptBR });
+        endDate = endOfWeek(selectedDate, { locale: ptBR });
+      } else if (selectedTab === 'mes') {
+        startDate = startOfMonth(selectedDate);
+        endDate = endOfMonth(selectedDate);
       }
-      // TODO: Implement 'semana' and 'mes' filtering logic
+
+      if (startDate && endDate) {
+        query = query.gte('appointment_date', format(startDate, 'yyyy-MM-dd'));
+        query = query.lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
+      }
 
       // Filter by collaborator
       if (selectedCollaboratorFilter !== 'all') {
@@ -157,7 +173,7 @@ const AgendamentosPage: React.FC = () => {
         {createButton(() => navigate('/novo-agendamento'), 'fas fa-plus', 'Novo Agendamento')}
       </div>
 
-      <div className="flex gap-4 items-center">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
         <Tabs defaultValue="dia" className="w-auto" onValueChange={setSelectedTab}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dia">Dia</TabsTrigger>
@@ -175,11 +191,21 @@ const AgendamentosPage: React.FC = () => {
             <option key={col.id} value={col.id}>{col.first_name} {col.last_name}</option>
           ))}
         </select>
+        <div className="md:ml-auto"> {/* Move calendar to the right on larger screens */}
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={(date) => date && setSelectedDate(date)}
+            initialFocus
+            locale={ptBR}
+            className="rounded-md border shadow"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4">
         {appointments.length === 0 ? (
-          <p className="text-gray-600">Nenhum agendamento encontrado para {selectedTab === 'dia' ? 'hoje' : 'o período selecionado'}.</p>
+          <p className="text-gray-600">Nenhum agendamento encontrado para {selectedTab === 'dia' ? 'o dia selecionado' : selectedTab === 'semana' ? 'a semana selecionada' : 'o mês selecionado'}.</p>
         ) : (
           appointments.map((agendamento) => {
             const clientName = agendamento.clients?.name || 'Cliente Desconhecido';
