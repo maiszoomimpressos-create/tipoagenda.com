@@ -161,14 +161,8 @@ export async function getAvailableTimeSlots(
         // Format the slot as "HH:MM às HH:MM"
         availableSlots.push(`${format(currentTime, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
         currentTime = addMinutes(currentTime, slotIntervalMinutes);
-      } else {
-        // If not free due to overlap, currentTime was already adjusted.
-        // If not free for other reasons (e.g., slotEnd is after workingHour.end),
-        // currentTime will be advanced by slotIntervalMinutes.
-        if (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingHour.end, 1))) {
-             currentTime = addMinutes(currentTime, slotIntervalMinutes);
-        }
       }
+      // Removed the 'else' block here, as currentTime is already advanced by 'break' if isSlotFree is false.
     }
   }
 
