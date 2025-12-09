@@ -15,7 +15,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, parse, isAfter } from 'date-fns'; // Importar parse e isAfter
 import { ptBR } from 'date-fns/locale';
 
 // Zod schema for a single working schedule entry
@@ -24,6 +24,13 @@ const workingScheduleSchema = z.object({
   day_of_week: z.number().min(0).max(6),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
   end_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
+}).refine(data => {
+  const start = parse(data.start_time, 'HH:mm', new Date());
+  const end = parse(data.end_time, 'HH:mm', new Date());
+  return isAfter(end, start);
+}, {
+  message: "A hora de fim deve ser depois da hora de início.",
+  path: ["end_time"],
 });
 
 // Zod schema for a single schedule exception entry (for display)
@@ -50,6 +57,16 @@ const exceptionModalSchema = z.object({
 }, {
   message: "Horário de início e fim são obrigatórios se não for dia de folga.",
   path: ["start_time"],
+}).refine(data => {
+  if (!data.is_day_off && data.start_time && data.end_time) {
+    const start = parse(data.start_time, 'HH:mm', new Date());
+    const end = parse(data.end_time, 'HH:mm', new Date());
+    return isAfter(end, start);
+  }
+  return true;
+}, {
+  message: "A hora de fim deve ser depois da hora de início para a exceção.",
+  path: ["end_time"],
 });
 
 type ExceptionModalFormValues = z.infer<typeof exceptionModalSchema>;
@@ -57,6 +74,39 @@ type ExceptionModalFormValues = z.infer<typeof exceptionModalSchema>;
 // Main form schema (only for working schedules now)
 const collaboratorScheduleFormSchema = z.object({
   working_schedules: z.array(workingScheduleSchema),
+}).refine((schedules) => {
+  const schedulesByDay: Record<number, typeof schedules> = {};
+  schedules.working_schedules.forEach(schedule => {
+    if (!schedulesByDay[schedule.day_of_week]) {
+      schedulesByDay[schedule.day_of_week] = [];
+    }
+    schedulesByDay[schedule.day_of_week].push(schedule);
+  });
+
+  for (const dayOfWeek in schedulesByDay) {
+    const daySchedules = schedulesByDay[dayOfWeek].sort((a, b) => {
+      const timeA = parse(a.start_time, 'HH:mm', new Date());
+      const timeB = parse(b.start_time, 'HH:mm', new Date());
+      return timeA.getTime() - timeB.getTime();
+    });
+
+    for (let i = 0; i < daySchedules.length - 1; i++) {
+      const current = daySchedules[i];
+      const next = daySchedules[i + 1];
+
+      const currentEndTime = parse(current.end_time, 'HH:mm', new Date());
+      const nextStartTime = parse(next.start_time, 'HH:mm', new Date());
+
+      // Check for overlap: if current block ends after or at the same time as the next block starts
+      if (isAfter(currentEndTime, nextStartTime) || currentEndTime.getTime() === nextStartTime.getTime()) {
+        return false; // Overlap found
+      }
+    }
+  }
+  return true; // No overlaps
+}, {
+  message: "Horários de trabalho não podem se sobrepor ou ter início/fim no mesmo instante para o mesmo dia.",
+  path: ["working_schedules"],
 });
 
 type CollaboratorScheduleFormValues = z.infer<typeof collaboratorScheduleFormSchema>;
@@ -445,6 +495,10 @@ const CollaboratorSchedulePage: React.FC = () => {
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900">Horário de Trabalho Semanal</CardTitle>
+            <p className="text-sm text-gray-600 mt-2">
+              Defina os blocos de horário em que o colaborador estará disponível. Para criar um intervalo (ex: almoço),
+              adicione blocos de trabalho separados antes e depois do período de folga.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             {daysOfWeek.map((day) => {
@@ -521,6 +575,7 @@ const CollaboratorSchedulePage: React.FC = () => {
                 </div>
               );
             })}
+            {mainFormErrors.working_schedules && <p className="text-red-500 text-sm mt-2">{mainFormErrors.working_schedules.message}</p>}
           </CardContent>
         </Card>
 
