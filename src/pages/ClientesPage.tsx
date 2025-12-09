@@ -95,7 +95,14 @@ const ClientesPage: React.FC = () => {
       });
 
       if (response.error) {
-        throw response.error;
+        // Extract the specific error message from the Edge Function's response
+        let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
+        if (response.error.context && response.error.context.data && response.error.context.data.error) {
+          edgeFunctionErrorMessage = response.error.context.data.error;
+        } else if (response.error.message) {
+          edgeFunctionErrorMessage = response.error.message;
+        }
+        throw new Error(edgeFunctionErrorMessage);
       }
 
       showSuccess(`Convite reenviado para ${client.email} com sucesso!`);
@@ -167,7 +174,7 @@ const ClientesPage: React.FC = () => {
             <Card key={cliente.id} className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 w-1/2">
                     <Avatar className="w-12 h-12">
                       <AvatarFallback className="bg-gray-200 text-gray-700">
                         {cliente.name.split(' ').map(n => n[0]).join('')}
@@ -219,6 +226,9 @@ const ClientesPage: React.FC = () => {
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {/* ... (seu modal de exclusão de cliente, se houver) */}
     </div>
   );
 };

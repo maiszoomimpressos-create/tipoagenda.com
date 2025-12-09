@@ -260,7 +260,14 @@ const CollaboratorFormPage: React.FC = () => {
         });
 
         if (response.error) {
-          throw response.error;
+          // Extract the specific error message from the Edge Function's response
+          let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
+          if (response.error.context && response.error.context.data && response.error.context.data.error) {
+            edgeFunctionErrorMessage = response.error.context.data.error;
+          } else if (response.error.message) {
+            edgeFunctionErrorMessage = response.error.message;
+          }
+          throw new Error(edgeFunctionErrorMessage);
         }
       }
 
