@@ -1,13 +1,220 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createFormField } from '@/lib/dashboard-utils';
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { showSuccess, showError } from '@/utils/toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useSession } from '@/components/SessionContextProvider';
+import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+
+// Zod schema for new appointment registration
+const newAppointmentSchema = z.object({
+  clientId: z.string().min(1, "Cliente é obrigatório."),
+  collaboratorId: z.string().min(1, "Colaborador é obrigatório."),
+  serviceIds: z.array(z.string()).min(1, "Selecione pelo menos um serviço."),
+  appointmentDate: z.string().min(1, "Data é obrigatória."),
+  appointmentTime: z.string().min(1, "Horário é obrigatório."),
+  paymentMethod: z.string().min(1, "Forma de pagamento é obrigatória."),
+  observations: z.string().max(500, "Máximo de 500 caracteres.").optional(),
+});
+
+type NewAppointmentFormValues = z.infer<typeof newAppointmentSchema>;
+
+interface Client {
+  id: string;
+  name: string;
+}
+
+interface Collaborator {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  price: number;
+  duration_minutes: number;
+}
 
 const NovoAgendamentoPage: React.FC = () => {
   const navigate = useNavigate();
+  const { session, loading: sessionLoading } = useSession();
+  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const [loading, setLoading] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<NewAppointmentFormValues>({
+    resolver: zodResolver(newAppointmentSchema),
+    defaultValues: {
+      clientId: '',
+      collaboratorId: '',
+      serviceIds: [],
+      appointmentDate: '',
+      appointmentTime: '',
+      paymentMethod: 'dinheiro',
+      observations: '',
+    },
+  });
+
+  const selectedClientId = watch('clientId');
+  const selectedCollaboratorId = watch('collaboratorId');
+  const selectedServiceIds = watch('serviceIds');
+  const selectedAppointmentDate = watch('appointmentDate');
+  const selectedAppointmentTime = watch('appointmentTime');
+  const selectedPaymentMethod = watch('paymentMethod');
+
+  const fetchInitialData = useCallback(async () => {
+    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+      return;
+    }
+
+    setLoadingData(true);
+    try {
+      // Fetch Clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('company_id', primaryCompanyId)
+        .order('name', { ascending: true });
+
+      if (clientsError) throw clientsError;
+      setClients(clientsData);
+
+      // Fetch Collaborators
+      const { data: collaboratorsData, error: collaboratorsError } = await supabase
+        .from('collaborators')
+        .select('id, first_name, last_name')
+        .eq('company_id', primaryCompanyId)
+        .order('first_name', { ascending: true });
+
+      if (collaboratorsError) throw collaboratorsError;
+      setCollaborators(collaboratorsData);
+
+      // Fetch Services
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('id, name, price, duration_minutes')
+        .eq('company_id', primaryCompanyId)
+        .eq('status', 'Ativo') // Only active services
+        .order('name', { ascending: true });
+
+      if (servicesError) throw servicesError;
+      setServices(servicesData);
+
+    } catch (error: any) {
+      console.error('Erro ao carregar dados iniciais:', error);
+      showError('Erro ao carregar dados: ' + error.message);
+    } finally {
+      setLoadingData(false);
+    }
+  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId]);
+
+  useEffect(() => {
+    if (!session && !sessionLoading) {
+      showError('Você precisa estar logado para criar agendamentos.');
+      navigate('/login');
+    }
+    if (!primaryCompanyId && !loadingPrimaryCompany && session) {
+      showError('Você precisa ter uma empresa primária cadastrada para criar agendamentos.');
+      navigate('/register-company');
+    }
+    fetchInitialData();
+  }, [session, sessionLoading, primaryCompanyId, loadingPrimaryCompany, navigate, fetchInitialData]);
+
+  const handleServiceChange = (serviceId: string, checked: boolean) => {
+    let currentServices = selectedServiceIds;
+    if (checked) {
+      currentServices = [...currentServices, serviceId];
+    } else {
+      currentServices = currentServices.filter((id) => id !== serviceId);
+    }
+    setValue('serviceIds', currentServices, { shouldValidate: true });
+  };
+
+  const onSubmit = async (data: NewAppointmentFormValues) => {
+    setLoading(true);
+    if (!session?.user || !primaryCompanyId) {
+      showError('Erro de autenticação ou empresa primária não encontrada.');
+      setLoading(false);
+      return;
+    }
+
+    // Calculate total duration and total price
+    const selectedServicesDetails = services.filter(s => data.serviceIds.includes(s.id));
+    const totalDuration = selectedServicesDetails.reduce((sum, service) => sum + service.duration_minutes, 0);
+    const totalPrice = selectedServicesDetails.reduce((sum, service) => sum + service.price, 0);
+
+    try {
+      // TODO: Implement actual appointment creation in a new 'appointments' table
+      // For now, just show a success message
+      showSuccess('Agendamento simulado criado com sucesso!');
+      console.log('Dados do agendamento:', {
+        company_id: primaryCompanyId,
+        client_id: data.clientId,
+        collaborator_id: data.collaboratorId,
+        service_ids: data.serviceIds,
+        appointment_date: data.appointmentDate,
+        appointment_time: data.appointmentTime,
+        total_duration: totalDuration,
+        total_price: totalPrice,
+        payment_method: data.paymentMethod,
+        observations: data.observations,
+        created_by_user_id: session.user.id,
+        status: 'pendente', // Default status
+      });
+      navigate('/agendamentos'); // Redirect to appointments list
+    } catch (error: any) {
+      console.error('Erro ao criar agendamento:', error);
+      showError('Erro ao criar agendamento: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (sessionLoading || loadingPrimaryCompany || loadingData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-700">Carregando dados para agendamento...</p>
+      </div>
+    );
+  }
+
+  if (!session?.user || !primaryCompanyId) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-red-500 text-center mb-4">
+          Você precisa estar logado e ter uma empresa primária para criar agendamentos.
+        </p>
+        <Button
+          className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+          onClick={() => navigate('/register-company')}
+        >
+          <i className="fas fa-building mr-2"></i>
+          Cadastrar Empresa
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -25,115 +232,139 @@ const NovoAgendamentoPage: React.FC = () => {
       <div className="max-w-2xl">
         <Card className="border-gray-200">
           <CardContent className="p-6">
-            <form id="novo-agendamento" className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Label htmlFor="clientId" className="block text-sm font-medium text-gray-700 mb-2">
                     Cliente *
-                  </label>
-                  <select name="cliente" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
-                    <option value="">Selecione o cliente</option>
-                    <option value="carlos-santos">Carlos Santos</option>
-                    <option value="pedro-lima">Pedro Lima</option>
-                    <option value="rafael-oliveira">Rafael Oliveira</option>
-                    <option value="lucas-ferreira">Lucas Ferreira</option>
-                  </select>
+                  </Label>
+                  <Select onValueChange={(value) => setValue('clientId', value, { shouldValidate: true })} value={selectedClientId}>
+                    <SelectTrigger id="clientId" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.length === 0 ? (
+                        <SelectItem value="no-clients" disabled>Nenhum cliente disponível.</SelectItem>
+                      ) : (
+                        clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {errors.clientId && <p className="text-red-500 text-xs mt-1">{errors.clientId.message}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Barbeiro *
-                  </label>
-                  <select name="barbeiro" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
-                    <option value="">Selecione o barbeiro</option>
-                    <option value="joao-silva">João Silva</option>
-                    <option value="maria-costa">Maria Costa</option>
-                    <option value="ana-souza">Ana Souza</option>
-                  </select>
+                  <Label htmlFor="collaboratorId" className="block text-sm font-medium text-gray-700 mb-2">
+                    Colaborador *
+                  </Label>
+                  <Select onValueChange={(value) => setValue('collaboratorId', value, { shouldValidate: true })} value={selectedCollaboratorId}>
+                    <SelectTrigger id="collaboratorId" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                      <SelectValue placeholder="Selecione o colaborador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {collaborators.length === 0 ? (
+                        <SelectItem value="no-collaborators" disabled>Nenhum colaborador disponível.</SelectItem>
+                      ) : (
+                        collaborators.map((collab) => (
+                          <SelectItem key={collab.id} value={collab.id}>
+                            {collab.first_name} {collab.last_name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {errors.collaboratorId && <p className="text-red-500 text-xs mt-1">{errors.collaboratorId.message}</p>}
                 </div>
               </div>
+              
+              <div>
+                <Label className="block text-sm font-medium text-gray-700 mb-2">
+                  Serviços *
+                </Label>
+                <div className="space-y-2">
+                  {services.length === 0 ? (
+                    <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
+                  ) : (
+                    services.map((service) => (
+                      <div key={service.id} className="flex items-center">
+                        <Checkbox
+                          id={`service-${service.id}`}
+                          checked={selectedServiceIds.includes(service.id)}
+                          onCheckedChange={(checked) => handleServiceChange(service.id, !!checked)}
+                          className="mr-2"
+                        />
+                        <Label htmlFor={`service-${service.id}`} className="text-sm">
+                          {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Label htmlFor="appointmentDate" className="block text-sm font-medium text-gray-700 mb-2">
                     Data *
-                  </label>
+                  </Label>
                   <Input
+                    id="appointmentDate"
                     type="date"
-                    name="data"
-                    className="border-gray-300 text-sm"
-                    required
+                    {...register('appointmentDate')}
+                    className="mt-1 border-gray-300 text-sm"
+                    min={new Date().toISOString().split('T')[0]} // Prevent selecting past dates
                   />
+                  {errors.appointmentDate && <p className="text-red-500 text-xs mt-1">{errors.appointmentDate.message}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Label htmlFor="appointmentTime" className="block text-sm font-medium text-gray-700 mb-2">
                     Horário *
-                  </label>
-                  <select name="horario" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
-                    <option value="">Selecione o horário</option>
-                    <option value="08:00">08:00</option>
-                    <option value="08:30">08:30</option>
-                    <option value="09:00">09:00</option>
-                    <option value="09:30">09:30</option>
-                    <option value="10:00">10:00</option>
-                    <option value="10:30">10:30</option>
-                    <option value="11:00">11:00</option>
-                    <option value="11:30">11:30</option>
-                    <option value="14:00">14:00</option>
-                    <option value="14:30">14:30</option>
-                    <option value="15:00">15:00</option>
-                    <option value="15:30">15:30</option>
-                    <option value="16:00">16:00</option>
-                    <option value="16:30">16:30</option>
-                    <option value="17:00">17:00</option>
-                    <option value="17:30">17:30</option>
-                    <option value="18:00">18:00</option>
-                  </select>
+                  </Label>
+                  {/* This will be replaced by dynamic time slots later */}
+                  <Input
+                    id="appointmentTime"
+                    type="time"
+                    {...register('appointmentTime')}
+                    className="mt-1 border-gray-300 text-sm"
+                  />
+                  {errors.appointmentTime && <p className="text-red-500 text-xs mt-1">{errors.appointmentTime.message}</p>}
                 </div>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Serviços *
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input type="checkbox" name="servicos" value="corte" className="mr-2" />
-                    <span className="text-sm">Corte Tradicional - R$ 30,00</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" name="servicos" value="corte-barba" className="mr-2" />
-                    <span className="text-sm">Corte + Barba - R$ 45,00</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" name="servicos" value="barba" className="mr-2" />
-                    <span className="text-sm">Barba + Bigode - R$ 25,00</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" name="servicos" value="corte-moderno" className="mr-2" />
-                    <span className="text-sm">Corte Moderno - R$ 40,00</span>
-                  </label>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2">
                   Forma de Pagamento
-                </label>
-                <select name="pagamento" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao-debito">Cartão de Débito</option>
-                  <option value="cartao-credito">Cartão de Crédito</option>
-                  <option value="pix">PIX</option>
-                </select>
+                </Label>
+                <Select onValueChange={(value) => setValue('paymentMethod', value, { shouldValidate: true })} value={selectedPaymentMethod}>
+                  <SelectTrigger id="paymentMethod" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <SelectValue placeholder="Selecione a forma de pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                    <SelectItem value="cartao-debito">Cartão de Débito</SelectItem>
+                    <SelectItem value="cartao-credito">Cartão de Crédito</SelectItem>
+                    <SelectItem value="pix">PIX</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.paymentMethod && <p className="text-red-500 text-xs mt-1">{errors.paymentMethod.message}</p>}
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Label htmlFor="observations" className="block text-sm font-medium text-gray-700 mb-2">
                   Observações
-                </label>
-                <textarea
-                  name="observacoes"
+                </Label>
+                <Textarea
+                  id="observations"
                   maxLength={500}
+                  {...register('observations')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-24 resize-none"
                   placeholder="Observações sobre o agendamento..."
-                ></textarea>
-                <p className="text-xs text-gray-500 mt-1">Máximo 500 caracteres</p>
+                ></Textarea>
+                {errors.observations && <p className="text-red-500 text-xs mt-1">{errors.observations.message}</p>}
               </div>
               <div className="flex gap-4 pt-4">
                 <Button
@@ -141,15 +372,16 @@ const NovoAgendamentoPage: React.FC = () => {
                   variant="outline"
                   className="!rounded-button whitespace-nowrap cursor-pointer flex-1"
                   onClick={() => navigate(-1)}
+                  disabled={loading}
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
                   className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black flex-1"
+                  disabled={loading}
                 >
-                  <i className="fas fa-check mr-2"></i>
-                  Agendar
+                  {loading ? 'Agendando...' : 'Agendar'}
                 </Button>
               </div>
             </form>
