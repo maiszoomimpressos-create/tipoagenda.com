@@ -2,12 +2,14 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse, getDay, startOfDay, endOfDay } from 'date-fns';
 
 interface WorkingSchedule {
+  id?: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
 }
 
 interface ScheduleException {
+  id?: string;
   exception_date: string;
   is_day_off: boolean;
   start_time: string | null;
@@ -15,6 +17,7 @@ interface ScheduleException {
 }
 
 interface Appointment {
+  id?: string;
   appointment_time: string;
   total_duration_minutes: number;
 }
@@ -38,7 +41,7 @@ export async function getAvailableTimeSlots(
   // 1. Fetch working schedules for the selected day
   const { data: workingSchedules, error: wsError } = await supabase
     .from('working_schedules')
-    .select('day_of_week, start_time, end_time')
+    .select('id, day_of_week, start_time, end_time')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('day_of_week', selectedDayOfWeek);
@@ -52,7 +55,7 @@ export async function getAvailableTimeSlots(
   // 2. Fetch schedule exceptions for the selected date
   const { data: exceptions, error: exError } = await supabase
     .from('schedule_exceptions')
-    .select('exception_date, is_day_off, start_time, end_time')
+    .select('id, exception_date, is_day_off, start_time, end_time, reason')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('exception_date', format(date, 'yyyy-MM-dd'));
@@ -66,7 +69,7 @@ export async function getAvailableTimeSlots(
   // 3. Fetch existing appointments for the selected date and collaborator
   const { data: existingAppointments, error: appError } = await supabase
     .from('appointments')
-    .select('appointment_time, total_duration_minutes')
+    .select('id, appointment_time, total_duration_minutes')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('appointment_date', format(date, 'yyyy-MM-dd'))
@@ -84,12 +87,17 @@ export async function getAvailableTimeSlots(
   // Process working schedules first
   if (workingSchedules && workingSchedules.length > 0) {
     effectiveWorkingIntervals = workingSchedules.map(schedule => {
+      // Defensive check for schedule object itself and its properties
+      if (!schedule || typeof schedule.start_time !== 'string' || typeof schedule.end_time !== 'string') {
+        console.warn(`Invalid working schedule entry found (ID: ${schedule?.id || 'unknown'}, Day: ${schedule?.day_of_week || 'unknown'}). Expected start_time and end_time to be strings. Skipping.`);
+        return null; // Return null for invalid schedules
+      }
       const startTimeStr = schedule.start_time.substring(0, 5);
       const endTimeStr = schedule.end_time.substring(0, 5);
       const start = parse(startTimeStr, 'HH:mm', date);
       const end = parse(endTimeStr, 'HH:mm', date);
       return { start, end };
-    });
+    }).filter(Boolean) as Array<{ start: Date; end: Date }>; // Filter out any nulls
   }
   console.log('Initial effectiveWorkingIntervals (from working_schedules):', effectiveWorkingIntervals.map(i => `${format(i.start, 'HH:mm')}-${format(i.end, 'HH:mm')}`));
 
@@ -102,10 +110,15 @@ export async function getAvailableTimeSlots(
       console.log('Exception: Day off. effectiveWorkingIntervals cleared.');
     } else if (exception.start_time && exception.end_time) {
       // If there's a specific exception time, it means the collaborator is busy during this period
-      const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
-      const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
-      busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
-      console.log('Exception: Specific busy interval added:', `${format(exceptionStart, 'HH:mm')}-${format(exceptionEnd, 'HH:mm')}`);
+      // Defensive check for start_time and end_time
+      if (typeof exception.start_time !== 'string' || typeof exception.end_time !== 'string') {
+        console.warn(`Schedule exception ID ${exception.id || 'unknown'} for date ${exception.exception_date} has invalid start_time or end_time. Skipping this exception interval.`);
+      } else {
+        const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
+        const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
+        busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
+        console.log('Exception: Specific busy interval added:', `${format(exceptionStart, 'HH:mm')}-${format(exceptionEnd, 'HH:mm')}`);
+      }
     }
   }
 
@@ -119,6 +132,11 @@ export async function getAvailableTimeSlots(
   // Add existing appointments to busy intervals
   if (existingAppointments) {
     existingAppointments.forEach(app => {
+      // Defensive check for appointment_time
+      if (!app || typeof app.appointment_time !== 'string') {
+        console.warn(`Invalid appointment entry found (ID: ${app?.id || 'unknown'}). Expected appointment_time to be a string. Skipping.`);
+        return;
+      }
       const appStartTime = parse(`${app.appointment_time}`, 'HH:mm', date);
       const appEndTime = addMinutes(appStartTime, app.total_duration_minutes);
       busyIntervals.push({ start: appStartTime, end: appEndTime });
