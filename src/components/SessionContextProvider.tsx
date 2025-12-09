@@ -36,7 +36,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         } else if (event === 'USER_UPDATED') {
           showSuccess('Seu perfil foi atualizado!');
         } else if (event === 'INITIAL_SESSION') {
-          // Handle initial session, no toast needed
+          // Handle initial session, no toast needed here to avoid repeated messages
           // No redirecionamento automático para o dashboard aqui.
           // O usuário permanecerá na página atual ou será redirecionado para a Landing Page se não houver sessão.
         }
