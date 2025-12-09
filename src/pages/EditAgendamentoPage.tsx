@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMinutes, parse } from 'date-fns'; // Adicionado addMinutes e parse
 import { ptBR } from 'date-fns/locale';
 import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
 
