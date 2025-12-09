@@ -15,7 +15,6 @@ interface ScheduleException {
 }
 
 interface Appointment {
-  appointment_date: string;
   appointment_time: string;
   total_duration_minutes: number;
 }
@@ -32,6 +31,7 @@ export async function getAvailableTimeSlots(
   const selectedDayOfWeek = getDay(date); // 0 for Sunday, 1 for Monday, etc.
   const today = startOfDay(new Date());
   const selectedDateStart = startOfDay(date);
+  const selectedDateEnd = endOfDay(date);
 
   console.log('--- getAvailableTimeSlots Start ---');
   console.log('Input Params:', { companyId, collaboratorId, date: format(date, 'yyyy-MM-dd'), requiredDuration, slotIntervalMinutes });
@@ -76,13 +76,13 @@ export async function getAvailableTimeSlots(
     throw appError;
   }
 
-  let effectiveWorkingHours: Array<{ start: Date; end: Date }> = [];
+  let effectiveWorkingIntervals: Array<{ start: Date; end: Date }> = [];
+  let busyIntervals: Array<{ start: Date; end: Date }> = [];
 
-  // Apply working schedules
+  // Process working schedules first
   if (workingSchedules && workingSchedules.length > 0) {
-    effectiveWorkingHours = workingSchedules.map(schedule => {
-      // Ensure time strings are in HH:mm format
-      const startTimeStr = schedule.start_time.substring(0, 5); // Take "HH:MM" from "HH:MM:SS"
+    effectiveWorkingIntervals = workingSchedules.map(schedule => {
+      const startTimeStr = schedule.start_time.substring(0, 5);
       const endTimeStr = schedule.end_time.substring(0, 5);
       const start = parse(startTimeStr, 'HH:mm', date);
       const end = parse(endTimeStr, 'HH:mm', date);
@@ -94,26 +94,23 @@ export async function getAvailableTimeSlots(
   if (exceptions && exceptions.length > 0) {
     const exception = exceptions[0]; // Assuming one exception per day for simplicity
     if (exception.is_day_off) {
-      effectiveWorkingHours = []; // Collaborator is off for the entire day
+      effectiveWorkingIntervals = []; // Collaborator is off for the entire day
     } else if (exception.start_time && exception.end_time) {
-      // Replace or modify working hours based on exception
-      const exceptionStartTimeStr = exception.start_time!.substring(0, 5); // Use ! as we checked for existence
-      const exceptionEndTimeStr = exception.end_time!.substring(0, 5); // Use ! as we checked for existence
-      const exceptionStart = parse(exceptionStartTimeStr, 'HH:mm', date);
-      const exceptionEnd = parse(exceptionEndTimeStr, 'HH:mm', date);
-      effectiveWorkingHours = [{ start: exceptionStart, end: exceptionEnd }];
+      // If there's a specific exception time, it means the collaborator is busy during this period
+      const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
+      const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
+      busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
     }
   }
 
-  // If no effective working hours, no slots are available
-  if (effectiveWorkingHours.length === 0) {
-    console.log('No effective working hours found. Returning empty slots.');
+  // If no effective working hours after applying exceptions, no slots are available
+  if (effectiveWorkingIntervals.length === 0) {
+    console.log('No effective working hours found after applying exceptions. Returning empty slots.');
     console.log('--- getAvailableTimeSlots End ---');
     return [];
   }
 
-  // Combine all busy intervals (existing appointments)
-  const busyIntervals: Array<{ start: Date; end: Date }> = [];
+  // Add existing appointments to busy intervals
   if (existingAppointments) {
     existingAppointments.forEach(app => {
       const appStartTime = parse(`${app.appointment_time}`, 'HH:mm', date);
@@ -125,9 +122,9 @@ export async function getAvailableTimeSlots(
   // Sort busy intervals by start time
   busyIntervals.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-  // Generate potential slots within effective working hours
-  for (const workingHour of effectiveWorkingHours) {
-    let currentTime = workingHour.start;
+  // Generate potential slots within each effective working interval
+  for (const workingInterval of effectiveWorkingIntervals) {
+    let currentTime = workingInterval.start;
 
     // Adjust start time if it's today and before current time
     if (selectedDateStart.getTime() === today.getTime()) {
@@ -138,31 +135,46 @@ export async function getAvailableTimeSlots(
       }
     }
 
-    while (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingHour.end, 1))) { // +1 minute to ensure end boundary is inclusive
+    while (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
       let isSlotFree = true;
       const slotEnd = addMinutes(currentTime, requiredDuration);
 
-      // Check against busy intervals
-      for (const busy of busyIntervals) {
-        // If the slot overlaps with a busy interval
-        if (
-          (isBefore(currentTime, busy.end) && isAfter(slotEnd, busy.start)) ||
-          (currentTime.getTime() === busy.start.getTime()) || // Slot starts exactly when busy starts
-          (slotEnd.getTime() === busy.end.getTime()) // Slot ends exactly when busy ends
-        ) {
-          isSlotFree = false;
-          // Move current time past the busy interval to avoid re-checking
-          currentTime = addMinutes(busy.end, slotIntervalMinutes - (busy.end.getMinutes() % slotIntervalMinutes));
-          break; // Break from busy interval loop, re-evaluate from new currentTime
+      // Check if the potential slot is within the working interval
+      if (isBefore(currentTime, workingInterval.start) || isAfter(slotEnd, workingInterval.end)) {
+        isSlotFree = false;
+      }
+
+      // Check against busy intervals (appointments and exceptions)
+      if (isSlotFree) {
+        for (const busy of busyIntervals) {
+          // If the slot overlaps with a busy interval
+          if (
+            (isBefore(currentTime, busy.end) && isAfter(slotEnd, busy.start)) ||
+            (currentTime.getTime() === busy.start.getTime()) ||
+            (slotEnd.getTime() === busy.end.getTime())
+          ) {
+            isSlotFree = false;
+            // Move current time past the busy interval to avoid re-checking
+            currentTime = addMinutes(busy.end, slotIntervalMinutes - (busy.end.getMinutes() % slotIntervalMinutes));
+            break; // Break from busy interval loop, re-evaluate from new currentTime
+          }
         }
       }
 
       if (isSlotFree) {
-        // Format the slot as "HH:MM às HH:MM"
         availableSlots.push(`${format(currentTime, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
         currentTime = addMinutes(currentTime, slotIntervalMinutes);
+      } else {
+        // If not free, ensure currentTime advances to the next potential slot
+        // This handles cases where a slot is blocked, but the next one might be free
+        if (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
+          currentTime = addMinutes(currentTime, slotIntervalMinutes);
+        } else {
+          // If the current time + required duration is already past the working interval end,
+          // break out of the while loop for this working interval.
+          break;
+        }
       }
-      // Removed the 'else' block here, as currentTime is already advanced by 'break' if isSlotFree is false.
     }
   }
 
