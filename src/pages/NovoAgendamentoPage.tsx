@@ -15,6 +15,10 @@ import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { Calendar } from "@/components/ui/calendar"; // Importar Calendar
+import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse } from 'date-fns'; // Importar funções de data
+import { ptBR } from 'date-fns/locale'; // Importar locale para o calendário
+import { getAvailableTimeSlots } from '@/utils/appointment-scheduling'; // Importar utilitário de agendamento
 
 // Zod schema for new appointment registration
 const newAppointmentSchema = z.object({
@@ -56,6 +60,10 @@ const NovoAgendamentoPage: React.FC = () => {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [totalDurationMinutes, setTotalDurationMinutes] = useState(0);
+  const [totalPriceCalculated, setTotalPriceCalculated] = useState(0);
 
   const {
     register,
@@ -79,7 +87,6 @@ const NovoAgendamentoPage: React.FC = () => {
   const selectedClientId = watch('clientId');
   const selectedCollaboratorId = watch('collaboratorId');
   const selectedServiceIds = watch('serviceIds');
-  const selectedAppointmentDate = watch('appointmentDate');
   const selectedAppointmentTime = watch('appointmentTime');
   const selectedPaymentMethod = watch('paymentMethod');
 
@@ -141,6 +148,46 @@ const NovoAgendamentoPage: React.FC = () => {
     fetchInitialData();
   }, [session, sessionLoading, primaryCompanyId, loadingPrimaryCompany, navigate, fetchInitialData]);
 
+  // Effect to calculate total duration and price when services change
+  useEffect(() => {
+    const selected = services.filter(s => selectedServiceIds.includes(s.id));
+    const duration = selected.reduce((sum, service) => sum + service.duration_minutes, 0);
+    const price = selected.reduce((sum, service) => sum + service.price, 0);
+    setTotalDurationMinutes(duration);
+    setTotalPriceCalculated(price);
+  }, [selectedServiceIds, services]);
+
+  // Effect to fetch available time slots
+  useEffect(() => {
+    const fetchSlots = async () => {
+      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && primaryCompanyId) {
+        setLoading(true);
+        setValue('appointmentTime', ''); // Clear selected time when inputs change
+        try {
+          const slots = await getAvailableTimeSlots(
+            supabase,
+            primaryCompanyId,
+            selectedCollaboratorId,
+            selectedDate,
+            totalDurationMinutes
+          );
+          setAvailableTimeSlots(slots);
+        } catch (error: any) {
+          console.error('Erro ao buscar horários disponíveis:', error);
+          showError('Erro ao buscar horários disponíveis: ' + error.message);
+          setAvailableTimeSlots([]);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setAvailableTimeSlots([]);
+        setValue('appointmentTime', '');
+      }
+    };
+    fetchSlots();
+  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, primaryCompanyId, setValue]);
+
+
   const handleServiceChange = (serviceId: string, checked: boolean) => {
     let currentServices = selectedServiceIds;
     if (checked) {
@@ -159,29 +206,41 @@ const NovoAgendamentoPage: React.FC = () => {
       return;
     }
 
-    // Calculate total duration and total price
-    const selectedServicesDetails = services.filter(s => data.serviceIds.includes(s.id));
-    const totalDuration = selectedServicesDetails.reduce((sum, service) => sum + service.duration_minutes, 0);
-    const totalPrice = selectedServicesDetails.reduce((sum, service) => sum + service.price, 0);
-
     try {
-      // TODO: Implement actual appointment creation in a new 'appointments' table
-      // For now, just show a success message
-      showSuccess('Agendamento simulado criado com sucesso!');
-      console.log('Dados do agendamento:', {
-        company_id: primaryCompanyId,
-        client_id: data.clientId,
-        collaborator_id: data.collaboratorId,
-        service_ids: data.serviceIds,
-        appointment_date: data.appointmentDate,
-        appointment_time: data.appointmentTime,
-        total_duration: totalDuration,
-        total_price: totalPrice,
-        payment_method: data.paymentMethod,
-        observations: data.observations,
-        created_by_user_id: session.user.id,
-        status: 'pendente', // Default status
-      });
+      // 1. Create the main appointment entry
+      const { data: appointmentData, error: appointmentError } = await supabase
+        .from('appointments')
+        .insert({
+          company_id: primaryCompanyId,
+          client_id: data.clientId,
+          collaborator_id: data.collaboratorId,
+          appointment_date: data.appointmentDate,
+          appointment_time: data.appointmentTime,
+          total_duration_minutes: totalDurationMinutes,
+          total_price: totalPriceCalculated,
+          payment_method: data.paymentMethod,
+          observations: data.observations,
+          created_by_user_id: session.user.id,
+          status: 'pendente', // Default status
+        })
+        .select()
+        .single();
+
+      if (appointmentError) throw appointmentError;
+
+      // 2. Link services to the appointment in appointment_services table
+      const appointmentServicesToInsert = data.serviceIds.map(serviceId => ({
+        appointment_id: appointmentData.id,
+        service_id: serviceId,
+      }));
+
+      const { error: servicesLinkError } = await supabase
+        .from('appointment_services')
+        .insert(appointmentServicesToInsert);
+
+      if (servicesLinkError) throw servicesLinkError;
+
+      showSuccess('Agendamento criado com sucesso!');
       navigate('/agendamentos'); // Redirect to appointments list
     } catch (error: any) {
       console.error('Erro ao criar agendamento:', error);
@@ -304,6 +363,11 @@ const NovoAgendamentoPage: React.FC = () => {
                   )}
                 </div>
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
+                {totalDurationMinutes > 0 && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Duração total: {totalDurationMinutes} min | Preço total: R$ {totalPriceCalculated.toFixed(2).replace('.', ',')}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -311,12 +375,17 @@ const NovoAgendamentoPage: React.FC = () => {
                   <Label htmlFor="appointmentDate" className="block text-sm font-medium text-gray-700 mb-2">
                     Data *
                   </Label>
-                  <Input
-                    id="appointmentDate"
-                    type="date"
-                    {...register('appointmentDate')}
-                    className="mt-1 border-gray-300 text-sm"
-                    min={new Date().toISOString().split('T')[0]} // Prevent selecting past dates
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      setSelectedDate(date);
+                      setValue('appointmentDate', date ? format(date, 'yyyy-MM-dd') : '', { shouldValidate: true });
+                    }}
+                    initialFocus
+                    locale={ptBR}
+                    disabled={(date) => isBefore(date, new Date())} // Disable past dates
+                    className="rounded-md border shadow"
                   />
                   {errors.appointmentDate && <p className="text-red-500 text-xs mt-1">{errors.appointmentDate.message}</p>}
                 </div>
@@ -324,13 +393,22 @@ const NovoAgendamentoPage: React.FC = () => {
                   <Label htmlFor="appointmentTime" className="block text-sm font-medium text-gray-700 mb-2">
                     Horário *
                   </Label>
-                  {/* This will be replaced by dynamic time slots later */}
-                  <Input
-                    id="appointmentTime"
-                    type="time"
-                    {...register('appointmentTime')}
-                    className="mt-1 border-gray-300 text-sm"
-                  />
+                  <Select onValueChange={(value) => setValue('appointmentTime', value, { shouldValidate: true })} value={selectedAppointmentTime}>
+                    <SelectTrigger id="appointmentTime" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled={!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0 || loading}>
+                      <SelectValue placeholder={loading ? "Buscando horários..." : "Selecione o horário"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTimeSlots.length === 0 ? (
+                        <SelectItem value="no-slots" disabled>Nenhum horário disponível.</SelectItem>
+                      ) : (
+                        availableTimeSlots.map((timeSlot) => (
+                          <SelectItem key={timeSlot} value={timeSlot}>
+                            {timeSlot}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                   {errors.appointmentTime && <p className="text-red-500 text-xs mt-1">{errors.appointmentTime.message}</p>}
                 </div>
               </div>
@@ -379,7 +457,7 @@ const NovoAgendamentoPage: React.FC = () => {
                 <Button
                   type="submit"
                   className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black flex-1"
-                  disabled={loading}
+                  disabled={loading || !selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0 || availableTimeSlots.length === 0}
                 >
                   {loading ? 'Agendando...' : 'Agendar'}
                 </Button>
