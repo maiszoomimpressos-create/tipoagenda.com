@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, PlusCircle, Trash2, Edit } from 'lucide-react'; // Adicionado Edit icon
+import { ArrowLeft, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -160,7 +159,7 @@ const CollaboratorSchedulePage: React.FC = () => {
         .from('working_schedules')
         .select('id, day_of_week, start_time, end_time')
         .eq('collaborator_id', collaboratorId)
-        .order('day_of_week', { ascending: true });
+        .order('day_of_week', { ascending: true }, 'start_time', { ascending: true }); // Order by start_time too
 
       if (schedulesError) {
         showError('Erro ao carregar horários de trabalho: ' + schedulesError.message);
@@ -212,6 +211,7 @@ const CollaboratorSchedulePage: React.FC = () => {
       const idsToKeep = schedulesToKeep.map(s => s.id);
 
       // Delete removed schedules
+      // Only delete if there are IDs to keep, otherwise delete all if the array is empty
       if (idsToKeep.length > 0) {
         const { error: deleteSchedulesError } = await supabase
           .from('working_schedules')
@@ -221,7 +221,7 @@ const CollaboratorSchedulePage: React.FC = () => {
           .not('id', 'in', idsToKeep);
         if (deleteSchedulesError) throw deleteSchedulesError;
       } else {
-        // If idsToKeep is empty, it means all schedules should be deleted
+        // If idsToKeep is empty, it means all schedules for this collaborator/company should be deleted
         const { error: deleteAllSchedulesError } = await supabase
           .from('working_schedules')
           .delete()
@@ -434,46 +434,74 @@ const CollaboratorSchedulePage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {daysOfWeek.map((day) => {
-              const fieldIndex = workingScheduleFields.findIndex(f => f.day_of_week === day.value);
-              const isWorking = fieldIndex !== -1;
+              // Get all fields for the current day, along with their original indices in the workingScheduleFields array
+              const daySlotsWithIndices = workingScheduleFields
+                .map((field, index) => ({ field, index }))
+                .filter(item => item.field.day_of_week === day.value)
+                .sort((a, b) => a.field.start_time.localeCompare(b.field.start_time)); // Sort by start_time for consistent display
+
+              const isWorkingDay = daySlotsWithIndices.length > 0;
 
               return (
-                <div key={day.value} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-32 font-medium text-gray-900">{day.label}</div>
-                  <Checkbox
-                    id={`day-${day.value}`}
-                    checked={isWorking}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        appendWorkingSchedule({
-                          day_of_week: day.value,
-                          start_time: '09:00',
-                          end_time: '18:00',
-                        });
-                      } else {
-                        if (fieldIndex !== -1) {
-                          removeWorkingSchedule(fieldIndex);
+                <div key={day.value} className="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="w-32 font-medium text-gray-900">{day.label}</div>
+                    <Checkbox
+                      id={`day-${day.value}`}
+                      checked={isWorkingDay}
+                      onCheckedChange={(checked) => {
+                        if (checked && !isWorkingDay) { // If checked and no slots exist, add one
+                          appendWorkingSchedule({
+                            day_of_week: day.value,
+                            start_time: '09:00',
+                            end_time: '12:00',
+                          });
+                        } else if (!checked && isWorkingDay) { // If unchecked and slots exist, remove all
+                          const indicesToRemove = daySlotsWithIndices.map(item => item.index);
+                          removeWorkingSchedule(indicesToRemove);
                         }
-                      }
-                    }}
-                  />
-                  <Label htmlFor={`day-${day.value}`} className="flex-1">Trabalha neste dia</Label>
+                      }}
+                    />
+                    <Label htmlFor={`day-${day.value}`} className="flex-1">Trabalha neste dia</Label>
+                  </div>
 
-                  {isWorking && (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="time"
-                        {...register(`working_schedules.${fieldIndex}.start_time`)}
-                        className="w-28 text-sm border-gray-300"
-                      />
-                      <span>-</span>
-                      <Input
-                        type="time"
-                        {...register(`working_schedules.${fieldIndex}.end_time`)}
-                        className="w-28 text-sm border-gray-300"
-                      />
-                      {mainFormErrors.working_schedules?.[fieldIndex]?.start_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[fieldIndex]?.start_time?.message}</p>}
-                      {mainFormErrors.working_schedules?.[fieldIndex]?.end_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[fieldIndex]?.end_time?.message}</p>}
+                  {isWorkingDay && (
+                    <div className="space-y-2 mt-2 pl-36"> {/* Indent for better visual */}
+                      {daySlotsWithIndices.map((item) => (
+                        <div key={item.field.id || `new-${item.index}`} className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            {...register(`working_schedules.${item.index}.start_time`)}
+                            className="w-28 text-sm border-gray-300"
+                          />
+                          <span>-</span>
+                          <Input
+                            type="time"
+                            {...register(`working_schedules.${item.index}.end_time`)}
+                            className="w-28 text-sm border-gray-300"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => removeWorkingSchedule(item.index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          {mainFormErrors.working_schedules?.[item.index]?.start_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[item.index]?.start_time?.message}</p>}
+                          {mainFormErrors.working_schedules?.[item.index]?.end_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[item.index]?.end_time?.message}</p>}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="!rounded-button whitespace-nowrap mt-2"
+                        onClick={() => appendWorkingSchedule({ day_of_week: day.value, start_time: '13:30', end_time: '18:00' })}
+                      >
+                        <PlusCircle className="h-4 w-4 mr-2" />
+                        Adicionar Intervalo
+                      </Button>
                     </div>
                   )}
                 </div>
