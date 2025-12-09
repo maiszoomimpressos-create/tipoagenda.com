@@ -514,7 +514,7 @@ const CollaboratorSchedulePage: React.FC = () => {
                         onClick={() => appendWorkingSchedule({ day_of_week: day.value, start_time: '13:30', end_time: '18:00' })}
                       >
                         <PlusCircle className="h-4 w-4 mr-2" />
-                        Adicionar Intervalo
+                        Adicionar Bloco de Horário
                       </Button>
                     </div>
                   )}
