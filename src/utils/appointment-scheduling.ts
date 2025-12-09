@@ -97,8 +97,8 @@ export async function getAvailableTimeSlots(
       effectiveWorkingHours = []; // Collaborator is off for the entire day
     } else if (exception.start_time && exception.end_time) {
       // Replace or modify working hours based on exception
-      const exceptionStartTimeStr = exception.start_time.substring(0, 5);
-      const exceptionEndTimeStr = exception.end_time.substring(0, 5);
+      const exceptionStartTimeStr = exception.start_time!.substring(0, 5); // Use ! as we checked for existence
+      const exceptionEndTimeStr = exception.end_time!.substring(0, 5); // Use ! as we checked for existence
       const exceptionStart = parse(exceptionStartTimeStr, 'HH:mm', date);
       const exceptionEnd = parse(exceptionEndTimeStr, 'HH:mm', date);
       effectiveWorkingHours = [{ start: exceptionStart, end: exceptionEnd }];
@@ -158,7 +158,8 @@ export async function getAvailableTimeSlots(
       }
 
       if (isSlotFree) {
-        availableSlots.push(format(currentTime, 'HH:mm'));
+        // Format the slot as "HH:MM às HH:MM"
+        availableSlots.push(`${format(currentTime, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
         currentTime = addMinutes(currentTime, slotIntervalMinutes);
       } else {
         // If not free due to overlap, currentTime was already adjusted.
