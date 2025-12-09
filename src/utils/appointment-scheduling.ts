@@ -47,6 +47,7 @@ export async function getAvailableTimeSlots(
     console.error('Error fetching working schedules:', wsError);
     throw wsError;
   }
+  console.log('Fetched workingSchedules:', workingSchedules);
 
   // 2. Fetch schedule exceptions for the selected date
   const { data: exceptions, error: exError } = await supabase
@@ -60,6 +61,7 @@ export async function getAvailableTimeSlots(
     console.error('Error fetching schedule exceptions:', exError);
     throw exError;
   }
+  console.log('Fetched exceptions:', exceptions);
 
   // 3. Fetch existing appointments for the selected date and collaborator
   const { data: existingAppointments, error: appError } = await supabase
@@ -74,6 +76,7 @@ export async function getAvailableTimeSlots(
     console.error('Error fetching existing appointments:', appError);
     throw appError;
   }
+  console.log('Fetched existingAppointments:', existingAppointments);
 
   let effectiveWorkingIntervals: Array<{ start: Date; end: Date }> = [];
   let busyIntervals: Array<{ start: Date; end: Date }> = [];
@@ -88,17 +91,21 @@ export async function getAvailableTimeSlots(
       return { start, end };
     });
   }
+  console.log('Initial effectiveWorkingIntervals (from working_schedules):', effectiveWorkingIntervals.map(i => `${format(i.start, 'HH:mm')}-${format(i.end, 'HH:mm')}`));
+
 
   // Apply exceptions
   if (exceptions && exceptions.length > 0) {
     const exception = exceptions[0]; // Assuming one exception per day for simplicity
     if (exception.is_day_off) {
       effectiveWorkingIntervals = []; // Collaborator is off for the entire day
+      console.log('Exception: Day off. effectiveWorkingIntervals cleared.');
     } else if (exception.start_time && exception.end_time) {
       // If there's a specific exception time, it means the collaborator is busy during this period
       const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
       const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
       busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
+      console.log('Exception: Specific busy interval added:', `${format(exceptionStart, 'HH:mm')}-${format(exceptionEnd, 'HH:mm')}`);
     }
   }
 
@@ -117,6 +124,8 @@ export async function getAvailableTimeSlots(
       busyIntervals.push({ start: appStartTime, end: appEndTime });
     });
   }
+  console.log('Final busyIntervals (appointments + exceptions):', busyIntervals.map(i => `${format(i.start, 'HH:mm')}-${format(i.end, 'HH:mm')}`));
+
 
   // Sort busy intervals by start time
   busyIntervals.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -133,46 +142,46 @@ export async function getAvailableTimeSlots(
         currentTime = nextSlotAfterNow;
       }
     }
+    console.log(`Processing working interval: ${format(workingInterval.start, 'HH:mm')}-${format(workingInterval.end, 'HH:mm')}`);
 
     while (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
       const slotStart = currentTime;
       const slotEnd = addMinutes(slotStart, requiredDuration);
 
-      // If the slot extends beyond the current working interval, stop generating for this interval
-      if (isAfter(slotEnd, workingInterval.end)) {
-        break;
-      }
+      console.log(`  Checking slot: ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')}`);
 
       let isSlotFree = true;
-      let advanceToTime = addMinutes(slotStart, slotIntervalMinutes); // Default advance
-
+      
       // Check against busy intervals (appointments and exceptions)
       for (const busy of busyIntervals) {
         // Check for overlap: [slotStart, slotEnd) vs [busy.start, busy.end)
         // An overlap occurs if the start of one is before the end of the other, AND the end of one is after the start of the other.
         if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
           isSlotFree = false;
+          console.log(`    Overlap with busy interval: ${format(busy.start, 'HH:mm')}-${format(busy.end, 'HH:mm')}`);
           // If there's an overlap, the next possible start time should be after the busy interval ends.
           // Ensure it's aligned to the slotIntervalMinutes.
           const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
-          advanceToTime = isAfter(advanceToTime, busyEndAligned) ? advanceToTime : busyEndAligned;
-          break; // No need to check other busy intervals for this slot
+          currentTime = isAfter(currentTime, busyEndAligned) ? currentTime : busyEndAligned; // Advance currentTime past the busy block
+          console.log(`    Advanced currentTime to: ${format(currentTime, 'HH:mm')}`);
+          break; // No need to check other busy intervals for this slot, move to next currentTime
         }
       }
 
       if (isSlotFree) {
         availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
-        // If free, advance by slot interval
-        currentTime = addMinutes(slotStart, slotIntervalMinutes);
-      } else {
-        // If not free, advance to the calculated advanceToTime (past the busy interval)
-        currentTime = advanceToTime;
+        console.log(`    Slot added: ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')}`);
+        currentTime = addMinutes(currentTime, slotIntervalMinutes);
       }
+      // If not free, currentTime was already advanced by the busy interval check.
+      // If it was not busy, it was advanced by slotIntervalMinutes.
+      // So, no need for an else block here.
     }
   }
 
   // Filter out duplicate slots and sort
   const uniqueSlots = Array.from(new Set(availableSlots)).sort();
+  console.log('Final uniqueSlots:', uniqueSlots);
   console.log('--- getAvailableTimeSlots End ---');
 
   return uniqueSlots;

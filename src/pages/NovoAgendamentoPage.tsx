@@ -27,7 +27,7 @@ const newAppointmentSchema = z.object({
   serviceIds: z.array(z.string()).min(1, "Selecione pelo menos um serviço."),
   appointmentDate: z.string().min(1, "Data é obrigatória."),
   appointmentTime: z.string().min(1, "Horário é obrigatório."),
-  paymentMethod: z.string().min(1, "Forma de pagamento é obrigatória."),
+  // paymentMethod: z.string().min(1, "Forma de pagamento é obrigatória."), // REMOVIDO
   observations: z.string().max(500, "Máximo de 500 caracteres.").optional(),
 });
 
@@ -79,7 +79,7 @@ const NovoAgendamentoPage: React.FC = () => {
       serviceIds: [],
       appointmentDate: '',
       appointmentTime: '',
-      paymentMethod: 'dinheiro',
+      // paymentMethod: 'dinheiro', // REMOVIDO
       observations: '',
     },
   });
@@ -88,7 +88,7 @@ const NovoAgendamentoPage: React.FC = () => {
   const selectedCollaboratorId = watch('collaboratorId');
   const selectedServiceIds = watch('serviceIds');
   const selectedAppointmentTime = watch('appointmentTime');
-  const selectedPaymentMethod = watch('paymentMethod');
+  // const selectedPaymentMethod = watch('paymentMethod'); // REMOVIDO
 
   const fetchInitialData = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -218,7 +218,7 @@ const NovoAgendamentoPage: React.FC = () => {
           appointment_time: data.appointmentTime,
           total_duration_minutes: totalDurationMinutes,
           total_price: totalPriceCalculated,
-          payment_method: data.paymentMethod,
+          // payment_method: data.paymentMethod, // REMOVIDO
           observations: data.observations,
           created_by_user_id: session.user.id,
           status: 'pendente', // Default status
@@ -413,7 +413,8 @@ const NovoAgendamentoPage: React.FC = () => {
                 </div>
               </div>
               
-              <div>
+              {/* REMOVIDO: Forma de Pagamento */}
+              {/* <div>
                 <Label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2">
                   Forma de Pagamento
                 </Label>
@@ -429,7 +430,7 @@ const NovoAgendamentoPage: React.FC = () => {
                   </SelectContent>
                 </Select>
                 {errors.paymentMethod && <p className="text-red-500 text-xs mt-1">{errors.paymentMethod.message}</p>}
-              </div>
+              </div> */}
 
               <div>
                 <Label htmlFor="observations" className="block text-sm font-medium text-gray-700 mb-2">
