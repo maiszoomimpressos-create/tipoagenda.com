@@ -119,7 +119,9 @@ export async function getAvailableTimeSlots(
   // Add existing appointments to busy intervals
   if (existingAppointments) {
     existingAppointments.forEach(app => {
-      const appStartTime = parse(`${app.appointment_time}`, 'HH:mm', date);
+      // Extract only HH:MM from the appointment_time string (e.g., "11:30:00" -> "11:30")
+      const appTimeStr = app.appointment_time.substring(0, 5); 
+      const appStartTime = parse(appTimeStr, 'HH:mm', date);
       const appEndTime = addMinutes(appStartTime, app.total_duration_minutes);
       busyIntervals.push({ start: appStartTime, end: appEndTime });
     });
