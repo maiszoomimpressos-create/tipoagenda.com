@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Appointment {
@@ -81,17 +81,18 @@ const AgendamentosPage: React.FC = () => {
 
       // Apply date filter based on selectedTab
       const today = new Date();
-      const startOfDay = format(today, 'yyyy-MM-dd');
+      const todayFormatted = format(today, 'yyyy-MM-dd');
 
       if (selectedTab === 'dia') {
-        query = query.eq('appointment_date', startOfDay);
+        query = query.eq('appointment_date', todayFormatted);
       } else if (selectedTab === 'semana') {
-        const startOfWeek = format(today, 'yyyy-MM-dd'); // Simplified for now, can be expanded to actual week start
-        // For a full week, you'd calculate start and end of week
-        query = query.gte('appointment_date', startOfWeek);
+        const startOfCurrentWeek = format(startOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
+        const endOfCurrentWeek = format(endOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
+        query = query.gte('appointment_date', startOfCurrentWeek).lte('appointment_date', endOfCurrentWeek);
       } else if (selectedTab === 'mes') {
-        const startOfMonth = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
-        query = query.gte('appointment_date', startOfMonth);
+        const startOfCurrentMonth = format(startOfMonth(today), 'yyyy-MM-dd');
+        const endOfCurrentMonth = format(endOfMonth(today), 'yyyy-MM-dd');
+        query = query.gte('appointment_date', startOfCurrentMonth).lte('appointment_date', endOfCurrentMonth);
       }
 
       // Apply collaborator filter
