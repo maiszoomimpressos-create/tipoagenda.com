@@ -28,7 +28,8 @@ import ServicesPage from "./pages/ServicesPage";
 import ServiceFormPage from "./pages/ServiceFormPage";
 import EditClientPage from "./pages/EditClientPage";
 import CollaboratorFormPage from "./pages/CollaboratorFormPage";
-import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage"; // Import the new page
+import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage";
+import EditAgendamentoPage from "./pages/EditAgendamentoPage"; // Import the new page
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -85,6 +86,7 @@ const App = () => (
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
+              <Route path="agendamentos/edit/:appointmentId" element={<ProtectedRoute><EditAgendamentoPage /></ProtectedRoute>} /> {/* Nova rota de edição */}
               <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} />
               <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
               <Route path="servicos/edit/:serviceId" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
@@ -93,7 +95,7 @@ const App = () => (
               <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
               <Route path="colaboradores/new" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
               <Route path="colaboradores/edit/:collaboratorId" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
-              <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} /> {/* Nova rota para horários */}
+              <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />

@@ -10,15 +10,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes } from 'date-fns'; // Adicionado parse e addMinutes
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Edit } from 'lucide-react'; // Importar o ícone de edição
 
 interface Appointment {
   id: string;
   appointment_date: string;
   appointment_time: string;
   total_price: number;
-  total_duration_minutes: number; // Adicionado para calcular o horário de término
+  total_duration_minutes: number;
   status: string;
   clients: { name: string } | null;
   collaborators: { first_name: string; last_name: string } | null;
@@ -213,22 +214,33 @@ const AgendamentosPage: React.FC = () => {
               <Card key={agendamento.id} className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 w-1/2"> {/* Ajustado para ocupar mais espaço */}
+                    <div className="flex items-center gap-4 w-1/2">
                       <div className={`w-4 h-4 rounded-full ${getStatusColor(agendamento.status)}`}></div>
                       <div>
                         <h3 className="font-semibold text-gray-900">{clientName}</h3>
                         <p className="text-sm text-gray-600">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end w-1/4"> {/* Alinhado à direita */}
+                    <div className="flex flex-col items-end w-1/4">
                       <p className="font-semibold text-gray-900">{formattedTimeRange}</p>
                       <p className="text-sm text-gray-600">{collaboratorName}</p>
                     </div>
-                    <div className="text-right w-1/4"> {/* Alinhado à direita */}
+                    <div className="text-right w-1/4 flex flex-col items-end gap-1"> {/* Ajustado para alinhar botões */}
                       <p className="font-bold text-yellow-600">R$ {agendamento.total_price.toFixed(2).replace('.', ',')}</p>
                       <Badge className={`${getStatusColor(agendamento.status)} text-white text-xs`}>
                         {agendamento.status}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="!rounded-button whitespace-nowrap"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Evita que o clique no botão acione o clique no card
+                          navigate(`/agendamentos/edit/${agendamento.id}`);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardContent>

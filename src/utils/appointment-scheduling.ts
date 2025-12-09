@@ -28,7 +28,8 @@ export async function getAvailableTimeSlots(
   collaboratorId: string,
   date: Date,
   requiredDuration: number,
-  slotIntervalMinutes: number = 30 // Intervalo de slots, por exemplo, 30 minutos
+  slotIntervalMinutes: number = 30, // Intervalo de slots, por exemplo, 30 minutos
+  excludeAppointmentId?: string // Novo parâmetro opcional
 ): Promise<string[]> {
   const availableSlots: string[] = [];
   const selectedDayOfWeek = getDay(date); // 0 for Sunday, 1 for Monday, etc.
@@ -36,7 +37,7 @@ export async function getAvailableTimeSlots(
   const selectedDateStart = startOfDay(date);
 
   console.log('--- getAvailableTimeSlots Start ---');
-  console.log('Input Params:', { companyId, collaboratorId, date: format(date, 'yyyy-MM-dd'), requiredDuration, slotIntervalMinutes });
+  console.log('Input Params:', { companyId, collaboratorId, date: format(date, 'yyyy-MM-dd'), requiredDuration, slotIntervalMinutes, excludeAppointmentId });
 
   // 1. Fetch working schedules for the selected day
   const { data: workingSchedules, error: wsError } = await supabase
@@ -67,13 +68,20 @@ export async function getAvailableTimeSlots(
   console.log('Fetched exceptions:', exceptions);
 
   // 3. Fetch existing appointments for the selected date and collaborator
-  const { data: existingAppointments, error: appError } = await supabase
+  let appointmentsQuery = supabase
     .from('appointments')
     .select('id, appointment_time, total_duration_minutes')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('appointment_date', format(date, 'yyyy-MM-dd'))
     .neq('status', 'cancelado'); // Exclude canceled appointments
+
+  // Excluir o agendamento que está sendo editado, se houver
+  if (excludeAppointmentId) {
+    appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
+  }
+
+  const { data: existingAppointments, error: appError } = await appointmentsQuery;
 
   if (appError) {
     console.error('Error fetching existing appointments:', appError);
