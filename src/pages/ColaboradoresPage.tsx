@@ -5,10 +5,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createButton } from '@/lib/dashboard-utils';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Edit, Trash2 } from 'lucide-react'; // Importar ícones
+import { Edit, Trash2, Clock } from 'lucide-react'; // Importar ícones
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar componentes de diálogo
 
 interface Collaborator {
@@ -164,7 +164,7 @@ const ColaboradoresPage: React.FC = () => {
               <CardContent className="p-6">
                 <div className="text-center">
                   <Avatar className="w-20 h-20 mx-auto mb-4">
-                    <AvatarImage src={colaborador.avatar_url || `https://readdy.ai/api/search-image?query=professional%20${colaborador.role_description.toLowerCase()}%20portrait%20with%20modern%20styling%20tools%20in%20clean%20environment%20with%20professional%20lighting%20and%20neutral%20background&width=80&height=80&seq=${colaborador.id}&orientation=squarish`} />
+                    <AvatarImage src={colaborador.avatar_url || `https://readdy.ai/api/search-image?query=professional%20${colaborador.role_description?.toLowerCase() || 'person'}%20portrait%20with%20modern%20styling%20tools%20in%20clean%20environment%20with%20professional%20lighting%20and%20neutral%20background&width=80&height=80&seq=${colaborador.id}&orientation=squarish`} />
                     <AvatarFallback className="bg-gray-200 text-gray-700 text-xl">
                       {colaborador.first_name.split(' ').map(n => n[0]).join('')}{colaborador.last_name.split(' ').map(n => n[0]).join('')}
                     </AvatarFallback>
@@ -200,6 +200,17 @@ const ColaboradoresPage: React.FC = () => {
                       }}
                     >
                       <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="!rounded-button whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/colaboradores/${colaborador.id}/schedule`);
+                      }}
+                    >
+                      <Clock className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="destructive"

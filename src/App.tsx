@@ -27,7 +27,8 @@ import SegmentManagementPage from "./pages/SegmentManagementPage";
 import ServicesPage from "./pages/ServicesPage";
 import ServiceFormPage from "./pages/ServiceFormPage";
 import EditClientPage from "./pages/EditClientPage";
-import CollaboratorFormPage from "./pages/CollaboratorFormPage"; // Import the new CollaboratorFormPage
+import CollaboratorFormPage from "./pages/CollaboratorFormPage";
+import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage"; // Import the new page
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -90,8 +91,9 @@ const App = () => (
               <Route path="clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
               <Route path="clientes/edit/:clientId" element={<ProtectedRoute><EditClientPage /></ProtectedRoute>} />
               <Route path="colaboradores" element={<ProtectedRoute><ColaboradoresPage /></ProtectedRoute>} />
-              <Route path="colaboradores/new" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} /> {/* Nova rota para adicionar colaborador */}
-              <Route path="colaboradores/edit/:collaboratorId" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} /> {/* Nova rota para editar colaborador */}
+              <Route path="colaboradores/new" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
+              <Route path="colaboradores/edit/:collaboratorId" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
+              <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} /> {/* Nova rota para horários */}
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
