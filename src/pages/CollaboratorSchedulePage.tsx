@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2, Edit } from 'lucide-react'; // Adicionado Edit icon
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -27,8 +27,8 @@ const workingScheduleSchema = z.object({
   end_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
 });
 
-// Zod schema for a single schedule exception entry
-const scheduleExceptionSchema = z.object({
+// Zod schema for a single schedule exception entry (for display)
+const scheduleExceptionDisplaySchema = z.object({
   id: z.string().optional(),
   exception_date: z.string().min(1, "Data da exceção é obrigatória."),
   is_day_off: z.boolean().default(false),
@@ -37,10 +37,27 @@ const scheduleExceptionSchema = z.object({
   reason: z.string().optional(),
 });
 
-// Main form schema
+// Zod schema for the exception modal form
+const exceptionModalSchema = z.object({
+  is_day_off: z.boolean().default(false),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").optional().or(z.literal('')),
+  end_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").optional().or(z.literal('')),
+  reason: z.string().optional(),
+}).refine(data => {
+  if (!data.is_day_off) {
+    return !!data.start_time && !!data.end_time;
+  }
+  return true;
+}, {
+  message: "Horário de início e fim são obrigatórios se não for dia de folga.",
+  path: ["start_time"],
+});
+
+type ExceptionModalFormValues = z.infer<typeof exceptionModalSchema>;
+
+// Main form schema (only for working schedules now)
 const collaboratorScheduleFormSchema = z.object({
   working_schedules: z.array(workingScheduleSchema),
-  schedule_exceptions: z.array(scheduleExceptionSchema),
 });
 
 type CollaboratorScheduleFormValues = z.infer<typeof collaboratorScheduleFormSchema>;
@@ -66,27 +83,28 @@ const CollaboratorSchedulePage: React.FC = () => {
   const { collaboratorId } = useParams<{ collaboratorId: string }>();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Loading for main page data fetch and main form submission
   const [collaborator, setCollaborator] = useState<Collaborator | null>(null);
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [editingException, setEditingException] = useState<scheduleExceptionSchema | null>(null);
+  const [editingException, setEditingException] = useState<scheduleExceptionDisplaySchema | null>(null);
   const [isDeleteExceptionDialogOpen, setIsDeleteExceptionDialogOpen] = useState(false);
   const [exceptionToDelete, setExceptionToDelete] = useState<string | null>(null);
+  const [exceptionsList, setExceptionsList] = useState<scheduleExceptionDisplaySchema[]>([]); // State for displaying exceptions
+  const [savingException, setSavingException] = useState(false); // Loading for exception modal save button
+  const [deletingException, setDeletingException] = useState(false); // Loading for exception delete button
 
+  // Main form for working schedules
   const {
     register,
     handleSubmit,
     reset,
     control,
-    setValue,
-    watch,
-    formState: { errors },
+    formState: { errors: mainFormErrors },
   } = useForm<CollaboratorScheduleFormValues>({
     resolver: zodResolver(collaboratorScheduleFormSchema),
     defaultValues: {
       working_schedules: [],
-      schedule_exceptions: [],
     },
   });
 
@@ -95,12 +113,25 @@ const CollaboratorSchedulePage: React.FC = () => {
     name: "working_schedules",
   });
 
-  const { fields: exceptionFields, append: appendException, remove: removeException, update: updateException } = useFieldArray({
-    control,
-    name: "schedule_exceptions",
+  // Form for the exception modal
+  const {
+    register: registerExceptionModal,
+    handleSubmit: handleSubmitExceptionModal,
+    reset: resetExceptionModal,
+    watch: watchExceptionModal,
+    setValue: setValueExceptionModal,
+    formState: { errors: exceptionModalErrors },
+  } = useForm<ExceptionModalFormValues>({
+    resolver: zodResolver(exceptionModalSchema),
+    defaultValues: {
+      is_day_off: false,
+      start_time: '09:00',
+      end_time: '18:00',
+      reason: '',
+    },
   });
 
-  const watchExceptionIsDayOff = watch('schedule_exceptions');
+  const watchModalIsDayOff = watchExceptionModal('is_day_off');
 
   const fetchCollaboratorAndSchedules = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !collaboratorId || !primaryCompanyId) {
@@ -150,11 +181,8 @@ const CollaboratorSchedulePage: React.FC = () => {
 
       reset({
         working_schedules: schedulesData || [],
-        schedule_exceptions: exceptionsData?.map(ex => ({
-          ...ex,
-          exception_date: ex.exception_date, // Keep as string for form
-        })) || [],
       });
+      setExceptionsList(exceptionsData || []); // Update local state for display
 
     } catch (error: any) {
       console.error('Erro ao carregar dados da página:', error);
@@ -168,7 +196,8 @@ const CollaboratorSchedulePage: React.FC = () => {
     fetchCollaboratorAndSchedules();
   }, [fetchCollaboratorAndSchedules]);
 
-  const onSubmit = async (data: CollaboratorScheduleFormValues) => {
+  // Main form submission for working schedules
+  const onSubmitWorkingSchedules = async (data: CollaboratorScheduleFormValues) => {
     setLoading(true);
     if (!session?.user || !primaryCompanyId || !collaboratorId) {
       showError('Erro de autenticação ou dados da empresa/colaborador faltando.');
@@ -219,57 +248,11 @@ const CollaboratorSchedulePage: React.FC = () => {
         if (insertSchedulesError) throw insertSchedulesError;
       }
 
-      // --- Update/Insert/Delete Schedule Exceptions ---
-      const existingExceptionIds = exceptionFields.map(f => f.id).filter(Boolean);
-      const exceptionsToKeep = data.schedule_exceptions.filter(e => e.id);
-      const exceptionsToInsert = data.schedule_exceptions.filter(e => !e.id);
-
-      // Delete removed exceptions
-      const { error: deleteExceptionsError } = await supabase
-        .from('schedule_exceptions')
-        .delete()
-        .eq('collaborator_id', collaboratorId)
-        .eq('company_id', primaryCompanyId)
-        .not('id', 'in', `(${exceptionsToKeep.map(e => `'${e.id}'`).join(',') || 'NULL'})`); // Handle empty array
-
-      if (deleteExceptionsError) throw deleteExceptionsError;
-
-      // Update existing exceptions
-      for (const exception of exceptionsToKeep) {
-        const { error: updateExceptionError } = await supabase
-          .from('schedule_exceptions')
-          .update({
-            exception_date: exception.exception_date,
-            is_day_off: exception.is_day_off,
-            start_time: exception.is_day_off ? null : exception.start_time,
-            end_time: exception.is_day_off ? null : exception.end_time,
-            reason: exception.reason,
-          })
-          .eq('id', exception.id!)
-          .eq('collaborator_id', collaboratorId)
-          .eq('company_id', primaryCompanyId);
-        if (updateExceptionError) throw updateExceptionError;
-      }
-
-      // Insert new exceptions
-      if (exceptionsToInsert.length > 0) {
-        const { error: insertExceptionsError } = await supabase
-          .from('schedule_exceptions')
-          .insert(exceptionsToInsert.map(e => ({
-            ...e,
-            collaborator_id: collaboratorId,
-            company_id: primaryCompanyId,
-            start_time: e.is_day_off ? null : e.start_time,
-            end_time: e.is_day_off ? null : e.end_time,
-          })));
-        if (insertExceptionsError) throw insertExceptionsError;
-      }
-
-      showSuccess('Horários e exceções do colaborador salvos com sucesso!');
+      showSuccess('Horários de trabalho semanais salvos com sucesso!');
       fetchCollaboratorAndSchedules(); // Re-fetch to ensure UI is updated with new IDs
     } catch (error: any) {
-      console.error('Erro ao salvar horários:', error);
-      showError('Erro ao salvar horários: ' + error.message);
+      console.error('Erro ao salvar horários de trabalho:', error);
+      showError('Erro ao salvar horários de trabalho: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -278,36 +261,74 @@ const CollaboratorSchedulePage: React.FC = () => {
   const handleAddException = () => {
     setEditingException(null);
     setSelectedDate(undefined);
+    resetExceptionModal(); // Reset modal form
     setIsExceptionModalOpen(true);
   };
 
-  const handleEditException = (exception: scheduleExceptionSchema, index: number) => {
-    setEditingException({ ...exception, indexInForm: index }); // Store index for update
+  const handleEditException = (exception: scheduleExceptionDisplaySchema) => {
+    setEditingException(exception);
     setSelectedDate(parseISO(exception.exception_date));
+    resetExceptionModal({
+      is_day_off: exception.is_day_off,
+      start_time: exception.start_time || '09:00',
+      end_time: exception.end_time || '18:00',
+      reason: exception.reason || '',
+    });
     setIsExceptionModalOpen(true);
   };
 
-  const handleSaveException = (formData: any) => {
-    const newException: scheduleExceptionSchema = {
-      exception_date: format(selectedDate!, 'yyyy-MM-dd'),
-      is_day_off: formData.is_day_off,
-      start_time: formData.is_day_off ? '' : formData.start_time,
-      end_time: formData.is_day_off ? '' : formData.end_time,
-      reason: formData.reason,
-    };
-
-    if (editingException && editingException.id) {
-      // Update existing exception in form array
-      const index = exceptionFields.findIndex(f => f.id === editingException.id);
-      if (index !== -1) {
-        updateException(index, { ...exceptionFields[index], ...newException });
-      }
-    } else {
-      // Append new exception
-      appendException(newException);
+  // This function is now the onSubmit for the modal's form
+  const handleSaveException = async (modalData: ExceptionModalFormValues) => {
+    setSavingException(true);
+    if (!session?.user || !primaryCompanyId || !collaboratorId || !selectedDate) {
+      showError('Erro: Dados incompletos para salvar a exceção.');
+      setSavingException(false);
+      return;
     }
-    setIsExceptionModalOpen(false);
-    setEditingException(null);
+
+    try {
+      const exceptionDateFormatted = format(selectedDate, 'yyyy-MM-dd');
+      const payload = {
+        collaborator_id: collaboratorId,
+        company_id: primaryCompanyId,
+        exception_date: exceptionDateFormatted,
+        is_day_off: modalData.is_day_off,
+        start_time: modalData.is_day_off ? null : modalData.start_time,
+        end_time: modalData.is_day_off ? null : modalData.end_time,
+        reason: modalData.reason,
+      };
+
+      if (editingException?.id) {
+        // Update existing exception
+        const { error } = await supabase
+          .from('schedule_exceptions')
+          .update(payload)
+          .eq('id', editingException.id)
+          .eq('collaborator_id', collaboratorId)
+          .eq('company_id', primaryCompanyId);
+
+        if (error) throw error;
+        showSuccess('Exceção atualizada com sucesso!');
+      } else {
+        // Insert new exception
+        const { error } = await supabase
+          .from('schedule_exceptions')
+          .insert(payload);
+
+        if (error) throw error;
+        showSuccess('Exceção adicionada com sucesso!');
+      }
+      
+      fetchCollaboratorAndSchedules(); // Re-fetch to update the list
+      setIsExceptionModalOpen(false);
+      setEditingException(null);
+      resetExceptionModal();
+    } catch (error: any) {
+      console.error('Erro ao salvar exceção:', error);
+      showError('Erro ao salvar exceção: ' + error.message);
+    } finally {
+      setSavingException(false);
+    }
   };
 
   const handleDeleteExceptionClick = (exceptionId: string) => {
@@ -315,16 +336,29 @@ const CollaboratorSchedulePage: React.FC = () => {
     setIsDeleteExceptionDialogOpen(true);
   };
 
-  const confirmDeleteException = () => {
-    if (exceptionToDelete) {
-      const index = exceptionFields.findIndex(f => f.id === exceptionToDelete);
-      if (index !== -1) {
-        removeException(index);
-        showSuccess('Exceção removida do formulário. Salve para aplicar as mudanças.');
+  const confirmDeleteException = async () => {
+    if (exceptionToDelete && session?.user && primaryCompanyId && collaboratorId) {
+      setDeletingException(true);
+      try {
+        const { error } = await supabase
+          .from('schedule_exceptions')
+          .delete()
+          .eq('id', exceptionToDelete)
+          .eq('collaborator_id', collaboratorId)
+          .eq('company_id', primaryCompanyId);
+
+        if (error) throw error;
+        showSuccess('Exceção excluída com sucesso!');
+        fetchCollaboratorAndSchedules(); // Re-fetch to update the list
+      } catch (error: any) {
+        console.error('Erro ao excluir exceção:', error);
+        showError('Erro ao excluir exceção: ' + error.message);
+      } finally {
+        setDeletingException(false);
+        setIsDeleteExceptionDialogOpen(false);
+        setExceptionToDelete(null);
       }
     }
-    setIsDeleteExceptionDialogOpen(false);
-    setExceptionToDelete(null);
   };
 
   if (sessionLoading || loadingPrimaryCompany || loading) {
@@ -384,13 +418,13 @@ const CollaboratorSchedulePage: React.FC = () => {
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmitWorkingSchedules)} className="space-y-6">
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900">Horário de Trabalho Semanal</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {daysOfWeek.map((day, index) => {
+            {daysOfWeek.map((day) => {
               const fieldIndex = workingScheduleFields.findIndex(f => f.day_of_week === day.value);
               const isWorking = fieldIndex !== -1;
 
@@ -429,8 +463,8 @@ const CollaboratorSchedulePage: React.FC = () => {
                         {...register(`working_schedules.${fieldIndex}.end_time`)}
                         className="w-28 text-sm border-gray-300"
                       />
-                      {errors.working_schedules?.[fieldIndex]?.start_time && <p className="text-red-500 text-xs">{errors.working_schedules[fieldIndex]?.start_time?.message}</p>}
-                      {errors.working_schedules?.[fieldIndex]?.end_time && <p className="text-red-500 text-xs">{errors.working_schedules[fieldIndex]?.end_time?.message}</p>}
+                      {mainFormErrors.working_schedules?.[fieldIndex]?.start_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[fieldIndex]?.start_time?.message}</p>}
+                      {mainFormErrors.working_schedules?.[fieldIndex]?.end_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[fieldIndex]?.end_time?.message}</p>}
                     </div>
                   )}
                 </div>
@@ -452,15 +486,15 @@ const CollaboratorSchedulePage: React.FC = () => {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {exceptionFields.length === 0 ? (
+            {exceptionsList.length === 0 ? (
               <p className="text-gray-600">Nenhuma exceção de horário cadastrada.</p>
             ) : (
-              exceptionFields.map((exception, index) => (
+              exceptionsList.map((exception) => (
                 <div key={exception.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">
                       {format(parseISO(exception.exception_date), 'dd/MM/yyyy', { locale: ptBR })}
-                      {exception.is_day_off ? ' (Dia de Folga)' : ` (${exception.start_time} - ${exception.end_time})`}
+                      {exception.is_day_off ? ' (Dia de Folga)' : ` (${exception.start_time || 'N/A'} - ${exception.end_time || 'N/A'})`}
                     </p>
                     {exception.reason && <p className="text-sm text-gray-600">{exception.reason}</p>}
                   </div>
@@ -470,9 +504,9 @@ const CollaboratorSchedulePage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       className="!rounded-button whitespace-nowrap"
-                      onClick={() => handleEditException(exception, index)}
+                      onClick={() => handleEditException(exception)}
                     >
-                      <ArrowLeft className="h-4 w-4" /> {/* Reusing ArrowLeft for edit, consider a proper edit icon */}
+                      <Edit className="h-4 w-4" />
                     </Button>
                     <Button
                       type="button"
@@ -505,7 +539,7 @@ const CollaboratorSchedulePage: React.FC = () => {
             className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base flex-1"
             disabled={loading}
           >
-            {loading ? 'Salvando...' : 'Salvar Horários'}
+            {loading ? 'Salvando...' : 'Salvar Horários Semanais'}
           </Button>
         </div>
       </form>
@@ -519,9 +553,9 @@ const CollaboratorSchedulePage: React.FC = () => {
               Defina um dia de folga ou um horário especial para o colaborador.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit(handleSaveException)} className="grid gap-4 py-4">
+          <form onSubmit={handleSubmitExceptionModal(handleSaveException)} className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="exception_date" className="text-right">
+              <Label htmlFor="exception_date_modal" className="text-right">
                 Data
               </Label>
               <div className="col-span-3">
@@ -536,67 +570,55 @@ const CollaboratorSchedulePage: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="is_day_off" className="text-right">
+              <Label htmlFor="is_day_off_modal" className="text-right">
                 Dia de Folga
               </Label>
               <Checkbox
-                id="is_day_off"
-                checked={watchExceptionIsDayOff.some(e => e.id === editingException?.id ? e.is_day_off : false)} // Check if current exception is day off
-                onCheckedChange={(checked) => {
-                  if (editingException) {
-                    const index = exceptionFields.findIndex(f => f.id === editingException.id);
-                    if (index !== -1) {
-                      setValue(`schedule_exceptions.${index}.is_day_off`, !!checked);
-                    }
-                  } else {
-                    // For new exception, set a temporary value or handle in handleSaveException
-                    // For simplicity, we'll handle it in handleSaveException
-                  }
-                }}
+                id="is_day_off_modal"
+                checked={watchModalIsDayOff}
+                onCheckedChange={(checked) => setValueExceptionModal('is_day_off', !!checked, { shouldValidate: true })}
                 className="col-span-3"
               />
             </div>
-            {!watchExceptionIsDayOff.some(e => e.id === editingException?.id ? e.is_day_off : false) && ( // Only show if not a full day off
+            {!watchModalIsDayOff && ( // Only show if not a full day off
               <>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="start_time" className="text-right">
+                  <Label htmlFor="start_time_modal" className="text-right">
                     Início
                   </Label>
                   <Input
-                    id="start_time"
+                    id="start_time_modal"
                     type="time"
-                    {...register('schedule_exceptions.0.start_time')} // Use a dummy index for register, actual value set by setValue
+                    {...registerExceptionModal('start_time')}
                     className="col-span-3"
-                    defaultValue={editingException?.start_time || '09:00'}
                   />
-                  {errors.schedule_exceptions?.[0]?.start_time && <p className="col-span-4 text-red-500 text-xs text-right">{errors.schedule_exceptions[0]?.start_time?.message}</p>}
+                  {exceptionModalErrors.start_time && <p className="col-span-4 text-red-500 text-xs text-right">{exceptionModalErrors.start_time.message}</p>}
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="end_time" className="text-right">
+                  <Label htmlFor="end_time_modal" className="text-right">
                     Fim
                   </Label>
                   <Input
-                    id="end_time"
+                    id="end_time_modal"
                     type="time"
-                    {...register('schedule_exceptions.0.end_time')} // Use a dummy index for register, actual value set by setValue
+                    {...registerExceptionModal('end_time')}
                     className="col-span-3"
-                    defaultValue={editingException?.end_time || '18:00'}
                   />
-                  {errors.schedule_exceptions?.[0]?.end_time && <p className="col-span-4 text-red-500 text-xs text-right">{errors.schedule_exceptions[0]?.end_time?.message}</p>}
+                  {exceptionModalErrors.end_time && <p className="col-span-4 text-red-500 text-xs text-right">{exceptionModalErrors.end_time.message}</p>}
                 </div>
               </>
             )}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reason" className="text-right">
+              <Label htmlFor="reason_modal" className="text-right">
                 Motivo
               </Label>
               <Input
-                id="reason"
+                id="reason_modal"
                 type="text"
-                {...register('schedule_exceptions.0.reason')} // Use a dummy index for register
+                {...registerExceptionModal('reason')}
                 className="col-span-3"
-                defaultValue={editingException?.reason || ''}
               />
+              {exceptionModalErrors.reason && <p className="col-span-4 text-red-500 text-xs text-right">{exceptionModalErrors.reason.message}</p>}
             </div>
             <DialogFooter className="flex justify-between items-center">
               <Button
@@ -604,11 +626,12 @@ const CollaboratorSchedulePage: React.FC = () => {
                 variant="outline"
                 onClick={() => setIsExceptionModalOpen(false)}
                 className="!rounded-button whitespace-nowrap"
+                disabled={savingException}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={!selectedDate || loading} className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-                {loading ? 'Salvando...' : 'Salvar Exceção'}
+              <Button type="submit" disabled={!selectedDate || savingException} className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
+                {savingException ? 'Salvando...' : 'Salvar Exceção'}
               </Button>
             </DialogFooter>
           </form>
@@ -625,11 +648,11 @@ const CollaboratorSchedulePage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteExceptionDialogOpen(false)} disabled={loading}>
+            <Button variant="outline" onClick={() => setIsDeleteExceptionDialogOpen(false)} disabled={deletingException}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteException} disabled={loading}>
-              {loading ? 'Excluindo...' : 'Excluir'}
+            <Button variant="destructive" onClick={confirmDeleteException} disabled={deletingException}>
+              {deletingException ? 'Excluindo...' : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>
