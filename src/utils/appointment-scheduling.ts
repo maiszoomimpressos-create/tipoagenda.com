@@ -189,8 +189,8 @@ export async function getAvailableTimeSlots(
       }
 
       if (isSlotFree) {
-        availableSlots.push(format(slotStart, 'HH:mm'));
-        console.log(`    Slot added: ${format(slotStart, 'HH:mm')}`);
+        availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
+        console.log(`    Slot added: ${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
         currentTime = addMinutes(currentTime, slotIntervalMinutes);
       }
       // If not free, currentTime was already advanced by the busy interval check.
