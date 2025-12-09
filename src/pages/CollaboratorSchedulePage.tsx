@@ -211,17 +211,18 @@ const CollaboratorSchedulePage: React.FC = () => {
       const idsToKeep = schedulesToKeep.map(s => s.id);
 
       // Delete removed schedules
-      // Only delete if there are IDs to keep, otherwise delete all if the array is empty
+      // If there are IDs to keep, delete all schedules NOT in that list.
+      // If idsToKeep is empty, it means all schedules for this collaborator/company should be deleted.
       if (idsToKeep.length > 0) {
         const { error: deleteSchedulesError } = await supabase
           .from('working_schedules')
           .delete()
           .eq('collaborator_id', collaboratorId)
           .eq('company_id', primaryCompanyId)
-          .not('id', 'in', idsToKeep);
+          .not('id', 'in', idsToKeep); // Pass array directly
         if (deleteSchedulesError) throw deleteSchedulesError;
       } else {
-        // If idsToKeep is empty, it means all schedules for this collaborator/company should be deleted
+        // If idsToKeep is empty, delete all schedules for this collaborator/company
         const { error: deleteAllSchedulesError } = await supabase
           .from('working_schedules')
           .delete()
