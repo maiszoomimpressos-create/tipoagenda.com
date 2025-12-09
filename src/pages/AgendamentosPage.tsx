@@ -22,6 +22,7 @@ interface Appointment {
   total_price: number;
   total_duration_minutes: number;
   status: string;
+  client_nickname: string | null; // Adicionado o novo campo
   clients: { name: string } | null;
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
@@ -64,6 +65,7 @@ const AgendamentosPage: React.FC = () => {
           total_price,
           total_duration_minutes,
           status,
+          client_nickname,
           clients(name),
           collaborators(first_name, last_name),
           appointment_services(
@@ -233,7 +235,9 @@ const AgendamentosPage: React.FC = () => {
                     <div className="flex items-center gap-4 w-1/2">
                       <div className={`w-4 h-4 rounded-full ${getStatusColor(agendamento.status)}`}></div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{clientName}</h3>
+                        <h3 className="font-semibold text-gray-900">
+                          {agendamento.client_nickname ? `${agendamento.client_nickname} (${clientName})` : clientName}
+                        </h3>
                         <p className="text-sm text-gray-600">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
                       </div>
                     </div>

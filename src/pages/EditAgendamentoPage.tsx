@@ -23,6 +23,7 @@ import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
 // Zod schema for appointment editing
 const editAppointmentSchema = z.object({
   clientId: z.string().min(1, "Cliente é obrigatório."),
+  clientNickname: z.string().optional(), // Novo campo de apelido
   collaboratorId: z.string().min(1, "Colaborador é obrigatório."),
   serviceIds: z.array(z.string()).min(1, "Selecione pelo menos um serviço."),
   appointmentDate: z.string().min(1, "Data é obrigatória."),
@@ -79,6 +80,7 @@ const EditAgendamentoPage: React.FC = () => {
     resolver: zodResolver(editAppointmentSchema),
     defaultValues: {
       clientId: '',
+      clientNickname: '', // Default value for new field
       collaboratorId: '',
       serviceIds: [],
       appointmentDate: '',
@@ -89,6 +91,7 @@ const EditAgendamentoPage: React.FC = () => {
   });
 
   const selectedClientId = watch('clientId');
+  const selectedClientNickname = watch('clientNickname'); // Watch new field
   const selectedCollaboratorId = watch('collaboratorId');
   const selectedServiceIds = watch('serviceIds');
   const selectedAppointmentTime = watch('appointmentTime');
@@ -139,6 +142,7 @@ const EditAgendamentoPage: React.FC = () => {
           .select(`
             id,
             client_id,
+            client_nickname,
             collaborator_id,
             appointment_date,
             appointment_time,
@@ -161,6 +165,7 @@ const EditAgendamentoPage: React.FC = () => {
 
         reset({
           clientId: appointmentData.client_id,
+          clientNickname: appointmentData.client_nickname || '', // Load the new nickname field
           collaboratorId: appointmentData.collaborator_id,
           serviceIds: currentServiceIds,
           appointmentDate: appointmentData.appointment_date,
@@ -260,6 +265,7 @@ const EditAgendamentoPage: React.FC = () => {
         .from('appointments')
         .update({
           client_id: data.clientId,
+          client_nickname: data.clientNickname, // Save the new nickname field
           collaborator_id: data.collaboratorId,
           appointment_date: data.appointmentDate,
           appointment_time: startTimeForDb,
@@ -369,6 +375,21 @@ const EditAgendamentoPage: React.FC = () => {
                   </Select>
                   {errors.clientId && <p className="text-red-500 text-xs mt-1">{errors.clientId.message}</p>}
                 </div>
+                <div>
+                  <Label htmlFor="clientNickname" className="block text-sm font-medium text-gray-700 mb-2">
+                    Apelido (Opcional)
+                  </Label>
+                  <Input
+                    id="clientNickname"
+                    type="text"
+                    placeholder="Apelido do cliente"
+                    {...register('clientNickname')}
+                    className="mt-1 border-gray-300 text-sm"
+                  />
+                  {errors.clientNickname && <p className="text-red-500 text-xs mt-1">{errors.clientNickname.message}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="collaboratorId" className="block text-sm font-medium text-gray-700 mb-2">
                     Colaborador *

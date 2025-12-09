@@ -23,6 +23,7 @@ import { getAvailableTimeSlots } from '@/utils/appointment-scheduling'; // Impor
 // Zod schema for new appointment registration
 const newAppointmentSchema = z.object({
   clientId: z.string().min(1, "Cliente é obrigatório."),
+  clientNickname: z.string().optional(), // Novo campo de apelido
   collaboratorId: z.string().min(1, "Colaborador é obrigatório."),
   serviceIds: z.array(z.string()).min(1, "Selecione pelo menos um serviço."),
   appointmentDate: z.string().min(1, "Data é obrigatória."),
@@ -75,6 +76,7 @@ const NovoAgendamentoPage: React.FC = () => {
     resolver: zodResolver(newAppointmentSchema),
     defaultValues: {
       clientId: '',
+      clientNickname: '', // Default value for new field
       collaboratorId: '',
       serviceIds: [],
       appointmentDate: '',
@@ -85,6 +87,7 @@ const NovoAgendamentoPage: React.FC = () => {
   });
 
   const selectedClientId = watch('clientId');
+  const selectedClientNickname = watch('clientNickname'); // Watch new field
   const selectedCollaboratorId = watch('collaboratorId');
   const selectedServiceIds = watch('serviceIds');
   const selectedAppointmentTime = watch('appointmentTime');
@@ -216,6 +219,7 @@ const NovoAgendamentoPage: React.FC = () => {
         .insert({
           company_id: primaryCompanyId,
           client_id: data.clientId,
+          client_nickname: data.clientNickname, // Save the new nickname field
           collaborator_id: data.collaboratorId,
           appointment_date: data.appointmentDate,
           appointment_time: startTimeForDb, // Use only the start time
@@ -318,6 +322,21 @@ const NovoAgendamentoPage: React.FC = () => {
                   </Select>
                   {errors.clientId && <p className="text-red-500 text-xs mt-1">{errors.clientId.message}</p>}
                 </div>
+                <div>
+                  <Label htmlFor="clientNickname" className="block text-sm font-medium text-gray-700 mb-2">
+                    Apelido (Opcional)
+                  </Label>
+                  <Input
+                    id="clientNickname"
+                    type="text"
+                    placeholder="Apelido do cliente"
+                    {...register('clientNickname')}
+                    className="mt-1 border-gray-300 text-sm"
+                  />
+                  {errors.clientNickname && <p className="text-red-500 text-xs mt-1">{errors.clientNickname.message}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="collaboratorId" className="block text-sm font-medium text-gray-700 mb-2">
                     Colaborador *
