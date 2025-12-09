@@ -31,7 +31,6 @@ export async function getAvailableTimeSlots(
   const selectedDayOfWeek = getDay(date); // 0 for Sunday, 1 for Monday, etc.
   const today = startOfDay(new Date());
   const selectedDateStart = startOfDay(date);
-  const selectedDateEnd = endOfDay(date);
 
   console.log('--- getAvailableTimeSlots Start ---');
   console.log('Input Params:', { companyId, collaboratorId, date: format(date, 'yyyy-MM-dd'), requiredDuration, slotIntervalMinutes });
@@ -136,44 +135,38 @@ export async function getAvailableTimeSlots(
     }
 
     while (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
-      let isSlotFree = true;
-      const slotEnd = addMinutes(currentTime, requiredDuration);
+      const slotStart = currentTime;
+      const slotEnd = addMinutes(slotStart, requiredDuration);
 
-      // Check if the potential slot is within the working interval
-      if (isBefore(currentTime, workingInterval.start) || isAfter(slotEnd, workingInterval.end)) {
-        isSlotFree = false;
+      // If the slot extends beyond the current working interval, stop generating for this interval
+      if (isAfter(slotEnd, workingInterval.end)) {
+        break;
       }
+
+      let isSlotFree = true;
+      let advanceToTime = addMinutes(slotStart, slotIntervalMinutes); // Default advance
 
       // Check against busy intervals (appointments and exceptions)
-      if (isSlotFree) {
-        for (const busy of busyIntervals) {
-          // If the slot overlaps with a busy interval
-          if (
-            (isBefore(currentTime, busy.end) && isAfter(slotEnd, busy.start)) ||
-            (currentTime.getTime() === busy.start.getTime()) ||
-            (slotEnd.getTime() === busy.end.getTime())
-          ) {
-            isSlotFree = false;
-            // Move current time past the busy interval to avoid re-checking
-            currentTime = addMinutes(busy.end, slotIntervalMinutes - (busy.end.getMinutes() % slotIntervalMinutes));
-            break; // Break from busy interval loop, re-evaluate from new currentTime
-          }
+      for (const busy of busyIntervals) {
+        // Check for overlap: [slotStart, slotEnd) vs [busy.start, busy.end)
+        // An overlap occurs if the start of one is before the end of the other, AND the end of one is after the start of the other.
+        if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
+          isSlotFree = false;
+          // If there's an overlap, the next possible start time should be after the busy interval ends.
+          // Ensure it's aligned to the slotIntervalMinutes.
+          const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+          advanceToTime = isAfter(advanceToTime, busyEndAligned) ? advanceToTime : busyEndAligned;
+          break; // No need to check other busy intervals for this slot
         }
       }
 
       if (isSlotFree) {
-        availableSlots.push(`${format(currentTime, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
-        currentTime = addMinutes(currentTime, slotIntervalMinutes);
+        availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
+        // If free, advance by slot interval
+        currentTime = addMinutes(slotStart, slotIntervalMinutes);
       } else {
-        // If not free, ensure currentTime advances to the next potential slot
-        // This handles cases where a slot is blocked, but the next one might be free
-        if (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
-          currentTime = addMinutes(currentTime, slotIntervalMinutes);
-        } else {
-          // If the current time + required duration is already past the working interval end,
-          // break out of the while loop for this working interval.
-          break;
-        }
+        // If not free, advance to the calculated advanceToTime (past the busy interval)
+        currentTime = advanceToTime;
       }
     }
   }
