@@ -128,7 +128,7 @@ const CollaboratorFormPage: React.FC = () => {
           email: data.email,
           phone_number: formatPhoneNumberInput(data.phone_number || ''),
           hire_date: data.hire_date || '',
-          role_type_id: data.role_type_id,
+          role_type_id: data.role_type_id?.toString(), // Convert number to string here
           commission_percentage: data.commission_percentage?.toFixed(2).replace('.', ',') as any,
           status: data.status as 'Ativo' | 'Inativo' | 'Férias',
           // avatar_file is not pre-filled for security/complexity reasons, user can re-upload
