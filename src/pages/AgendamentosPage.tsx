@@ -10,15 +10,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'; // Reintroduzindo imports
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes } from 'date-fns'; // Adicionado parse e addMinutes
 import { ptBR } from 'date-fns/locale';
-// Removido import de Calendar (conforme sua instrução)
 
 interface Appointment {
   id: string;
   appointment_date: string;
   appointment_time: string;
   total_price: number;
+  total_duration_minutes: number; // Adicionado para calcular o horário de término
   status: string;
   clients: { name: string } | null;
   collaborators: { first_name: string; last_name: string } | null;
@@ -38,7 +38,7 @@ const AgendamentosPage: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [selectedTab, setSelectedTab] = useState('dia');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // Data de referência (hoje por padrão)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
 
@@ -56,6 +56,7 @@ const AgendamentosPage: React.FC = () => {
           appointment_date,
           appointment_time,
           total_price,
+          total_duration_minutes,
           status,
           clients(name),
           collaborators(first_name, last_name),
@@ -64,10 +65,9 @@ const AgendamentosPage: React.FC = () => {
           )
         `)
         .eq('company_id', primaryCompanyId)
-        .order('appointment_date', { ascending: true }) // Order by date first
+        .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true });
 
-      // Filter by date range based on selectedTab and selectedDate
       let startDate: Date | null = null;
       let endDate: Date | null = null;
 
@@ -87,7 +87,6 @@ const AgendamentosPage: React.FC = () => {
         query = query.lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
       }
 
-      // Filter by collaborator
       if (selectedCollaboratorFilter !== 'all') {
         query = query.eq('collaborator_id', selectedCollaboratorFilter);
       }
@@ -191,7 +190,6 @@ const AgendamentosPage: React.FC = () => {
             <option key={col.id} value={col.id}>{col.first_name} {col.last_name}</option>
           ))}
         </select>
-        {/* O calendário foi removido conforme sua instrução. A data de referência para os filtros será sempre a data atual. */}
       </div>
 
       <div className="grid gap-4">
@@ -206,22 +204,27 @@ const AgendamentosPage: React.FC = () => {
               .filter(Boolean)
               .join(' + ');
 
+            // Calculate end time
+            const startTime = parse(agendamento.appointment_time, 'HH:mm:ss', new Date());
+            const endTime = addMinutes(startTime, agendamento.total_duration_minutes);
+            const formattedTimeRange = `${format(startTime, 'HH:mm')} às ${format(endTime, 'HH:mm')}`;
+
             return (
               <Card key={agendamento.id} className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 w-1/2"> {/* Ajustado para ocupar mais espaço */}
                       <div className={`w-4 h-4 rounded-full ${getStatusColor(agendamento.status)}`}></div>
                       <div>
                         <h3 className="font-semibold text-gray-900">{clientName}</h3>
                         <p className="text-sm text-gray-600">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">{agendamento.appointment_time}</p>
+                    <div className="flex flex-col items-end w-1/4"> {/* Alinhado à direita */}
+                      <p className="font-semibold text-gray-900">{formattedTimeRange}</p>
                       <p className="text-sm text-gray-600">{collaboratorName}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right w-1/4"> {/* Alinhado à direita */}
                       <p className="font-bold text-yellow-600">R$ {agendamento.total_price.toFixed(2).replace('.', ',')}</p>
                       <Badge className={`${getStatusColor(agendamento.status)} text-white text-xs`}>
                         {agendamento.status}
