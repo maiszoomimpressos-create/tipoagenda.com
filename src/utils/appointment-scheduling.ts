@@ -137,7 +137,9 @@ export async function getAvailableTimeSlots(
         console.warn(`Invalid appointment entry found (ID: ${app?.id || 'unknown'}). Expected appointment_time to be a string. Skipping.`);
         return;
       }
-      const appStartTime = parse(`${app.appointment_time}`, 'HH:mm', date);
+      // Ensure appointment_time is in HH:MM format before parsing
+      const appStartTimeStr = app.appointment_time.substring(0, 5);
+      const appStartTime = parse(appStartTimeStr, 'HH:mm', date);
       const appEndTime = addMinutes(appStartTime, app.total_duration_minutes);
       busyIntervals.push({ start: appStartTime, end: appEndTime });
     });
@@ -187,8 +189,8 @@ export async function getAvailableTimeSlots(
       }
 
       if (isSlotFree) {
-        availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
-        console.log(`    Slot added: ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')}`);
+        availableSlots.push(format(slotStart, 'HH:mm'));
+        console.log(`    Slot added: ${format(slotStart, 'HH:mm')}`);
         currentTime = addMinutes(currentTime, slotIntervalMinutes);
       }
       // If not free, currentTime was already advanced by the busy interval check.
