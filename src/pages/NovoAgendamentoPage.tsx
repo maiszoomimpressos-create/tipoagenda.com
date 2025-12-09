@@ -207,6 +207,9 @@ const NovoAgendamentoPage: React.FC = () => {
     }
 
     try {
+      // Extract only the start time from the selected slot string
+      const startTime = data.appointmentTime.split(' ')[0]; 
+
       // 1. Create the main appointment entry
       const { data: appointmentData, error: appointmentError } = await supabase
         .from('appointments')
@@ -215,7 +218,7 @@ const NovoAgendamentoPage: React.FC = () => {
           client_id: data.clientId,
           collaborator_id: data.collaboratorId,
           appointment_date: data.appointmentDate,
-          appointment_time: data.appointmentTime,
+          appointment_time: startTime, // Use only the start time
           total_duration_minutes: totalDurationMinutes,
           total_price: totalPriceCalculated,
           // payment_method: data.paymentMethod, // REMOVIDO
