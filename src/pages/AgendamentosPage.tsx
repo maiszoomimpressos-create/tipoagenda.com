@@ -43,80 +43,80 @@ const AgendamentosPage: React.FC = () => {
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState<string>('todos');
   const [collaboratorsOptions, setCollaboratorsOptions] = useState<{ id: string; name: string }[]>([]);
 
-  const fetchAppointments = useCallback(async () => {
-    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
-      setLoadingAppointments(false);
-      return;
-    }
-
-    setLoadingAppointments(true);
-    try {
-      // Fetch collaborators for the filter dropdown
-      const { data: collaboratorsData, error: collabError } = await supabase
-        .from('collaborators')
-        .select('id, first_name, last_name')
-        .eq('company_id', primaryCompanyId)
-        .order('first_name', { ascending: true });
-
-      if (collabError) throw collabError;
-      setCollaboratorsOptions(collaboratorsData.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
-
-      let query = supabase
-        .from('appointments')
-        .select(`
-          id,
-          appointment_date,
-          appointment_time,
-          total_price,
-          status,
-          clients(name),
-          collaborators(first_name, last_name),
-          appointment_services(
-            services(name)
-          )
-        `)
-        .eq('company_id', primaryCompanyId)
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true });
-
-      // Apply date filter based on selectedTab
-      const today = new Date();
-      const todayFormatted = format(today, 'yyyy-MM-dd');
-
-      if (selectedTab === 'dia') {
-        query = query.eq('appointment_date', todayFormatted);
-      } else if (selectedTab === 'semana') {
-        const startOfCurrentWeek = format(startOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
-        const endOfCurrentWeek = format(endOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
-        query = query.gte('appointment_date', startOfCurrentWeek).lte('appointment_date', endOfCurrentWeek);
-      } else if (selectedTab === 'mes') {
-        const startOfCurrentMonth = format(startOfMonth(today), 'yyyy-MM-dd');
-        const endOfCurrentMonth = format(endOfMonth(today), 'yyyy-MM-dd');
-        query = query.gte('appointment_date', startOfCurrentMonth).lte('appointment_date', endOfCurrentMonth);
-      }
-
-      // Apply collaborator filter
-      if (selectedCollaboratorFilter !== 'todos') {
-        query = query.eq('collaborator_id', selectedCollaboratorFilter);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      setAppointments(data as Appointment[]);
-    } catch (error: any) {
-      console.error('Erro ao carregar agendamentos:', error);
-      showError('Erro ao carregar agendamentos: ' + error.message);
-      setAppointments([]);
-    } finally {
-      setLoadingAppointments(false);
-    }
-  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId, selectedTab, selectedCollaboratorFilter]);
-
   useEffect(() => {
+    const fetchAppointments = async () => {
+      if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+        setLoadingAppointments(false);
+        return;
+      }
+
+      setLoadingAppointments(true);
+      try {
+        // Fetch collaborators for the filter dropdown
+        const { data: collaboratorsData, error: collabError } = await supabase
+          .from('collaborators')
+          .select('id, first_name, last_name')
+          .eq('company_id', primaryCompanyId)
+          .order('first_name', { ascending: true });
+
+        if (collabError) throw collabError;
+        setCollaboratorsOptions(collaboratorsData.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
+
+        let query = supabase
+          .from('appointments')
+          .select(`
+            id,
+            appointment_date,
+            appointment_time,
+            total_price,
+            status,
+            clients(name),
+            collaborators(first_name, last_name),
+            appointment_services(
+              services(name)
+            )
+          `)
+          .eq('company_id', primaryCompanyId)
+          .order('appointment_date', { ascending: true })
+          .order('appointment_time', { ascending: true });
+
+        // Apply date filter based on selectedTab
+        const today = new Date();
+        const todayFormatted = format(today, 'yyyy-MM-dd');
+
+        if (selectedTab === 'dia') {
+          query = query.eq('appointment_date', todayFormatted);
+        } else if (selectedTab === 'semana') {
+          const startOfCurrentWeek = format(startOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
+          const endOfCurrentWeek = format(endOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
+          query = query.gte('appointment_date', startOfCurrentWeek).lte('appointment_date', endOfCurrentWeek);
+        } else if (selectedTab === 'mes') {
+          const startOfCurrentMonth = format(startOfMonth(today), 'yyyy-MM-dd');
+          const endOfCurrentMonth = format(endOfMonth(today), 'yyyy-MM-dd');
+          query = query.gte('appointment_date', startOfCurrentMonth).lte('appointment_date', endOfCurrentMonth);
+        }
+
+        // Apply collaborator filter
+        if (selectedCollaboratorFilter !== 'todos') {
+          query = query.eq('collaborator_id', selectedCollaboratorFilter);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        setAppointments(data as Appointment[]);
+      } catch (error: any) {
+        console.error('Erro ao carregar agendamentos:', error);
+        showError('Erro ao carregar agendamentos: ' + error.message);
+        setAppointments([]);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    };
+
     fetchAppointments();
-  }, [fetchAppointments]);
+  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId, selectedTab, selectedCollaboratorFilter, navigate]);
 
   if (sessionLoading || loadingPrimaryCompany || loadingAppointments) {
     return (
@@ -159,7 +159,7 @@ const AgendamentosPage: React.FC = () => {
       </div>
 
       <div className="flex gap-4 items-center">
-        <Tabs defaultValue="dia" className="w-auto" onValueChange={(value) => setSelectedTab(value as 'dia' | 'semana' | 'mes')}>
+        <Tabs value={selectedTab} className="w-auto" onValueChange={(value) => setSelectedTab(value as 'dia' | 'semana' | 'mes')}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dia">Dia</TabsTrigger>
             <TabsTrigger value="semana">Semana</TabsTrigger>
