@@ -12,7 +12,8 @@ import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Edit } from 'lucide-react'; // Importar o ícone de edição
+import { Edit } from 'lucide-react';
+import AppointmentStatusModal from '@/components/AppointmentStatusModal'; // Importar o novo modal
 
 interface Appointment {
   id: string;
@@ -42,6 +43,10 @@ const AgendamentosPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
+
+  // Estados para o modal de status
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [appointmentToEditStatus, setAppointmentToEditStatus] = useState<{ id: string; status: string } | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -133,6 +138,15 @@ const AgendamentosPage: React.FC = () => {
     fetchAppointments();
   }, [fetchAppointments]);
 
+  const handleOpenStatusModal = (id: string, status: string) => {
+    setAppointmentToEditStatus({ id, status });
+    setIsStatusModalOpen(true);
+  };
+
+  const handleStatusUpdated = () => {
+    fetchAppointments(); // Re-fetch appointments to update the list
+  };
+
   if (sessionLoading || loadingPrimaryCompany || loadingAppointments) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -210,6 +224,8 @@ const AgendamentosPage: React.FC = () => {
             const endTime = addMinutes(startTime, agendamento.total_duration_minutes);
             const formattedTimeRange = `${format(startTime, 'HH:mm')} às ${format(endTime, 'HH:mm')}`;
 
+            const isFinalizedOrCanceled = agendamento.status === 'concluido' || agendamento.status === 'cancelado';
+
             return (
               <Card key={agendamento.id} className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
@@ -225,8 +241,21 @@ const AgendamentosPage: React.FC = () => {
                       <p className="font-semibold text-gray-900">{formattedTimeRange}</p>
                       <p className="text-sm text-gray-600">{collaboratorName}</p>
                     </div>
-                    <div className="text-right w-1/4 flex flex-col items-end gap-1"> {/* Ajustado para alinhar botões */}
+                    <div className="text-right w-1/4 flex flex-col items-end gap-1">
                       <p className="font-bold text-yellow-600">R$ {agendamento.total_price.toFixed(2).replace('.', ',')}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="!rounded-button whitespace-nowrap"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenStatusModal(agendamento.id, agendamento.status);
+                        }}
+                        disabled={isFinalizedOrCanceled}
+                      >
+                        <i className="fas fa-check-circle mr-2"></i>
+                        Finalizar
+                      </Button>
                       <Badge className={`${getStatusColor(agendamento.status)} text-white text-xs`}>
                         {agendamento.status}
                       </Badge>
@@ -235,7 +264,7 @@ const AgendamentosPage: React.FC = () => {
                         size="sm"
                         className="!rounded-button whitespace-nowrap"
                         onClick={(e) => {
-                          e.stopPropagation(); // Evita que o clique no botão acione o clique no card
+                          e.stopPropagation();
                           navigate(`/agendamentos/edit/${agendamento.id}`);
                         }}
                       >
@@ -249,6 +278,16 @@ const AgendamentosPage: React.FC = () => {
           })
         )}
       </div>
+
+      {appointmentToEditStatus && (
+        <AppointmentStatusModal
+          isOpen={isStatusModalOpen}
+          onClose={() => setIsStatusModalOpen(false)}
+          appointmentId={appointmentToEditStatus.id}
+          currentStatus={appointmentToEditStatus.status}
+          onStatusUpdated={handleStatusUpdated}
+        />
+      )}
     </div>
   );
 };
