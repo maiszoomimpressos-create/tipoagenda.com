@@ -179,7 +179,11 @@ const CollaboratorSchedulePage: React.FC = () => {
       }
 
       reset({
-        working_schedules: schedulesData || [],
+        working_schedules: schedulesData ? schedulesData.map(schedule => ({
+          ...schedule,
+          start_time: schedule.start_time.substring(0, 5), // Format to HH:MM
+          end_time: schedule.end_time.substring(0, 5),     // Format to HH:MM
+        })) : [],
       });
       setExceptionsList(exceptionsData || []); // Update local state for display
 
@@ -498,8 +502,8 @@ const CollaboratorSchedulePage: React.FC = () => {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                          {mainFormErrors.working_schedules?.[item.index]?.start_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[item.index]?.start_time?.message}</p>}
-                          {mainFormErrors.working_schedules?.[item.index]?.end_time && <p className="text-red-500 text-xs">{mainFormErrors.working_schedules[item.index]?.end_time?.message}</p>}
+                          {mainFormErrors.working_schedules?.[item.index]?.start_time && <p className="col-span-4 text-red-500 text-xs text-right">{mainFormErrors.working_schedules[item.index]?.start_time?.message}</p>}
+                          {mainFormErrors.working_schedules?.[item.index]?.end_time && <p className="col-span-4 text-red-500 text-xs text-right">{mainFormErrors.working_schedules[item.index]?.end_time?.message}</p>}
                         </div>
                       ))}
                       <Button
