@@ -2,9 +2,18 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { estoque } from '@/lib/dashboard-utils';
+// Removido import de { estoque } from '@/lib/dashboard-utils';
 
 const EstoquePage: React.FC = () => {
+  // Dados mockados para o estoque, já que não há uma tabela de produtos no Supabase ainda
+  const estoque = [
+    { id: '1', produto: 'Shampoo Profissional', quantidade: 15, minimo: 10, fornecedor: 'Beauty Corp', preco: 'R$ 85,00' },
+    { id: '2', produto: 'Condicionador Hidratante', quantidade: 8, minimo: 10, fornecedor: 'Hair Solutions', preco: 'R$ 70,00' },
+    { id: '3', produto: 'Cera Modeladora', quantidade: 22, minimo: 5, fornecedor: 'Style Pro', preco: 'R$ 45,00' },
+    { id: '4', produto: 'Óleo Essencial de Barba', quantidade: 5, minimo: 5, fornecedor: 'Beard Care', preco: 'R$ 60,00' },
+    { id: '5', produto: 'Máscara Capilar', quantidade: 12, minimo: 15, fornecedor: 'Beauty Corp', preco: 'R$ 95,00' },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
