@@ -151,31 +151,34 @@ export async function getAvailableTimeSlots(
       console.log(`  Checking slot: ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')}`);
 
       let isSlotFree = true;
-      
+      let nextAdvanceTime = addMinutes(currentTime, slotIntervalMinutes); // Default advance
+
       // Check against busy intervals (appointments and exceptions)
       for (const busy of busyIntervals) {
         // Check for overlap: [slotStart, slotEnd) vs [busy.start, busy.end)
-        // An overlap occurs if the start of one is before the end of the other, AND the end of one is after the start of the other.
         if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
           isSlotFree = false;
           console.log(`    Overlap with busy interval: ${format(busy.start, 'HH:mm')}-${format(busy.end, 'HH:mm')}`);
           // If there's an overlap, the next possible start time should be after the busy interval ends.
           // Ensure it's aligned to the slotIntervalMinutes.
           const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
-          currentTime = isAfter(currentTime, busyEndAligned) ? currentTime : busyEndAligned; // Advance currentTime past the busy block
-          console.log(`    Advanced currentTime to: ${format(currentTime, 'HH:mm')}`);
+          nextAdvanceTime = isAfter(nextAdvanceTime, busyEndAligned) ? nextAdvanceTime : busyEndAligned; // Advance nextAdvanceTime past the busy block
+          console.log(`    Advanced nextAdvanceTime to (due to busy): ${format(nextAdvanceTime, 'HH:mm')}`);
           break; // No need to check other busy intervals for this slot, move to next currentTime
         }
       }
 
       if (isSlotFree) {
         availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
-        console.log(`    Slot added: ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')}`);
-        currentTime = addMinutes(currentTime, slotIntervalMinutes);
+        console.log(`    Slot added: ${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
+        // If a slot is free, the next candidate start time must be after this slot ends.
+        // Ensure it's aligned to the slotIntervalMinutes.
+        const slotEndAligned = setMinutes(setHours(slotEnd, slotEnd.getHours()), Math.ceil(slotEnd.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+        nextAdvanceTime = isAfter(nextAdvanceTime, slotEndAligned) ? nextAdvanceTime : slotEndAligned;
+        console.log(`    Advanced nextAdvanceTime to (due to free slot): ${format(nextAdvanceTime, 'HH:mm')}`);
       }
-      // If not free, currentTime was already advanced by the busy interval check.
-      // If it was not busy, it was advanced by slotIntervalMinutes.
-      // So, no need for an else block here.
+      
+      currentTime = nextAdvanceTime; // Apply the calculated advance
     }
   }
 
