@@ -109,14 +109,11 @@ const DashboardPage: React.FC = () => {
         }
       }
 
-      // --- Estoque Crítico (mantido como mock por falta de tabela de produtos) ---
-      const criticalStockCount = 3; // Mock data
-
       setKpis([
         { title: 'Faturamento do Mês', value: `R$ ${monthlyRevenue.toFixed(2).replace('.', ',')}`, change: revenueChange, icon: 'fas fa-money-bill-wave', color: 'yellow' },
         { title: 'Agendamentos Hoje', value: appointmentsTodayCount?.toString() || '0', change: appointmentsTodayChange, icon: 'fas fa-calendar-check', color: 'yellow' },
         { title: 'Colaborador Mais Ativo', value: mostActiveCollabName, change: `${mostActiveCollabCount} agend.`, icon: 'fas fa-crown', color: 'yellow' },
-        { title: 'Estoque Crítico', value: `${criticalStockCount} itens`, change: 'Atenção', icon: 'fas fa-exclamation-triangle', color: 'red' }
+        // REMOVIDO: { title: 'Estoque Crítico', value: `${criticalStockCount} itens`, change: 'Atenção', icon: 'fas fa-exclamation-triangle', color: 'red' }
       ]);
 
       // --- Agendamentos Recentes (Hoje) ---
@@ -204,7 +201,7 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"> {/* Alterado para 3 colunas */}
         {kpis.map((kpi, index) =>
           createCard(kpi.title, kpi.value, kpi.change, kpi.icon, kpi.color)
         )}

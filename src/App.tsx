@@ -15,7 +15,6 @@ import AgendamentosPage from "./pages/AgendamentosPage";
 import ClientesPage from "./pages/ClientesPage";
 import ColaboradoresPage from "./pages/ColaboradoresPage";
 import FinanceiroPage from "./pages/FinanceiroPage";
-import EstoquePage from "./pages/EstoquePage";
 import RelatoriosPage from "./pages/RelatoriosPage";
 import FidelidadePage from "./pages/FidelidadePage";
 import NovoAgendamentoPage from "./pages/NovoAgendamentoPage";
@@ -29,7 +28,7 @@ import ServiceFormPage from "./pages/ServiceFormPage";
 import EditClientPage from "./pages/EditClientPage";
 import CollaboratorFormPage from "./pages/CollaboratorFormPage";
 import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage";
-import EditAgendamentoPage from "./pages/EditAgendamentoPage"; // Import the new page
+import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import ContractList from "./components/ContractList";
 
@@ -86,7 +85,7 @@ const App = () => (
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
-              <Route path="agendamentos/edit/:appointmentId" element={<ProtectedRoute><EditAgendamentoPage /></ProtectedRoute>} /> {/* Nova rota de edição */}
+              <Route path="agendamentos/edit/:appointmentId" element={<ProtectedRoute><EditAgendamentoPage /></ProtectedRoute>} />
               <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} />
               <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
               <Route path="servicos/edit/:serviceId" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
@@ -97,7 +96,7 @@ const App = () => (
               <Route path="colaboradores/edit/:collaboratorId" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
               <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
-              <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
+              {/* <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} /> REMOVIDO */}
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
 

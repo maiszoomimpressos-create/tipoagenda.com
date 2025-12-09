@@ -87,7 +87,7 @@ export const menuItems = [
   { id: 'clientes', label: 'Clientes', icon: 'fas fa-users', path: '/clientes' },
   { id: 'colaboradores', label: 'Colaboradores', icon: 'fas fa-user-tie', path: '/colaboradores' },
   { id: 'financeiro', label: 'Financeiro', icon: 'fas fa-dollar-sign', path: '/financeiro' },
-  { id: 'estoque', label: 'Estoque', icon: 'fas fa-boxes', path: '/estoque' },
+  // { id: 'estoque', label: 'Estoque', icon: 'fas fa-boxes', path: '/estoque' }, REMOVIDO
   { id: 'relatorios', label: 'Relatórios', icon: 'fas fa-chart-bar', path: '/relatorios' },
   { id: 'fidelidade', label: 'Fidelidade', icon: 'fas fa-gift', path: '/fidelidade' }
 ];
