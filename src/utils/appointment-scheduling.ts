@@ -134,7 +134,10 @@ export async function getAvailableTimeSlots(
   for (const workingInterval of effectiveWorkingIntervals) {
     let currentTime = workingInterval.start;
 
-    // Adjust start time if it's today and before current time
+    // 1. Ensure currentTime is aligned to the next slotIntervalMinutes from the start of the working interval
+    currentTime = setMinutes(setHours(currentTime, currentTime.getHours()), Math.ceil(currentTime.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+
+    // 2. Adjust start time if it's today and before current time
     if (selectedDateStart.getTime() === today.getTime()) {
       const now = new Date();
       const nextSlotAfterNow = setMinutes(setHours(now, now.getHours()), Math.ceil(now.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
@@ -143,8 +146,11 @@ export async function getAvailableTimeSlots(
       }
     }
     console.log(`Processing working interval: ${format(workingInterval.start, 'HH:mm')}-${format(workingInterval.end, 'HH:mm')}`);
+    console.log(`  Initial currentTime for interval (aligned): ${format(currentTime, 'HH:mm')}`);
 
-    while (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
+
+    // Loop while the end of the potential slot is not after the end of the working interval
+    while (!isAfter(addMinutes(currentTime, requiredDuration), workingInterval.end)) {
       const slotStart = currentTime;
       const slotEnd = addMinutes(slotStart, requiredDuration);
 
