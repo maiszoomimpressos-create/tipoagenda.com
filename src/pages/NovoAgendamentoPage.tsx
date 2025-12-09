@@ -385,7 +385,7 @@ const NovoAgendamentoPage: React.FC = () => {
                     initialFocus
                     locale={ptBR}
                     disabled={(date) => isBefore(date, new Date())} // Disable past dates
-                    className="rounded-md border shadow"
+                    className="rounded-md border shadow w-full" // Adicionado w-full aqui
                   />
                   {errors.appointmentDate && <p className="text-red-500 text-xs mt-1">{errors.appointmentDate.message}</p>}
                 </div>
@@ -413,25 +413,6 @@ const NovoAgendamentoPage: React.FC = () => {
                 </div>
               </div>
               
-              {/* REMOVIDO: Forma de Pagamento */}
-              {/* <div>
-                <Label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2">
-                  Forma de Pagamento
-                </Label>
-                <Select onValueChange={(value) => setValue('paymentMethod', value, { shouldValidate: true })} value={selectedPaymentMethod}>
-                  <SelectTrigger id="paymentMethod" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <SelectValue placeholder="Selecione a forma de pagamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                    <SelectItem value="cartao-debito">Cartão de Débito</SelectItem>
-                    <SelectItem value="cartao-credito">Cartão de Crédito</SelectItem>
-                    <SelectItem value="pix">PIX</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.paymentMethod && <p className="text-red-500 text-xs mt-1">{errors.paymentMethod.message}</p>}
-              </div> */}
-
               <div>
                 <Label htmlFor="observations" className="block text-sm font-medium text-gray-700 mb-2">
                   Observações
