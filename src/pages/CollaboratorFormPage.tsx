@@ -381,7 +381,7 @@ const CollaboratorFormPage: React.FC = () => {
                   <Label htmlFor="role_type_id" className="text-sm font-medium text-gray-700 mb-2">
                     Função *
                   </Label>
-                  <Select onValueChange={(value) => setValue('role_type_id', Number(value), { shouldValidate: true })} value={roleTypeIdValue?.toString()}>
+                  <Select onValueChange={(value) => setValue('role_type_id', value, { shouldValidate: true })} value={roleTypeIdValue?.toString()}>
                     <SelectTrigger id="role_type_id" className="mt-1 border-gray-300 text-sm" disabled={loadingRoleTypes}>
                       <SelectValue placeholder={loadingRoleTypes ? "Carregando funções..." : "Selecione a função"} />
                     </SelectTrigger>
