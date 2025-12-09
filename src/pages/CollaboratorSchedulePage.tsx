@@ -205,57 +205,66 @@ const CollaboratorSchedulePage: React.FC = () => {
     }
 
     try {
-      // --- Update/Insert/Delete Working Schedules ---
-      const schedulesToKeep = data.working_schedules.filter(s => s.id);
-      const schedulesToInsert = data.working_schedules.filter(s => !s.id);
-      const idsToKeep = schedulesToKeep.map(s => s.id);
+      // 1. Fetch all current schedules for this collaborator and company
+      const { data: existingSchedules, error: fetchError } = await supabase
+        .from('working_schedules')
+        .select('id')
+        .eq('collaborator_id', collaboratorId)
+        .eq('company_id', primaryCompanyId);
 
-      // Delete removed schedules
-      // If there are IDs to keep, delete all schedules NOT in that list.
-      // If idsToKeep is empty, it means all schedules for this collaborator/company should be deleted.
-      if (idsToKeep.length > 0) {
-        const { error: deleteSchedulesError } = await supabase
+      if (fetchError) throw fetchError;
+
+      const existingScheduleIds = existingSchedules.map(s => s.id);
+      const newScheduleIds = data.working_schedules.filter(s => s.id).map(s => s.id);
+
+      // IDs to delete are those existing schedules that are NOT in the new list
+      const idsToDelete = existingScheduleIds.filter(id => !newScheduleIds.includes(id));
+
+      // 2. Delete schedules that are no longer in the form
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
           .from('working_schedules')
           .delete()
-          .eq('collaborator_id', collaboratorId)
-          .eq('company_id', primaryCompanyId)
-          .not('id', 'in', idsToKeep); // Pass array directly
-        if (deleteSchedulesError) throw deleteSchedulesError;
-      } else {
-        // If idsToKeep is empty, delete all schedules for this collaborator/company
-        const { error: deleteAllSchedulesError } = await supabase
+          .in('id', idsToDelete); // Use .in with an array
+        if (deleteError) throw deleteError;
+      } else if (existingScheduleIds.length > 0 && newScheduleIds.length === 0) {
+        // Special case: if there were existing schedules but now the form is empty, delete all.
+        const { error: deleteAllError } = await supabase
           .from('working_schedules')
           .delete()
           .eq('collaborator_id', collaboratorId)
           .eq('company_id', primaryCompanyId);
-        if (deleteAllSchedulesError) throw deleteAllSchedulesError;
+        if (deleteAllError) throw deleteAllError;
       }
 
-      // Update existing schedules
-      for (const schedule of schedulesToKeep) {
-        const { error: updateScheduleError } = await supabase
-          .from('working_schedules')
-          .update({
-            day_of_week: schedule.day_of_week,
-            start_time: schedule.start_time,
-            end_time: schedule.end_time,
-          })
-          .eq('id', schedule.id!)
-          .eq('collaborator_id', collaboratorId)
-          .eq('company_id', primaryCompanyId);
-        if (updateScheduleError) throw updateScheduleError;
-      }
-
-      // Insert new schedules
-      if (schedulesToInsert.length > 0) {
-        const { error: insertSchedulesError } = await supabase
-          .from('working_schedules')
-          .insert(schedulesToInsert.map(s => ({
-            ...s,
-            collaborator_id: collaboratorId,
-            company_id: primaryCompanyId,
-          })));
-        if (insertSchedulesError) throw insertSchedulesError;
+      // 3. Update existing schedules and insert new ones
+      for (const schedule of data.working_schedules) {
+        if (schedule.id) {
+          // Update existing schedule
+          const { error: updateError } = await supabase
+            .from('working_schedules')
+            .update({
+              day_of_week: schedule.day_of_week,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+            })
+            .eq('id', schedule.id)
+            .eq('collaborator_id', collaboratorId)
+            .eq('company_id', primaryCompanyId);
+          if (updateError) throw updateError;
+        } else {
+          // Insert new schedule
+          const { error: insertError } = await supabase
+            .from('working_schedules')
+            .insert({
+              collaborator_id: collaboratorId,
+              company_id: primaryCompanyId,
+              day_of_week: schedule.day_of_week,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+            });
+          if (insertError) throw insertError;
+        }
       }
 
       showSuccess('Horários de trabalho semanais salvos com sucesso!');
