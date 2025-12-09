@@ -207,19 +207,28 @@ const CollaboratorSchedulePage: React.FC = () => {
 
     try {
       // --- Update/Insert/Delete Working Schedules ---
-      const existingScheduleIds = workingScheduleFields.map(f => f.id).filter(Boolean);
       const schedulesToKeep = data.working_schedules.filter(s => s.id);
       const schedulesToInsert = data.working_schedules.filter(s => !s.id);
+      const idsToKeep = schedulesToKeep.map(s => s.id);
 
       // Delete removed schedules
-      const { error: deleteSchedulesError } = await supabase
-        .from('working_schedules')
-        .delete()
-        .eq('collaborator_id', collaboratorId)
-        .eq('company_id', primaryCompanyId)
-        .not('id', 'in', `(${schedulesToKeep.map(s => `'${s.id}'`).join(',') || 'NULL'})`); // Handle empty array
-
-      if (deleteSchedulesError) throw deleteSchedulesError;
+      if (idsToKeep.length > 0) {
+        const { error: deleteSchedulesError } = await supabase
+          .from('working_schedules')
+          .delete()
+          .eq('collaborator_id', collaboratorId)
+          .eq('company_id', primaryCompanyId)
+          .not('id', 'in', idsToKeep);
+        if (deleteSchedulesError) throw deleteSchedulesError;
+      } else {
+        // If idsToKeep is empty, it means all schedules should be deleted
+        const { error: deleteAllSchedulesError } = await supabase
+          .from('working_schedules')
+          .delete()
+          .eq('collaborator_id', collaboratorId)
+          .eq('company_id', primaryCompanyId);
+        if (deleteAllSchedulesError) throw deleteAllSchedulesError;
+      }
 
       // Update existing schedules
       for (const schedule of schedulesToKeep) {
