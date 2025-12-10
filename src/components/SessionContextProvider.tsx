@@ -31,7 +31,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           navigate('/', { replace: true }); 
         } else if (event === 'PASSWORD_RECOVERY') {
           showSuccess('Verifique seu e-mail para redefinir a senha.');
-          // Não redirecionar aqui, o AuthPage vai lidar com o hash da URL
+          // Não redirecionar aqui, o AuthPage/ResetPasswordForm vai lidar com o hash da URL
         } else if (event === 'USER_UPDATED') {
           showSuccess('Seu perfil foi atualizado!');
         } else if (event === 'INITIAL_SESSION') {
