@@ -19,6 +19,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
+        console.log('SessionContextProvider - Auth event:', event, 'Session:', currentSession); // NOVO LOG
         setSession(currentSession);
         setLoading(false);
 
@@ -32,7 +33,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           navigate('/'); // Redireciona para a Landing Page (Home)
         } else if (event === 'PASSWORD_RECOVERY') {
           showSuccess('Verifique seu e-mail para redefinir a senha.');
-          navigate('/reset-password');
+          // Não redirecionar aqui, pois o AuthPage já lida com o hash da URL
         } else if (event === 'USER_UPDATED') {
           showSuccess('Seu perfil foi atualizado!');
         } else if (event === 'INITIAL_SESSION') {
@@ -44,6 +45,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('SessionContextProvider - Initial getSession:', session); // NOVO LOG
       setSession(session);
       setLoading(false);
       // No redirecionamento automático para o dashboard aqui.
