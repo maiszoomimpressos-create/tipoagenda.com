@@ -17,13 +17,17 @@ const AuthPage: React.FC = () => {
 
   useEffect(() => {
     const hash = window.location.hash;
+    console.log('AuthPage useEffect - location.hash:', hash); // Debug log
     const params = new URLSearchParams(hash.substring(1)); // Remove '#'
     const type = params.get('type');
+    console.log('AuthPage useEffect - type from hash:', type); // Debug log
     
     if (type === 'recovery') {
       setIsResettingPassword(true);
+      console.log('AuthPage useEffect - Setting isResettingPassword to TRUE'); // Debug log
     } else {
       setIsResettingPassword(false);
+      console.log('AuthPage useEffect - Setting isResettingPassword to FALSE'); // Debug log
     }
   }, [location.hash]);
 
