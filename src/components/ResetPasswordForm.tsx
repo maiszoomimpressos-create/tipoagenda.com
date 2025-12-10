@@ -9,7 +9,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import *s z from 'zod';
+import * as z from 'zod'; // Corrigido: de '*s z' para '* as z'
 
 // Esquema de validação com Zod
 const resetPasswordSchema = z.object({
