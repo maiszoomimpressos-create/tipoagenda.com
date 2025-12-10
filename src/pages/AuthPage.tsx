@@ -27,28 +27,26 @@ const AuthPage: React.FC = () => {
         setIsResettingPassword(true);
         console.log('AuthPage useEffect - Setting isResettingPassword to TRUE via PASSWORD_RECOVERY event');
       } else {
-        // Se o evento não for PASSWORD_RECOVERY, e a URL não indicar reset, garantir que o estado seja falso
-        const params = new URLSearchParams(location.hash.substring(1) || location.search);
-        const type = params.get('type');
-        if (type !== 'recovery') {
-          setIsResettingPassword(false);
-          console.log('AuthPage useEffect - Setting isResettingPassword to FALSE');
-        }
+        // Se o evento não for PASSWORD_RECOVERY, garantir que o estado seja falso
+        setIsResettingPassword(false);
+        console.log('AuthPage useEffect - Setting isResettingPassword to FALSE');
       }
     });
 
-    // Initial check for hash/query params in case onAuthStateChange doesn't fire immediately
-    const params = new URLSearchParams(location.hash.substring(1) || location.search);
-    const type = params.get('type');
-    if (type === 'recovery') {
+    // Não precisamos de uma verificação inicial de URL aqui, onAuthStateChange é o suficiente.
+    // Apenas para garantir que o estado inicial esteja correto se a página for carregada diretamente com um hash de recuperação
+    const params = new URLSearchParams(location.hash.substring(1));
+    const typeInHash = params.get('type');
+    if (typeInHash === 'recovery') {
       setIsResettingPassword(true);
-      console.log('AuthPage useEffect - Setting isResettingPassword to TRUE via URL params');
+      console.log('AuthPage useEffect - Setting isResettingPassword to TRUE via initial hash check');
     }
+
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [location.hash, location.search]); // Depend on both hash and search
+  }, [location.hash]); // Depend on location.hash to re-evaluate if hash changes
 
   const pageTitle = isResettingPassword
     ? 'Defina Sua Nova Senha'
