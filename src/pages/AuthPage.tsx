@@ -1,8 +1,11 @@
-import React from 'react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import LoginForm from '@/components/LoginForm';
 import SignupForm from '@/components/SignupForm';
 import ForgotPasswordForm from '@/components/ForgotPasswordForm';
+import ResetPasswordForm from '@/components/ResetPasswordForm'; // Importar o novo componente
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -10,14 +13,32 @@ import { ArrowLeft } from 'lucide-react';
 const AuthPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const path = location.pathname;
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-  const pageTitle = path === '/signup' ? 'Cadastre-se no TipoAgenda' : 'Bem-vindo ao AgendaFácil';
+  useEffect(() => {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.substring(1)); // Remove '#'
+    const type = params.get('type');
+    
+    if (type === 'recovery') {
+      setIsResettingPassword(true);
+    } else {
+      setIsResettingPassword(false);
+    }
+  }, [location.hash]);
+
+  const pageTitle = isResettingPassword
+    ? 'Defina Sua Nova Senha'
+    : location.pathname === '/signup'
+      ? 'Cadastre-se no TipoAgenda'
+      : 'Bem-vindo ao AgendaFácil';
 
   const renderAuthForm = () => {
-    if (path === '/signup') {
+    if (isResettingPassword) {
+      return <ResetPasswordForm />;
+    } else if (location.pathname === '/signup') {
       return <SignupForm />;
-    } else if (path === '/reset-password') {
+    } else if (location.pathname === '/reset-password') {
       return <ForgotPasswordForm />;
     } else {
       return <LoginForm />;
@@ -28,9 +49,8 @@ const AuthPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
         <CardHeader className="relative flex flex-row items-center justify-center">
-          {/* Envolvendo o botão e o título em um div para resolver o erro 'React.Children.only' */}
           <div className="flex flex-col items-center w-full">
-            {(path === '/signup' || path === '/reset-password') && (
+            {(location.pathname === '/signup' || location.pathname === '/reset-password') && !isResettingPassword && (
               <Button
                 variant="ghost"
                 className="absolute left-0 top-0 !rounded-button whitespace-nowrap"
