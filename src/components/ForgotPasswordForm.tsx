@@ -35,9 +35,9 @@ const ForgotPasswordForm: React.FC = () => {
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     setLoading(true);
     try {
-      // Usar window.location.origin para garantir que o redirecionamento seja para a raiz do seu app
+      // Usar window.location.origin e adicionar '?' para forçar tokens como query parameters
       const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: window.location.origin + '/reset-password', 
+        redirectTo: window.location.origin + '/reset-password?', 
       });
 
       if (error) {

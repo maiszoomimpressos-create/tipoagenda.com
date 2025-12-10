@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import LoginForm from '@/components/LoginForm';
 import SignupForm from '@/components/SignupForm';
 import ForgotPasswordForm from '@/components/ForgotPasswordForm';
-import ResetPasswordForm from '@/components/ResetPasswordForm'; // Importar o novo componente
+import ResetPasswordForm from '@/components/ResetPasswordForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -16,11 +16,11 @@ const AuthPage: React.FC = () => {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   useEffect(() => {
-    const hash = window.location.hash;
-    console.log('AuthPage useEffect - location.hash:', hash); // Debug log
-    const params = new URLSearchParams(hash.substring(1)); // Remove '#'
+    // Read from query parameters instead of hash
+    const params = new URLSearchParams(location.search);
     const type = params.get('type');
-    console.log('AuthPage useEffect - type from hash:', type); // Debug log
+    console.log('AuthPage useEffect - location.search:', location.search); // Debug log
+    console.log('AuthPage useEffect - type from search params:', type); // Debug log
     
     if (type === 'recovery') {
       setIsResettingPassword(true);
@@ -29,7 +29,7 @@ const AuthPage: React.FC = () => {
       setIsResettingPassword(false);
       console.log('AuthPage useEffect - Setting isResettingPassword to FALSE'); // Debug log
     }
-  }, [location.hash]);
+  }, [location.search]); // Depend on location.search
 
   const pageTitle = isResettingPassword
     ? 'Defina Sua Nova Senha'
