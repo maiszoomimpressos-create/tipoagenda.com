@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit } from 'lucide-react';
 import AppointmentStatusModal from '@/components/AppointmentStatusModal'; // Importar o novo modal
@@ -225,6 +225,8 @@ const AgendamentosPage: React.FC = () => {
             const startTime = parse(agendamento.appointment_time, 'HH:mm:ss', new Date());
             const endTime = addMinutes(startTime, agendamento.total_duration_minutes);
             const formattedTimeRange = `${format(startTime, 'HH:mm')} às ${format(endTime, 'HH:mm')}`;
+            const formattedDate = format(parseISO(agendamento.appointment_date), 'dd/MM/yyyy', { locale: ptBR });
+
 
             const isFinalizedOrCanceled = agendamento.status === 'concluido' || agendamento.status === 'cancelado';
 
@@ -242,6 +244,7 @@ const AgendamentosPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex flex-col items-end w-1/4">
+                      <p className="font-semibold text-gray-900">{formattedDate}</p> {/* Display date here */}
                       <p className="font-semibold text-gray-900">{formattedTimeRange}</p>
                       <p className="text-sm text-gray-600">{collaboratorName}</p>
                     </div>

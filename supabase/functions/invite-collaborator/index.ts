@@ -97,36 +97,80 @@ serve(async (req) => {
       });
     }
 
-    // Invite the collaborator as a new user
-    const { data: invitedUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-        phone_number: phoneNumber,
-        hire_date: hireDate,
-        role_type_id: roleTypeId,
-        commission_percentage: commissionPercentage,
-        status: status,
-        avatar_url: avatarUrl, // Pass the avatar URL here
-      },
-      redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
-    });
+    let invitedAuthUser = null;
+    let inviteOperationError = null;
+    let inviteOperationMessage = '';
 
-    if (inviteError) {
-      console.error('Edge Function Error (invite-collaborator): Invite user error -', inviteError.message);
-      return new Response(JSON.stringify({ error: inviteError.message }), {
+    // Check if a user with this email already exists in auth.users
+    const { data: existingAuthUser, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+
+    if (fetchExistingUserError && fetchExistingUserError.message !== 'User not found') {
+      console.error('Edge Function Error (invite-collaborator): Error checking for existing user -', fetchExistingUserError.message);
+      return new Response(JSON.stringify({ error: 'Error checking for existing user: ' + fetchExistingUserError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (existingAuthUser?.user) {
+      // User already exists, send a magic link or password reset link
+      console.log('Edge Function Debug (invite-collaborator): User already exists, sending magic link.');
+      const { error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink', // Sends a link to sign in or set password
+        email: email,
+        options: {
+          redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`, // Redirect to signup to set password
+        },
+      });
+
+      if (magicLinkError) {
+        inviteOperationError = magicLinkError;
+        inviteOperationMessage = 'Erro ao enviar link mágico para colaborador existente: ' + magicLinkError.message;
+      } else {
+        invitedAuthUser = existingAuthUser.user;
+        inviteOperationMessage = 'Link de acesso enviado com sucesso para o e-mail do colaborador existente.';
+      }
+    } else {
+      // User does not exist, proceed with inviteUserByEmail
+      console.log('Edge Function Debug (invite-collaborator): User does not exist, inviting new user.');
+      const { data: newInvitedUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          phone_number: phoneNumber,
+          hire_date: hireDate,
+          role_type_id: roleTypeId,
+          commission_percentage: commissionPercentage,
+          status: status,
+          avatar_url: avatarUrl,
+        },
+        redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
+      });
+
+      if (inviteError) {
+        inviteOperationError = inviteError;
+        inviteOperationMessage = 'Erro ao convidar novo colaborador: ' + inviteError.message;
+      } else {
+        invitedAuthUser = newInvitedUser.user;
+        inviteOperationMessage = 'Convite enviado com sucesso para o novo colaborador.';
+      }
+    }
+
+    if (inviteOperationError || !invitedAuthUser) {
+      console.error('Edge Function Error (invite-collaborator): Invite/Magic link operation failed -', inviteOperationError?.message || 'No invited user data.');
+      return new Response(JSON.stringify({ error: inviteOperationMessage }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Edge Function Debug (invite-collaborator): User invited successfully:', invitedUser.user?.id);
+    console.log('Edge Function Debug (invite-collaborator): User invited/magic link sent successfully:', invitedAuthUser.id);
 
     // Insert collaborator data into the public.collaborators table
     const { data: collaboratorData, error: insertCollaboratorError } = await supabaseAdmin
       .from('collaborators')
       .insert({
-        user_id: invitedUser.user?.id, // Link to the newly invited user's auth ID
+        user_id: invitedAuthUser.id, // Link to the newly invited/existing user's auth ID
         company_id: companyId,
         first_name: firstName,
         last_name: lastName,
@@ -136,7 +180,7 @@ serve(async (req) => {
         role_type_id: roleTypeId,
         commission_percentage: commissionPercentage,
         status: status,
-        avatar_url: avatarUrl, // Pass the avatar URL here
+        avatar_url: avatarUrl,
       })
       .select()
       .single();
@@ -153,7 +197,7 @@ serve(async (req) => {
 
     // Assign the collaborator to the company in user_companies table
     const { error: assignRoleError } = await supabaseAdmin.rpc('assign_user_to_company', {
-      p_user_id: invitedUser.user?.id,
+      p_user_id: invitedAuthUser.id,
       p_company_id: companyId,
       p_role_type_id: roleTypeId
     });
@@ -168,7 +212,7 @@ serve(async (req) => {
 
     console.log('Edge Function Debug (invite-collaborator): Collaborator assigned to company successfully.');
 
-    return new Response(JSON.stringify({ message: 'Collaborator invited and registered successfully', collaborator: collaboratorData }), {
+    return new Response(JSON.stringify({ message: inviteOperationMessage, collaborator: collaboratorData }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

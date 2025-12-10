@@ -174,7 +174,7 @@ const ColaboradoresPage: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">E-mail:</span>
-                      <span className="font-semibold text-gray-900">{colaborador.email}</span>
+                      <span className="font-semibold text-gray-900 break-all">{colaborador.email}</span> {/* Added break-all */}
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Telefone:</span>
