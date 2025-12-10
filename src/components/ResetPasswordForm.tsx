@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
-import { Link, useNavigate, useLocation } from 'react-router-dom'; // Import useLocation
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -24,8 +24,13 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 const ResetPasswordForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [hasSession, setHasSession] = useState(false); // Novo estado para verificar se há sessão
   const navigate = useNavigate();
-  const location = useLocation(); // Use useLocation to get search params
+  const location = useLocation();
+
+  console.log('ResetPasswordForm - Render - window.location.href:', window.location.href);
+  console.log('ResetPasswordForm - Render - window.location.hash:', window.location.hash);
+  console.log('ResetPasswordForm - Render - window.location.search:', window.location.search);
 
   const {
     register,
@@ -39,26 +44,37 @@ const ResetPasswordForm: React.FC = () => {
     },
   });
 
-  // Check for access token in URL query parameters on component mount
   useEffect(() => {
-    const params = new URLSearchParams(location.search); // Read from query parameters
-    const type = params.get('type');
-    const accessToken = params.get('access_token'); // Supabase might still send access_token in query for recovery
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('ResetPasswordForm - onAuthStateChange event:', event, 'session:', session);
+      if (session && session.access_token) {
+        setHasSession(true);
+        console.log('ResetPasswordForm useEffect - Session detected, allowing password reset.');
+      } else {
+        setHasSession(false);
+        console.log('ResetPasswordForm useEffect - No session detected, redirecting to login.');
+        showError('Sessão de redefinição de senha inválida ou expirada. Por favor, solicite um novo link.');
+        navigate('/login', { replace: true });
+      }
+    });
 
-    console.log('ResetPasswordForm useEffect - location.search:', location.search); // Debug log
-    console.log('ResetPasswordForm useEffect - type from search params:', type); // Debug log
-    console.log('ResetPasswordForm useEffect - access_token from search params:', accessToken); // Debug log
+    // Initial check for session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && session.access_token) {
+        setHasSession(true);
+        console.log('ResetPasswordForm useEffect - Initial getSession detected session.');
+      } else {
+        setHasSession(false);
+        console.log('ResetPasswordForm useEffect - Initial getSession found no session, redirecting.');
+        showError('Sessão de redefinição de senha inválida ou expirada. Por favor, solicite um novo link.');
+        navigate('/login', { replace: true });
+      }
+    });
 
-    if (type === 'recovery' && accessToken) {
-      // Supabase automaticamente lida com a configuração da sessão a partir do access_token na URL
-      // quando é um parâmetro de query. Precisamos apenas garantir que o usuário esteja logado para atualizar sua senha.
-      // O SessionContextProvider já deve ter lidado com isso.
-    } else {
-      // Se não houver token de recuperação, redirecionar para login ou home
-      showError('Link de redefinição de senha inválido ou expirado.');
-      navigate('/login');
-    }
-  }, [navigate, location.search]); // Depend on location.search
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
     setLoading(true);
@@ -72,7 +88,7 @@ const ResetPasswordForm: React.FC = () => {
       }
 
       showSuccess('Sua senha foi redefinida com sucesso! Faça login com sua nova senha.');
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (error: any) {
       console.error("Erro ao redefinir senha:", error);
       showError('Erro ao redefinir senha: ' + error.message);
@@ -80,6 +96,14 @@ const ResetPasswordForm: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (!hasSession) {
+    return (
+      <div className="text-center text-gray-700 dark:text-gray-300">
+        Verificando sessão de redefinição de senha...
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

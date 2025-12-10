@@ -9,27 +9,46 @@ import ResetPasswordForm from '@/components/ResetPasswordForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client'; // Importar supabase
 
 const AuthPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
+  console.log('AuthPage - Render - window.location.href:', window.location.href);
+  console.log('AuthPage - Render - window.location.hash:', window.location.hash);
+  console.log('AuthPage - Render - window.location.search:', window.location.search);
+
   useEffect(() => {
-    // Read from query parameters instead of hash
-    const params = new URLSearchParams(location.search);
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('AuthPage - onAuthStateChange event:', event, 'session:', session);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsResettingPassword(true);
+        console.log('AuthPage useEffect - Setting isResettingPassword to TRUE via PASSWORD_RECOVERY event');
+      } else {
+        // Se o evento não for PASSWORD_RECOVERY, e a URL não indicar reset, garantir que o estado seja falso
+        const params = new URLSearchParams(location.hash.substring(1) || location.search);
+        const type = params.get('type');
+        if (type !== 'recovery') {
+          setIsResettingPassword(false);
+          console.log('AuthPage useEffect - Setting isResettingPassword to FALSE');
+        }
+      }
+    });
+
+    // Initial check for hash/query params in case onAuthStateChange doesn't fire immediately
+    const params = new URLSearchParams(location.hash.substring(1) || location.search);
     const type = params.get('type');
-    console.log('AuthPage useEffect - location.search:', location.search); // Debug log
-    console.log('AuthPage useEffect - type from search params:', type); // Debug log
-    
     if (type === 'recovery') {
       setIsResettingPassword(true);
-      console.log('AuthPage useEffect - Setting isResettingPassword to TRUE'); // Debug log
-    } else {
-      setIsResettingPassword(false);
-      console.log('AuthPage useEffect - Setting isResettingPassword to FALSE'); // Debug log
+      console.log('AuthPage useEffect - Setting isResettingPassword to TRUE via URL params');
     }
-  }, [location.search]); // Depend on location.search
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [location.hash, location.search]); // Depend on both hash and search
 
   const pageTitle = isResettingPassword
     ? 'Defina Sua Nova Senha'
