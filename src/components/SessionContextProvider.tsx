@@ -19,43 +19,37 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('SessionContextProvider - Auth event:', event, 'Session:', currentSession); // NOVO LOG
+        console.log('SessionContextProvider - Auth event:', event, 'Session:', currentSession);
         setSession(currentSession);
         setLoading(false);
 
         if (event === 'SIGNED_IN') {
           showSuccess('Login realizado com sucesso!');
-          // Redirecionar para a Landing Page (Home) após o login.
-          // A opção de ir para o Dashboard será via menu suspenso para Proprietários.
-          navigate('/'); 
+          navigate('/', { replace: true }); 
         } else if (event === 'SIGNED_OUT') {
           showSuccess('Logout realizado com sucesso!');
-          navigate('/'); // Redireciona para a Landing Page (Home)
+          navigate('/', { replace: true }); 
         } else if (event === 'PASSWORD_RECOVERY') {
           showSuccess('Verifique seu e-mail para redefinir a senha.');
-          // Não redirecionar aqui, pois o AuthPage já lida com o hash da URL
+          // Não redirecionar aqui, o AuthPage vai lidar com o hash da URL
         } else if (event === 'USER_UPDATED') {
           showSuccess('Seu perfil foi atualizado!');
         } else if (event === 'INITIAL_SESSION') {
-          // Handle initial session, no toast needed here to avoid repeated messages
-          // No redirecionamento automático para o dashboard aqui.
-          // O usuário permanecerá na página atual ou será redirecionado para a Landing Page se não houver sessão.
+          // No toast or navigation needed for initial session
         }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('SessionContextProvider - Initial getSession:', session); // NOVO LOG
-      setSession(session);
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      console.log('SessionContextProvider - Initial getSession:', initialSession);
+      setSession(initialSession);
       setLoading(false);
-      // No redirecionamento automático para o dashboard aqui.
-      // O usuário permanecerá na página atual ou será redirecionado para a Landing Page se não houver sessão.
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate, location.pathname]);
+  }, [navigate]);
 
   return (
     <SessionContext.Provider value={{ session, loading }}>
