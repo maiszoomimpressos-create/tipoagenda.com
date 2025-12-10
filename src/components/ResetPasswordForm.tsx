@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { showSuccess, showError } from '@/utils/toast'; // Corrigido: '=>' para 'from'
-import { Link, useNavigate } from 'react-router-dom';
+import { showSuccess, showError } from '@/utils/toast';
+import { Link, useNavigate, useLocation } from 'react-router-dom'; // Import useLocation
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,6 +25,7 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 const ResetPasswordForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation(); // Use useLocation to get search params
 
   const {
     register,
@@ -38,24 +39,26 @@ const ResetPasswordForm: React.FC = () => {
     },
   });
 
-  // Check for access token in URL hash on component mount
+  // Check for access token in URL query parameters on component mount
   useEffect(() => {
-    const hash = window.location.hash;
-    console.log('ResetPasswordForm useEffect - location.hash:', hash); // Debug log
-    const params = new URLSearchParams(hash.substring(1)); // Remove '#'
+    const params = new URLSearchParams(location.search); // Read from query parameters
     const type = params.get('type');
-    const accessToken = params.get('access_token');
+    const accessToken = params.get('access_token'); // Supabase might still send access_token in query for recovery
+
+    console.log('ResetPasswordForm useEffect - location.search:', location.search); // Debug log
+    console.log('ResetPasswordForm useEffect - type from search params:', type); // Debug log
+    console.log('ResetPasswordForm useEffect - access_token from search params:', accessToken); // Debug log
 
     if (type === 'recovery' && accessToken) {
-      // Supabase automatically handles setting the session from the access_token in the hash
-      // We just need to ensure the user is logged in to update their password.
-      // The SessionContextProvider should have already handled this.
+      // Supabase automaticamente lida com a configuração da sessão a partir do access_token na URL
+      // quando é um parâmetro de query. Precisamos apenas garantir que o usuário esteja logado para atualizar sua senha.
+      // O SessionContextProvider já deve ter lidado com isso.
     } else {
-      // If no recovery token, redirect to login or home
+      // Se não houver token de recuperação, redirecionar para login ou home
       showError('Link de redefinição de senha inválido ou expirado.');
       navigate('/login');
     }
-  }, [navigate]);
+  }, [navigate, location.search]); // Depend on location.search
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
     setLoading(true);
