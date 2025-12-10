@@ -40,7 +40,7 @@ const AgendamentosPage: React.FC = () => {
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
-  const [selectedTab, setSelectedTab] = useState('dia');
+  const [selectedTab, setSelectedTab] = useState('dia'); // State to control the active tab
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
@@ -190,7 +190,7 @@ const AgendamentosPage: React.FC = () => {
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <Tabs defaultValue="dia" className="w-auto" onValueChange={setSelectedTab}>
+        <Tabs value={selectedTab} className="w-auto" onValueChange={setSelectedTab}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dia">Dia</TabsTrigger>
             <TabsTrigger value="semana">Semana</TabsTrigger>
