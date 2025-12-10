@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Calendar } from "@/components/ui/calendar"; // Importar Calendar
-import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse } from 'date-fns'; // Importar funções de data
+import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse, startOfDay } from 'date-fns'; // Importar funções de data
 import { ptBR } from 'date-fns/locale'; // Importar locale para o calendário
 import { getAvailableTimeSlots } from '@/utils/appointment-scheduling'; // Importar utilitário de agendamento
 
@@ -406,8 +406,8 @@ const NovoAgendamentoPage: React.FC = () => {
                     }}
                     initialFocus
                     locale={ptBR}
-                    disabled={(date) => isBefore(date, new Date())} // Disable past dates
-                    className="rounded-md border shadow w-full" // Adicionado w-full aqui
+                    disabled={(date) => isBefore(date, startOfDay(new Date()))} // Disable dates before today
+                    className="rounded-md border shadow w-full"
                   />
                   {errors.appointmentDate && <p className="text-red-500 text-xs mt-1">{errors.appointmentDate.message}</p>}
                 </div>
