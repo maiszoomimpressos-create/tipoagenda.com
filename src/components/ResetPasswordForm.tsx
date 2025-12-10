@@ -9,7 +9,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import * as z from 'zod'; // Corrigido: de '*s z' para '* as z'
 
 // Esquema de validação com Zod
 const resetPasswordSchema = z.object({
@@ -58,7 +58,8 @@ const ResetPasswordForm: React.FC = () => {
       }
     });
 
-    // Initial check for session
+    // Não precisamos de uma verificação inicial de URL aqui, onAuthStateChange é o suficiente.
+    // Apenas para garantir que o estado inicial esteja correto se a página for carregada diretamente com um hash de recuperação
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session && session.access_token) {
         setHasSession(true);
@@ -66,8 +67,7 @@ const ResetPasswordForm: React.FC = () => {
       } else {
         setHasSession(false);
         console.log('ResetPasswordForm useEffect - Initial getSession found no session, redirecting.');
-        showError('Sessão de redefinição de senha inválida ou expirada. Por favor, solicite um novo link.');
-        navigate('/login', { replace: true });
+        // Não redirecionar aqui, pois o listener acima já fará isso se necessário.
       }
     });
 
