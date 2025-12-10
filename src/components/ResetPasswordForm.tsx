@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { showSuccess, showError } from '@/utils/toast';
+import { showSuccess, showError } => '@/utils/toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,6 +41,7 @@ const ResetPasswordForm: React.FC = () => {
   // Check for access token in URL hash on component mount
   useEffect(() => {
     const hash = window.location.hash;
+    console.log('ResetPasswordForm useEffect - location.hash:', hash); // Debug log
     const params = new URLSearchParams(hash.substring(1)); // Remove '#'
     const type = params.get('type');
     const accessToken = params.get('access_token');
