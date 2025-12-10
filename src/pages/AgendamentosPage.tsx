@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit } from 'lucide-react';
 import AppointmentStatusModal from '@/components/AppointmentStatusModal'; // Importar o novo modal
