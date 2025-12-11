@@ -15,7 +15,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMinutes, startOfDay } from 'date-fns';
+import { format, addMinutes, startOfDay, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
 import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
@@ -95,15 +95,23 @@ const ClientAppointmentForm: React.FC = () => {
         .eq('client_auth_id', session.user.id)
         .single();
 
-      if (clientProfileError || !clientProfile) {
-        throw new Error('Não foi possível encontrar seu perfil de cliente ou empresa associada. Por favor, entre em contato com o suporte.');
+      if (clientProfileError) {
+        if (clientProfileError.code === 'PGRST116') {
+          throw new Error('Seu perfil de cliente não foi encontrado. Por favor, tente fazer login novamente ou entre em contato com o suporte.');
+        }
+        throw clientProfileError;
+      }
+      
+      if (!clientProfile) {
+        throw new Error('Seu perfil de cliente não foi encontrado.');
       }
 
       // Use the targetCompanyId if set, otherwise use the client's default company_id
       const companyIdToUse = targetCompanyId || clientProfile.company_id;
 
       if (!companyIdToUse) {
-        throw new Error('ID da empresa não definido.');
+        // If the client profile exists but has no associated company, we cannot proceed with booking.
+        throw new Error('Você não está associado a uma empresa. Por favor, selecione uma empresa na página inicial.');
       }
 
       setClientContext({ 
@@ -261,17 +269,18 @@ const ClientAppointmentForm: React.FC = () => {
   }
 
   if (!session?.user || !clientContext) {
+    // If clientContext is null here, it means fetchInitialData failed to find the client profile or company association.
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">
-          Você precisa estar logado como cliente para criar agendamentos.
+          Não foi possível carregar seu perfil de cliente ou empresa associada. Por favor, tente novamente ou entre em contato com o suporte.
         </p>
         <Button
           className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/meus-agendamentos')}
         >
           <i className="fas fa-sign-in-alt mr-2"></i>
-          Fazer Login
+          Voltar para Meus Agendamentos
         </Button>
       </div>
     );
@@ -283,7 +292,7 @@ const ClientAppointmentForm: React.FC = () => {
         <Button
           variant="ghost"
           className="!rounded-button cursor-pointer"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/meus-agendamentos')}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar

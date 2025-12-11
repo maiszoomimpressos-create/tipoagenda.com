@@ -33,6 +33,7 @@ const ClientAppointmentsPage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
   const [cancellingAppointment, setCancellingAppointment] = useState(false);
+  const [clientCompanyId, setClientCompanyId] = useState<string | null>(null); // State to hold the company ID context
 
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || !session?.user) {
@@ -51,8 +52,16 @@ const ClientAppointmentsPage: React.FC = () => {
         .eq('client_auth_id', session.user.id)
         .single();
 
-      if (clientProfileError || !clientProfile) {
-        throw new Error('Não foi possível encontrar seu perfil de cliente ou empresa associada.');
+      if (clientProfileError) {
+        // PGRST116: No rows found. This means the trigger failed or the user is not a client.
+        if (clientProfileError.code === 'PGRST116') {
+          throw new Error('Seu perfil de cliente não foi encontrado. Por favor, tente fazer login novamente ou entre em contato com o suporte.');
+        }
+        throw clientProfileError;
+      }
+      
+      if (!clientProfile) {
+        throw new Error('Seu perfil de cliente não foi encontrado.');
       }
 
       const clientId = clientProfile.id;
@@ -60,8 +69,15 @@ const ClientAppointmentsPage: React.FC = () => {
       const companyIdToUse = targetCompanyId || clientProfile.company_id;
 
       if (!companyIdToUse) {
-        throw new Error('ID da empresa não definido.');
+        // If the client profile exists but has no associated company, we cannot fetch appointments.
+        setClientCompanyId(null);
+        setAppointments([]);
+        setLoadingAppointments(false);
+        clearTargetCompanyId();
+        return;
       }
+      
+      setClientCompanyId(companyIdToUse);
 
       const { data, error } = await supabase
         .from('appointments')
@@ -155,6 +171,23 @@ const ClientAppointmentsPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-red-500">Você precisa estar logado para ver seus agendamentos.</p>
+      </div>
+    );
+  }
+  
+  if (clientCompanyId === null && appointments.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <p className="text-gray-700 text-center mb-4">
+          Você ainda não está associado a uma empresa. Por favor, agende um serviço através da página inicial para se associar.
+        </p>
+        <Button
+          className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+          onClick={() => navigate('/')}
+        >
+          <i className="fas fa-store mr-2"></i>
+          Buscar Empresas
+        </Button>
       </div>
     );
   }
