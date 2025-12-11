@@ -36,7 +36,7 @@ const LandingPage: React.FC = () => {
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
-      // Buscar empresas onde padrao_default é FALSE OU NULL (para compatibilidade com dados antigos)
+      // Buscar todas as empresas cadastradas
       const { data: companiesData, error } = await supabase
         .from('companies')
         .select(`
@@ -46,7 +46,6 @@ const LandingPage: React.FC = () => {
           image_url,
           services(price, duration_minutes)
         `)
-        .or('padrao_default.is.null,padrao_default.eq.false') // Filtra onde é NULL ou FALSE
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -60,8 +59,6 @@ const LandingPage: React.FC = () => {
         const avgRating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1);
 
         // Mapear segment_type (ID) para uma categoria de exibição (simulada)
-        // Para simplificar, usaremos o ID do segmento como a categoria, mas o filtro de categoria
-        // na UI ainda usará os IDs mockados ('beleza', 'saude', etc.) por enquanto.
         
         return {
           id: company.id,
@@ -88,15 +85,8 @@ const LandingPage: React.FC = () => {
 
   // A filtragem por categoria e busca agora é feita localmente
   const filteredCompanies = companies.filter(company => {
-    // Nota: A filtragem por categoria é complexa aqui porque 'segment_type' é um UUID/ID,
-    // e 'selectedCategory' é um slug ('beleza', 'saude', etc.).
     // Por enquanto, vamos focar apenas na busca por nome.
     const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Se o usuário selecionar uma categoria diferente de 'todos', a filtragem por segmento real
-    // precisaria de um mapeamento ou de uma busca mais complexa no banco de dados.
-    // Por enquanto, ignoramos a filtragem por categoria para dados reais, exceto a busca.
-    // Se quisermos simular a filtragem por categoria, precisaríamos de um campo 'category_slug' na Company.
     
     // Para manter a funcionalidade de busca:
     return matchesSearch;
