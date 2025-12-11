@@ -15,7 +15,6 @@ const MainApplication: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Determine if the current path is an "app" path (i.e., not landing or auth)
   const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
@@ -24,12 +23,10 @@ const MainApplication: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header Section - Always present */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Left side of the header */}
           <div className="flex items-center gap-4">
-            {isAppPath && ( // Show hamburger only on app paths
+            {isAppPath && (
               <Button
                 variant="ghost"
                 className="lg:hidden !rounded-button cursor-pointer"
@@ -46,9 +43,8 @@ const MainApplication: React.FC = () => {
             </Link>
           </div>
 
-          {/* Right side of the header */}
           {loading ? (
-            <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div> {/* Placeholder for loading state */}
+            <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div>
           ) : session ? (
             <div className="flex items-center gap-4">
               <Button variant="ghost" className="!rounded-button cursor-pointer relative">
@@ -74,9 +70,8 @@ const MainApplication: React.FC = () => {
         </div>
       </header>
 
-      {/* Main content area (sidebar + main content) */}
-      <div className="flex flex-1 pt-16"> {/* Adicionado padding-top para compensar o header fixo */}
-        {isAppPath && ( // Show sidebar only on app paths
+      <div className="flex flex-1 pt-16">
+        {isAppPath && (
           <aside className={`bg-gray-900 text-white transition-all duration-300 ${
             sidebarCollapsed ? 'w-16' : 'w-64'
           } min-h-full`}>
@@ -121,7 +116,7 @@ const MainApplication: React.FC = () => {
           </aside>
         )}
         <main className="flex-1 p-6">
-          <Outlet /> {/* Render nested routes here */}
+          <Outlet />
         </main>
       </div>
     </div>
