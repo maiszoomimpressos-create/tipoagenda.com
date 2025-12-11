@@ -8,23 +8,12 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Esquema de validação com Zod
+// Esquema de validação com Zod simplificado
 const signupSchema = z.object({
   firstName: z.string().min(1, "Nome é obrigatório."),
   lastName: z.string().min(1, "Sobrenome é obrigatório."),
-  email: z.string().email("E-mail inválido."),
-  phoneNumber: z.string()
-    .min(1, "Número de telefone é obrigatório.")
-    .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
-  cpf: z.string()
-    .min(1, "CPF é obrigatório.")
-    .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Formato de CPF inválido (ex: XXX.XXX.XXX-XX)"),
-  birthDate: z.string().min(1, "Data de nascimento é obrigatória."),
-  gender: z.enum(['Masculino', 'Feminino', 'Outro'], {
-    errorMap: () => ({ message: "Gênero é obrigatório." })
-  }),
+  email: z.string().email("E-mail inválido.").min(1, "E-mail é obrigatório."),
   password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -40,8 +29,6 @@ const SignupForm: React.FC = () => {
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -49,64 +36,18 @@ const SignupForm: React.FC = () => {
       firstName: '',
       lastName: '',
       email: '',
-      phoneNumber: '',
-      cpf: '',
-      birthDate: '',
-      gender: undefined, // Initialize as undefined for Select
       password: '',
       confirmPassword: '',
     },
   });
 
-  const phoneNumberValue = watch('phoneNumber');
-  const cpfValue = watch('cpf');
-  const genderValue = watch('gender');
-
-  const formatPhoneNumberInput = (value: string) => {
-    if (!value) return '';
-    let cleaned = value.replace(/\D/g, ''); // Remove non-digits
-    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11); // Limit to 11 digits
-
-    if (cleaned.length <= 2) {
-      return `(${cleaned}`;
-    } else if (cleaned.length <= 7) { // (XX) XXXXX
-      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
-    } else if (cleaned.length <= 11) { // (XX) XXXXX-XXXX
-      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
-    }
-    return cleaned;
-  };
-
-  const formatCpfInput = (value: string) => {
-    if (!value) return '';
-    let cleaned = value.replace(/\D/g, ''); // Remove non-digits
-    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11); // Limit to 11 digits
-
-    if (cleaned.length <= 3) {
-      return cleaned;
-    } else if (cleaned.length <= 6) {
-      return `${cleaned.substring(0, 3)}.${cleaned.substring(3)}`;
-    } else if (cleaned.length <= 9) {
-      return `${cleaned.substring(0, 3)}.${cleaned.substring(3, 6)}.${cleaned.substring(6)}`;
-    } else {
-      return `${cleaned.substring(0, 3)}.${cleaned.substring(3, 6)}.${cleaned.substring(6, 9)}-${cleaned.substring(9)}`;
-    }
-  };
-
-  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formattedValue = formatPhoneNumberInput(e.target.value);
-    setValue('phoneNumber', formattedValue, { shouldValidate: true });
-  };
-
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formattedValue = formatCpfInput(e.target.value);
-    setValue('cpf', formattedValue, { shouldValidate: true });
-  };
+  // Funções de formatação removidas, pois os campos foram removidos.
 
   const onSubmit = async (data: SignupFormValues) => {
     setLoading(true);
-    const { email, password, firstName, lastName, phoneNumber, cpf, birthDate, gender } = data;
+    const { email, password, firstName, lastName } = data;
 
+    // Apenas nome e sobrenome são enviados no user_metadata
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -114,10 +55,7 @@ const SignupForm: React.FC = () => {
         data: {
           first_name: firstName,
           last_name: lastName,
-          phone_number: phoneNumber.replace(/\D/g, ''), // Store only digits
-          cpf: cpf.replace(/\D/g, ''), // Store only digits
-          birth_date: birthDate,
-          gender: gender,
+          // Campos removidos: phone_number, cpf, birth_date, gender
         },
       },
     });
@@ -167,58 +105,9 @@ const SignupForm: React.FC = () => {
         />
         {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
       </div>
-      <div>
-        <Label htmlFor="phone-number">Número de Telefone</Label>
-        <Input
-          id="phone-number"
-          type="tel"
-          placeholder="(XX) XXXXX-XXXX"
-          value={phoneNumberValue}
-          onChange={handlePhoneNumberChange}
-          maxLength={15}
-          className="mt-1"
-        />
-        {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber.message}</p>}
-      </div>
-      <div>
-        <Label htmlFor="cpf">CPF</Label>
-        <Input
-          id="cpf"
-          type="text"
-          placeholder="XXX.XXX.XXX-XX"
-          value={cpfValue}
-          onChange={handleCpfChange}
-          maxLength={14}
-          className="mt-1"
-        />
-        {errors.cpf && <p className="text-red-500 text-xs mt-1">{errors.cpf.message}</p>}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="birth-date">Data de Nascimento</Label>
-          <Input
-            id="birth-date"
-            type="date"
-            {...register('birthDate')}
-            className="mt-1"
-          />
-          {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate.message}</p>}
-        </div>
-        <div>
-          <Label htmlFor="gender">Gênero</Label>
-          <Select onValueChange={(value) => setValue('gender', value as 'Masculino' | 'Feminino' | 'Outro', { shouldValidate: true })} value={genderValue}>
-            <SelectTrigger id="gender" className="mt-1">
-              <SelectValue placeholder="Selecione o gênero" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Masculino">Masculino</SelectItem>
-              <SelectItem value="Feminino">Feminino</SelectItem>
-              <SelectItem value="Outro">Outro</SelectItem>
-            </SelectContent>
-          </Select>
-          {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender.message}</p>}
-        </div>
-      </div>
+      
+      {/* Campos removidos: Número de Telefone, CPF, Data de Nascimento, Gênero */}
+
       <div>
         <Label htmlFor="password">Crie uma senha</Label>
         <Input
