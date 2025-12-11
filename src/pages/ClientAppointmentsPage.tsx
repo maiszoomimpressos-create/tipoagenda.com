@@ -10,6 +10,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { format, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 interface Appointment {
   id: string;
@@ -40,7 +41,10 @@ const ClientAppointmentsPage: React.FC = () => {
 
     setLoadingAppointments(true);
     try {
-      // First, get the client_id associated with the current user's auth.uid()
+      // 1. Determine the target company ID (if coming from Landing Page)
+      const targetCompanyId = getTargetCompanyId();
+
+      // 2. Get the client's profile data
       const { data: clientProfile, error: clientProfileError } = await supabase
         .from('clients')
         .select('id, company_id')
@@ -52,7 +56,12 @@ const ClientAppointmentsPage: React.FC = () => {
       }
 
       const clientId = clientProfile.id;
-      const companyId = clientProfile.company_id;
+      // Use the targetCompanyId if set, otherwise use the client's default company_id
+      const companyIdToUse = targetCompanyId || clientProfile.company_id;
+
+      if (!companyIdToUse) {
+        throw new Error('ID da empresa não definido.');
+      }
 
       const { data, error } = await supabase
         .from('appointments')
@@ -71,7 +80,7 @@ const ClientAppointmentsPage: React.FC = () => {
           )
         `)
         .eq('client_id', clientId) // Filter by the client's ID
-        .eq('company_id', companyId) // Ensure it's for their associated company
+        .eq('company_id', companyIdToUse) // Filter by the determined company ID
         .order('appointment_date', { ascending: false })
         .order('appointment_time', { ascending: false });
 
@@ -80,6 +89,12 @@ const ClientAppointmentsPage: React.FC = () => {
       }
 
       setAppointments(data as Appointment[]);
+      
+      // 3. Clear the target ID from storage once the context is established
+      if (targetCompanyId) {
+        clearTargetCompanyId();
+      }
+
     } catch (error: any) {
       console.error('Erro ao carregar agendamentos do cliente:', error);
       showError('Erro ao carregar agendamentos: ' + error.message);

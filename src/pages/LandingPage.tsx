@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
+import { useNavigate } from 'react-router-dom';
+import { setTargetCompanyId } from '@/utils/storage';
 
 interface Company {
   id: string;
@@ -16,6 +18,7 @@ interface Company {
 }
 
 const LandingPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -98,7 +101,12 @@ const LandingPage: React.FC = () => {
       return company.image_url;
     }
     // Usar um placeholder baseado no nome da empresa
-    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20modern%20clean%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
+    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
+  };
+
+  const handleBookAppointment = (companyId: string) => {
+    setTargetCompanyId(companyId);
+    navigate('/login');
   };
 
   return (
@@ -234,7 +242,10 @@ const LandingPage: React.FC = () => {
                     <p className="text-yellow-600 font-semibold mb-4">
                       {company.min_price > 0 ? `A partir de R$ ${company.min_price.toFixed(2).replace('.', ',')}` : 'Preço sob consulta'}
                     </p>
-                    <Button className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black">
+                    <Button 
+                      className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black"
+                      onClick={() => handleBookAppointment(company.id)}
+                    >
                       <i className="fas fa-calendar-alt mr-2"></i>
                       Agendar Agora
                     </Button>

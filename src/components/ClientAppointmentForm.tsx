@@ -14,11 +14,11 @@ import * as z from 'zod';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
-import { usePrimaryCompany } from '@/hooks/usePrimaryCompany'; // This hook is for the company the *user* is associated with, not the client's company.
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse, startOfDay } from 'date-fns';
+import { format, addMinutes, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
+import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 // Zod schema for new appointment registration
 const clientAppointmentSchema = z.object({
@@ -48,7 +48,7 @@ const ClientAppointmentForm: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const [loading, setLoading] = useState(false); // For form submission
-  const [clientData, setClientData] = useState<{ id: string; company_id: string } | null>(null); // Client's own data
+  const [clientContext, setClientContext] = useState<{ clientId: string; companyId: string; clientName: string } | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loadingData, setLoadingData] = useState(true); // For initial data fetch
@@ -85,7 +85,10 @@ const ClientAppointmentForm: React.FC = () => {
 
     setLoadingData(true);
     try {
-      // 1. Fetch client's own data to get their client_id and associated company_id
+      // 1. Determine the target company ID
+      const targetCompanyId = getTargetCompanyId();
+      
+      // 2. Fetch client's own data to get their client_id and associated company_id
       const { data: clientProfile, error: clientProfileError } = await supabase
         .from('clients')
         .select('id, company_id, name')
@@ -95,36 +98,51 @@ const ClientAppointmentForm: React.FC = () => {
       if (clientProfileError || !clientProfile) {
         throw new Error('Não foi possível encontrar seu perfil de cliente ou empresa associada. Por favor, entre em contato com o suporte.');
       }
-      setClientData(clientProfile);
 
-      const clientCompanyId = clientProfile.company_id;
+      // Use the targetCompanyId if set, otherwise use the client's default company_id
+      const companyIdToUse = targetCompanyId || clientProfile.company_id;
 
-      // 2. Fetch Collaborators for the client's company
+      if (!companyIdToUse) {
+        throw new Error('ID da empresa não definido.');
+      }
+
+      setClientContext({ 
+        clientId: clientProfile.id, 
+        companyId: companyIdToUse, 
+        clientName: clientProfile.name 
+      });
+
+      // 3. Fetch Collaborators for the selected company
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
         .select('id, first_name, last_name')
-        .eq('company_id', clientCompanyId)
-        .eq('status', 'Ativo') // Only active collaborators
+        .eq('company_id', companyIdToUse)
+        .eq('status', 'Ativo')
         .order('first_name', { ascending: true });
 
       if (collaboratorsError) throw collaboratorsError;
       setCollaborators(collaboratorsData);
 
-      // 3. Fetch Services for the client's company
+      // 4. Fetch Services for the selected company
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('id, name, price, duration_minutes')
-        .eq('company_id', clientCompanyId)
-        .eq('status', 'Ativo') // Only active services
+        .eq('company_id', companyIdToUse)
+        .eq('status', 'Ativo')
         .order('name', { ascending: true });
 
       if (servicesError) throw servicesError;
       setServices(servicesData);
 
+      // 5. Clear the target ID from storage once the context is established
+      if (targetCompanyId) {
+        clearTargetCompanyId();
+      }
+
     } catch (error: any) {
       console.error('Erro ao carregar dados iniciais para agendamento do cliente:', error);
       showError('Erro ao carregar dados: ' + error.message);
-      navigate('/login'); // Redirect if client data cannot be fetched
+      navigate('/meus-agendamentos'); // Redirect to list if setup fails
     } finally {
       setLoadingData(false);
     }
@@ -146,13 +164,13 @@ const ClientAppointmentForm: React.FC = () => {
   // Effect to fetch available time slots
   useEffect(() => {
     const fetchSlots = async () => {
-      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && clientData?.company_id) {
+      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && clientContext?.companyId) {
         setLoading(true);
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           const slots = await getAvailableTimeSlots(
             supabase,
-            clientData.company_id,
+            clientContext.companyId,
             selectedCollaboratorId,
             selectedDate,
             totalDurationMinutes
@@ -171,7 +189,7 @@ const ClientAppointmentForm: React.FC = () => {
       }
     };
     fetchSlots();
-  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, clientData?.company_id, setValue]);
+  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, clientContext?.companyId, setValue]);
 
 
   const handleServiceChange = (serviceId: string, checked: boolean) => {
@@ -186,7 +204,7 @@ const ClientAppointmentForm: React.FC = () => {
 
   const onSubmit = async (data: ClientAppointmentFormValues) => {
     setLoading(true);
-    if (!session?.user || !clientData?.id || !clientData?.company_id) {
+    if (!session?.user || !clientContext?.clientId || !clientContext?.companyId) {
       showError('Erro de autenticação ou dados do cliente/empresa faltando.');
       setLoading(false);
       return;
@@ -197,8 +215,8 @@ const ClientAppointmentForm: React.FC = () => {
 
       const response = await supabase.functions.invoke('book-appointment', {
         body: JSON.stringify({
-          clientId: clientData.id,
-          clientNickname: clientData.name, // Use client's name as nickname for now
+          clientId: clientContext.clientId,
+          clientNickname: clientContext.clientName, // Use client's name as nickname for now
           collaboratorId: data.collaboratorId,
           serviceIds: data.serviceIds,
           appointmentDate: data.appointmentDate,
@@ -206,7 +224,7 @@ const ClientAppointmentForm: React.FC = () => {
           totalDurationMinutes: totalDurationMinutes,
           totalPriceCalculated: totalPriceCalculated,
           observations: data.observations,
-          companyId: clientData.company_id,
+          companyId: clientContext.companyId, // Use the company ID determined in fetchInitialData
         }),
         headers: {
           'Content-Type': 'application/json',
@@ -242,7 +260,7 @@ const ClientAppointmentForm: React.FC = () => {
     );
   }
 
-  if (!session?.user || !clientData) {
+  if (!session?.user || !clientContext) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">
@@ -393,7 +411,7 @@ const ClientAppointmentForm: React.FC = () => {
                   type="button"
                   variant="outline"
                   className="!rounded-button whitespace-nowrap cursor-pointer flex-1"
-                  onClick={() => navigate(-1)}
+                  onClick={() => navigate('/meus-agendamentos')} // Navigate back to client's list
                   disabled={loading}
                 >
                   Cancelar
