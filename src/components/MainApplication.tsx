@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
