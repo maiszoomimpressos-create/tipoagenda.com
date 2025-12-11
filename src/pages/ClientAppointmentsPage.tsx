@@ -33,7 +33,70 @@ const ClientAppointmentsPage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
   const [cancellingAppointment, setCancellingAppointment] = useState(false);
-  const [clientCompanyId, setClientCompanyId] = useState<string | null>(null); // State to hold the company ID context
+  const [clientCompanyId, setClientCompanyId] = useState<string | null>(null);
+  const [clientProfileFound, setClientProfileFound] = useState(false); // New state
+
+  const createClientProfileIfMissing = useCallback(async (userId: string) => {
+    // 1. Try to fetch the client profile again
+    const { data: existingClient, error: checkError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('client_auth_id', userId)
+      .single();
+
+    if (existingClient) {
+      setClientProfileFound(true);
+      return existingClient.id;
+    }
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+
+    // 2. If not found (PGRST116), fetch data from profiles to populate required fields
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, phone_number')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    const name = `${profileData.first_name || 'Novo'} ${profileData.last_name || 'Cliente'}`;
+    const phone = profileData.phone_number || '00000000000'; // Placeholder
+    const email = session?.user.email || 'unknown@example.com';
+
+    // 3. Insert the missing client record using placeholders for address fields
+    const { data: newClient, error: insertError } = await supabase
+      .from('clients')
+      .insert({
+        client_auth_id: userId,
+        name: name,
+        phone: phone,
+        email: email,
+        birth_date: '1900-01-01', // Placeholder
+        zip_code: '00000000', // Placeholder
+        state: 'XX', // Placeholder
+        city: 'N/A', // Placeholder
+        address: 'N/A', // Placeholder
+        number: '0', // Placeholder
+        neighborhood: 'N/A', // Placeholder
+        // company_id remains NULL until first booking
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    setClientProfileFound(true);
+    return newClient.id;
+
+  }, [session?.user.email]);
+
 
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || !session?.user) {
@@ -42,34 +105,42 @@ const ClientAppointmentsPage: React.FC = () => {
 
     setLoadingAppointments(true);
     try {
-      // 1. Determine the target company ID (if coming from Landing Page)
+      let clientId: string;
+      let companyIdToUse: string | null = null;
       const targetCompanyId = getTargetCompanyId();
 
-      // 2. Get the client's profile data
+      // 1. Get the client's profile data (or create it if missing)
       const { data: clientProfile, error: clientProfileError } = await supabase
         .from('clients')
         .select('id, company_id')
         .eq('client_auth_id', session.user.id)
         .single();
 
-      if (clientProfileError) {
-        // PGRST116: No rows found. This means the trigger failed or the user is not a client.
-        if (clientProfileError.code === 'PGRST116') {
-          throw new Error('Seu perfil de cliente não foi encontrado. Por favor, tente fazer login novamente ou entre em contato com o suporte.');
-        }
+      if (clientProfileError && clientProfileError.code === 'PGRST116') {
+        // Profile missing, attempt to create it
+        clientId = await createClientProfileIfMissing(session.user.id);
+        // Re-fetch the profile to get the company_id (which will still be null here)
+        const { data: createdClient } = await supabase
+          .from('clients')
+          .select('company_id')
+          .eq('id', clientId)
+          .single();
+        companyIdToUse = createdClient?.company_id || null;
+      } else if (clientProfileError) {
         throw clientProfileError;
-      }
-      
-      if (!clientProfile) {
+      } else if (clientProfile) {
+        clientId = clientProfile.id;
+        companyIdToUse = clientProfile.company_id;
+        setClientProfileFound(true);
+      } else {
+        // Should not happen if PGRST116 is handled, but for safety
         throw new Error('Seu perfil de cliente não foi encontrado.');
       }
-
-      const clientId = clientProfile.id;
+      
       // Use the targetCompanyId if set, otherwise use the client's default company_id
-      const companyIdToUse = targetCompanyId || clientProfile.company_id;
+      companyIdToUse = targetCompanyId || companyIdToUse;
 
       if (!companyIdToUse) {
-        // If the client profile exists but has no associated company, we cannot fetch appointments.
         setClientCompanyId(null);
         setAppointments([]);
         setLoadingAppointments(false);
@@ -118,7 +189,7 @@ const ClientAppointmentsPage: React.FC = () => {
     } finally {
       setLoadingAppointments(false);
     }
-  }, [session, sessionLoading]);
+  }, [session, sessionLoading, createClientProfileIfMissing]);
 
   useEffect(() => {
     fetchAppointments();
