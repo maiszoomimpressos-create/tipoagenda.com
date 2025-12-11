@@ -4,12 +4,12 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
-import { useIsClient } from '@/hooks/useIsClient'; // Import the new hook
+import { useIsClient } from '@/hooks/useIsClient';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { session, loading } = useSession();
-  const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
+  const { isClient, loadingClientCheck } = useIsClient();
   const location = useLocation();
   const navigate = useNavigate();
 
