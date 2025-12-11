@@ -3,16 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
-import { menuItems } from '@/lib/dashboard-utils'; // Importar menuItems do arquivo de utilitários
+import { menuItems } from '@/lib/dashboard-utils';
+import { useIsClient } from '@/hooks/useIsClient'; // Import the new hook
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { session, loading } = useSession();
+  const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
   const location = useLocation();
   const navigate = useNavigate();
 
   // Determine if the current path is an "app" path (i.e., not landing or auth)
-  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company'].includes(location.pathname);
+  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
@@ -44,7 +46,7 @@ const MainApplication: React.FC = () => {
 
           {/* Right side of the header */}
           {loading ? (
-            <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div> // Placeholder for loading state
+            <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div> {/* Placeholder for loading state */}
           ) : session ? (
             <div className="flex items-center gap-4">
               <Button variant="ghost" className="!rounded-button cursor-pointer relative">
@@ -95,6 +97,23 @@ const MainApplication: React.FC = () => {
                     </Link>
                   </li>
                 ))}
+                {!loadingClientCheck && isClient && (
+                  <li>
+                    <Link
+                      to="/meus-agendamentos"
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                        location.pathname === '/meus-agendamentos'
+                          ? 'bg-yellow-600 text-black'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <i className="fas fa-calendar-check text-lg"></i>
+                      {!sidebarCollapsed && (
+                        <span className="font-medium">Meus Agendamentos</span>
+                      )}
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
           </aside>
