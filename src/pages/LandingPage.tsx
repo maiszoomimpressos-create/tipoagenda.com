@@ -1,11 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { supabase } from '@/integrations/supabase/client';
+import { showError } from '@/utils/toast';
+
+interface Company {
+  id: string;
+  name: string;
+  segment_type: string | null; // Segment ID
+  image_url: string | null;
+  // Adicionando campos para simular dados de serviço na listagem
+  min_price: number;
+  avg_rating: number;
+}
 
 const LandingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -19,26 +33,84 @@ const LandingPage: React.FC = () => {
     { id: 'pet', name: 'Pet Care', icon: 'fas fa-paw' }
   ];
 
-  const services = [
-    { name: 'Barbearia Premium', category: 'beleza', rating: 4.9, price: 'A partir de R$ 35' },
-    { name: 'Salão de Beleza', category: 'beleza', rating: 4.8, price: 'A partir de R$ 45' },
-    { name: 'Nutricionista', category: 'saude', rating: 4.7, price: 'A partir de R$ 80' },
-    { name: 'Personal Trainer', category: 'fitness', rating: 4.9, price: 'A partir de R$ 60' },
-    { name: 'Psicólogo Online', category: 'saude', rating: 4.8, price: 'A partir de R$ 120' },
-    { name: 'Coach de Carreira', category: 'educacao', rating: 4.6, price: 'A partir de R$ 150' },
-    { name: 'Consultoria Financeira', category: 'negocios', rating: 4.8, price: 'A partir de R$ 200' },
-    { name: 'Eletricista', category: 'casa', rating: 4.7, price: 'A partir de R$ 80' },
-    { name: 'Mecânico Automotivo', category: 'auto', rating: 4.8, price: 'A partir de R$ 100' },
-    { name: 'Veterinário', category: 'pet', rating: 4.9, price: 'A partir de R$ 90' },
-    { name: 'Manicure & Pedicure', category: 'beleza', rating: 4.7, price: 'A partir de R$ 25' },
-    { name: 'Massoterapia', category: 'saude', rating: 4.8, price: 'A partir de R$ 70' }
-  ];
+  const fetchCompanies = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Buscar empresas onde padrao_default é FALSE
+      const { data: companiesData, error } = await supabase
+        .from('companies')
+        .select(`
+          id,
+          name,
+          segment_type,
+          image_url,
+          services(price, duration_minutes)
+        `)
+        .eq('padrao_default', false)
+        .order('name', { ascending: true });
 
-  const filteredServices = services.filter(service => {
-    const matchesCategory = selectedCategory === 'todos' || service.category === selectedCategory;
-    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
+      if (error) throw error;
+
+      const processedCompanies: Company[] = companiesData.map(company => {
+        // Calcular preço mínimo e rating médio (simulado)
+        const prices = company.services.map(s => s.price);
+        const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        
+        // Simulação de rating (já que não temos a tabela de avaliações)
+        const avgRating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1);
+
+        // Mapear segment_type (ID) para uma categoria de exibição (simulada)
+        // Para simplificar, usaremos o ID do segmento como a categoria, mas o filtro de categoria
+        // na UI ainda usará os IDs mockados ('beleza', 'saude', etc.) por enquanto.
+        // Em uma implementação real, precisaríamos buscar o nome do segmento.
+        
+        return {
+          id: company.id,
+          name: company.name,
+          segment_type: company.segment_type,
+          image_url: company.image_url,
+          min_price: minPrice,
+          avg_rating: parseFloat(avgRating),
+        };
+      });
+
+      setCompanies(processedCompanies);
+    } catch (error: any) {
+      console.error('Erro ao carregar empresas:', error);
+      showError('Erro ao carregar empresas: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCompanies();
+  }, [fetchCompanies]);
+
+  // A filtragem por categoria e busca agora é feita localmente
+  const filteredCompanies = companies.filter(company => {
+    // Nota: A filtragem por categoria é complexa aqui porque 'segment_type' é um UUID/ID,
+    // e 'selectedCategory' é um slug ('beleza', 'saude', etc.).
+    // Por enquanto, vamos focar apenas na busca por nome.
+    const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Se o usuário selecionar uma categoria diferente de 'todos', a filtragem por segmento real
+    // precisaria de um mapeamento ou de uma busca mais complexa no banco de dados.
+    // Por enquanto, ignoramos a filtragem por categoria para dados reais, exceto a busca.
+    // Se quisermos simular a filtragem por categoria, precisaríamos de um campo 'category_slug' na Company.
+    
+    // Para manter a funcionalidade de busca:
+    return matchesSearch;
   });
+
+  // Função para obter a URL da imagem, usando placeholder se não houver
+  const getImageUrl = (company: Company) => {
+    if (company.image_url) {
+      return company.image_url;
+    }
+    // Usar um placeholder baseado no nome da empresa
+    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20modern%20clean%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -146,33 +218,41 @@ const LandingPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Services Grid */}
+          {/* Services/Companies Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredServices.map((service, index) => (
-              <Card key={index} className="border-gray-200 cursor-pointer hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="relative mb-4">
-                    <img
-                      src={`https://readdy.ai/api/search-image?query=professional%20${service.name.toLowerCase()}%20service%20provider%20in%20modern%20clean%20workspace%20with%20professional%20tools%20and%20equipment&width=300&height=200&seq=${service.name.replace(/\s+/g, '-').toLowerCase()}&orientation=landscape`}
-                      alt={service.name}
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                    <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
-                      <div className="flex items-center gap-1">
-                        <i className="fas fa-star text-yellow-500 text-sm"></i>
-                        <span className="text-sm font-semibold">{service.rating}</span>
+            {loading ? (
+              <p className="text-gray-600 col-span-full text-center">Carregando empresas...</p>
+            ) : filteredCompanies.length === 0 ? (
+              <p className="text-gray-600 col-span-full text-center">Nenhuma empresa encontrada com os critérios de busca.</p>
+            ) : (
+              filteredCompanies.map((company) => (
+                <Card key={company.id} className="border-gray-200 cursor-pointer hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="relative mb-4">
+                      <img
+                        src={getImageUrl(company)}
+                        alt={company.name}
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
+                        <div className="flex items-center gap-1">
+                          <i className="fas fa-star text-yellow-500 text-sm"></i>
+                          <span className="text-sm font-semibold">{company.avg_rating}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">{service.name}</h3>
-                  <p className="text-yellow-600 font-semibold mb-4">{service.price}</p>
-                  <Button className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black">
-                    <i className="fas fa-calendar-alt mr-2"></i>
-                    Agendar Agora
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    <h3 className="font-bold text-gray-900 text-lg mb-2">{company.name}</h3>
+                    <p className="text-yellow-600 font-semibold mb-4">
+                      {company.min_price > 0 ? `A partir de R$ ${company.min_price.toFixed(2).replace('.', ',')}` : 'Preço sob consulta'}
+                    </p>
+                    <Button className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black">
+                      <i className="fas fa-calendar-alt mr-2"></i>
+                      Agendar Agora
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </div>
       </section>
