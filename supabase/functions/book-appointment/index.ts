@@ -213,9 +213,8 @@ serve(async (req) => {
     // 1. Verify if the authenticated user is the client they are trying to book for
     const { data: clientData, error: clientFetchError } = await supabaseAdmin
       .from('clients')
-      .select('id, client_auth_id')
+      .select('id, client_auth_id, company_id') // Select company_id to check if it's already set
       .eq('id', clientId)
-      .eq('company_id', companyId)
       .single();
 
     if (clientFetchError || !clientData || clientData.client_auth_id !== user.id) {
@@ -224,8 +223,25 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    // 2. IMPLEMENTATION OF THE BUSINESS RULE: Associate the client with the company if they are not already associated.
+    if (clientData.company_id === null) {
+        const { error: updateClientError } = await supabaseAdmin
+            .from('clients')
+            .update({ company_id: companyId })
+            .eq('id', clientId);
 
-    // 2. Re-verify time slot availability on the backend to prevent race conditions
+        if (updateClientError) {
+            console.error('Edge Function Error (book-appointment): Failed to associate client with company:', updateClientError.message);
+            return new Response(JSON.stringify({ error: 'Failed to associate client with company: ' + updateClientError.message }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+    }
+
+
+    // 3. Re-verify time slot availability on the backend to prevent race conditions
     const parsedAppointmentDate = parse(appointmentDate, 'yyyy-MM-dd', new Date());
     const startTimeForDb = appointmentTime.split(' ')[0]; // "HH:MM"
     const endTimeForDb = format(addMinutes(parse(startTimeForDb, 'HH:mm', parsedAppointmentDate), totalDurationMinutes), 'HH:mm');
@@ -246,7 +262,7 @@ serve(async (req) => {
       });
     }
 
-    // 3. Insert the main appointment entry
+    // 4. Insert the main appointment entry
     const { data: appointment, error: insertAppointmentError } = await supabaseAdmin
       .from('appointments')
       .insert({
@@ -272,7 +288,7 @@ serve(async (req) => {
       });
     }
 
-    // 4. Link services to the appointment in appointment_services table
+    // 5. Link services to the appointment in appointment_services table
     const appointmentServicesToInsert = serviceIds.map((serviceId: string) => ({
       appointment_id: appointment.id,
       service_id: serviceId,
