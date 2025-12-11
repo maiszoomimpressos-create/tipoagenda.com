@@ -39,7 +39,7 @@ const LandingPage: React.FC = () => {
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
-      // Buscar todas as empresas cadastradas
+      // Buscar todas as empresas cadastradas que estão ativas
       const { data: companiesData, error } = await supabase
         .from('companies')
         .select(`
@@ -49,6 +49,7 @@ const LandingPage: React.FC = () => {
           image_url,
           services(price, duration_minutes)
         `)
+        .eq('ativo', true) // FILTRO ADICIONADO: Apenas empresas ativas
         .order('name', { ascending: true });
 
       if (error) throw error;
