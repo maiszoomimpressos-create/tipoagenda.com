@@ -48,6 +48,7 @@ const SubscriptionPlansPage: React.FC = () => {
       const { data: plansData, error: plansError } = await supabase
         .from('subscription_plans')
         .select('id, name, description, price, features, duration_months')
+        .eq('status', 'active') // Only fetch active plans for subscription
         .order('price', { ascending: true });
 
       if (plansError) throw plansError;
@@ -84,9 +85,26 @@ const SubscriptionPlansPage: React.FC = () => {
     }
   }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId]);
 
+  // Effect to handle Mercado Pago redirects (success/failure)
   useEffect(() => {
-    fetchSubscriptionData();
-  }, [fetchSubscriptionData]);
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+
+    if (status === 'success') {
+      showSuccess('Pagamento aprovado! Sua assinatura será ativada em breve.');
+      // Clear URL parameters
+      navigate('/planos', { replace: true });
+      // Re-fetch data to check for activation
+      fetchSubscriptionData();
+    } else if (status === 'failure') {
+      showError('O pagamento falhou. Por favor, tente novamente.');
+      navigate('/planos', { replace: true });
+    } else if (status === 'pending') {
+      showSuccess('Pagamento pendente. Sua assinatura será ativada assim que o pagamento for confirmado.');
+      navigate('/planos', { replace: true });
+    }
+  }, [navigate, fetchSubscriptionData]);
+
 
   const handleSubscribe = async (plan: Plan) => {
     if (!primaryCompanyId || !session?.user) {
@@ -101,38 +119,39 @@ const SubscriptionPlansPage: React.FC = () => {
 
     setLoadingData(true);
     try {
-        const today = new Date();
-        const startDate = format(today, 'yyyy-MM-dd');
-        
-        let endDate: string | null = null;
-        
-        // Se a duração for maior que 0, calcula a data de término
-        if (plan.duration_months > 0) {
-            const calculatedEndDate = addMonths(today, plan.duration_months);
-            endDate = format(calculatedEndDate, 'yyyy-MM-dd');
+        // 1. Call Edge Function to create Mercado Pago preference
+        const response = await supabase.functions.invoke('create-payment-preference', {
+            body: JSON.stringify({
+                planId: plan.id,
+                companyId: primaryCompanyId,
+                planName: plan.name,
+                planPrice: plan.price,
+                durationMonths: plan.duration_months,
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+            },
+        });
+
+        if (response.error) {
+            let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
+            if (response.error.context && response.error.context.data && response.error.context.data.error) {
+                edgeFunctionErrorMessage = response.error.context.data.error;
+            } else if (response.error.message) {
+                edgeFunctionErrorMessage = response.error.message;
+            }
+            throw new Error(edgeFunctionErrorMessage);
         }
-        
-        // Simulação de Inserção de Assinatura (Assumindo que o pagamento foi processado)
-        // Em um sistema real, isso seria feito após a confirmação do gateway de pagamento.
-        const { data, error } = await supabase
-            .from('company_subscriptions')
-            .insert({
-                company_id: primaryCompanyId,
-                plan_id: plan.id,
-                start_date: startDate,
-                end_date: endDate, // Data de término calculada
-                status: 'active',
-            })
-            .select()
-            .single();
 
-        if (error) throw error;
+        const { initPoint } = response.data as { initPoint: string };
 
-        showSuccess(`Assinatura do plano ${plan.name} ativada com sucesso!`);
-        fetchSubscriptionData(); // Refresh data
+        // 2. Redirect user to Mercado Pago payment page
+        window.location.href = initPoint;
+
     } catch (error: any) {
-        console.error('Erro ao assinar plano:', error);
-        showError('Erro ao processar assinatura: ' + error.message);
+        console.error('Erro ao iniciar pagamento:', error);
+        showError('Erro ao iniciar pagamento: ' + (error.message || 'Erro desconhecido.'));
     } finally {
         setLoadingData(false);
     }
