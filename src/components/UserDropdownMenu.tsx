@@ -41,6 +41,9 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   };
 
   const isProprietarioOrAdmin = isProprietario || isAdmin;
+  
+  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin)
+  const isPureClient = isClient && !isProprietarioOrAdmin;
 
   return (
     <DropdownMenu>
@@ -71,8 +74,8 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           </DropdownMenuItem>
         )}
 
-        {/* Link para Meus Agendamentos (Visível se for Cliente OU se for Proprietário/Admin para fins de teste/acesso) */}
-        {!loadingClientCheck && (isClient || isProprietarioOrAdmin) && (
+        {/* Link para Meus Agendamentos (Apenas Cliente Puro) */}
+        {!loadingClientCheck && isPureClient && (
           <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
             <i className="fas fa-calendar-check mr-2"></i>
             Meus Agendamentos
