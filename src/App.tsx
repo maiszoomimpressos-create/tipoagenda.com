@@ -33,7 +33,9 @@ import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
-import AdminDashboardPage from "./pages/AdminDashboardPage"; // Import new Admin Dashboard Page
+import { useIsAdmin } from "./hooks/useIsAdmin";
+import { useIsClient } from "./hooks/useIsClient"; // Import new hook
+import ContractList from "./components/ContractList";
 
 const queryClient = new QueryClient();
 
@@ -52,9 +54,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAdmin, loadingRoles, loading: sessionLoading } = useSession();
+  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingRoles) {
+  if (sessionLoading || loadingAdminCheck) {
     return <div className="min-h-screen flex items-center justify-center">Verificando permissões...</div>;
   }
 
@@ -66,9 +69,10 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 const ClientProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isClient, loadingRoles, loading: sessionLoading } = useSession();
+  const { isClient, loadingClientCheck } = useIsClient();
+  const { loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingRoles) {
+  if (sessionLoading || loadingClientCheck) {
     return <div className="min-h-screen flex items-center justify-center">Verificando permissões de cliente...</div>;
   }
 
@@ -102,9 +106,6 @@ const App = () => (
               {/* Rotas de Cliente (protegidas por ClientProtectedRoute) */}
               <Route path="agendar" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
               <Route path="meus-agendamentos" element={<ClientProtectedRoute><ClientAppointmentsPage /></ClientProtectedRoute>} />
-
-              {/* Rotas de Administrador da Plataforma (protegidas por AdminProtectedRoute) */}
-              <Route path="admin-dashboard" element={<AdminProtectedRoute><AdminDashboardPage /></AdminProtectedRoute>} />
 
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

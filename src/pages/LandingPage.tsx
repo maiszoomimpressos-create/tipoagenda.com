@@ -7,6 +7,7 @@ import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
 import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
+import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 
 interface Company {
@@ -21,15 +22,13 @@ interface Company {
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { session, loading: sessionLoading, isClient, isProprietario, isAdmin, loadingRoles } = useSession();
+  const { session, loading: sessionLoading } = useSession();
+  const { isClient, loadingClientCheck } = useIsClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
-
-  const hasManagementRole = isProprietario || isAdmin;
-  const isLoadingRoles = loadingRoles;
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -89,27 +88,19 @@ const LandingPage: React.FC = () => {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  // Logic to redirect Admin/Proprietario to Dashboard
+  // Logic to open the selection modal if the user is a client and just logged in without a target company
   useEffect(() => {
-    if (!sessionLoading && session && !isLoadingRoles) {
-      if (isAdmin) {
-        navigate('/admin-dashboard', { replace: true });
-        return;
-      }
-      if (isProprietario) {
-        navigate('/dashboard', { replace: true });
-        return;
-      }
+    if (!sessionLoading && session && isClient && !loadingClientCheck) {
+      const targetCompanyId = getTargetCompanyId();
       
-      // Logic to open the selection modal if the user is a client and just logged in without a target company
-      if (isClient) {
-        const targetCompanyId = getTargetCompanyId();
-        if (!targetCompanyId) {
-          setIsSelectionModalOpen(true);
-        }
+      // If the user is a client, is logged in, and there is NO target company ID set in storage, 
+      // it means they logged in directly via /login or /signup and need to select a company.
+      if (!targetCompanyId) {
+        setIsSelectionModalOpen(true);
       }
+      // Note: If targetCompanyId IS set, the SessionContextProvider already redirected them to /agendar.
     }
-  }, [session, sessionLoading, isLoadingRoles, isAdmin, isProprietario, isClient, navigate]);
+  }, [session, sessionLoading, isClient, loadingClientCheck]);
 
 
   const filteredCompanies = companies.filter(company => {
@@ -121,7 +112,7 @@ const LandingPage: React.FC = () => {
     if (company.image_url) {
       return company.image_url;
     }
-    return `https://readdy.ai/api/search-image?query=modern%20professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
+    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
   };
 
   const handleBookAppointment = (companyId: string) => {
@@ -135,15 +126,6 @@ const LandingPage: React.FC = () => {
       navigate('/login');
     }
   };
-
-  // If roles are loading or user is a manager, show loading state briefly before redirect
-  if (sessionLoading || isLoadingRoles) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-700">Verificando permissões...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -359,7 +341,7 @@ const LandingPage: React.FC = () => {
       </section>
       
       {/* Company Selection Modal */}
-      {session && isClient && !isLoadingRoles && (
+      {session && isClient && !loadingClientCheck && (
         <CompanySelectionModal 
           isOpen={isSelectionModalOpen} 
           onClose={() => setIsSelectionModalOpen(false)} 

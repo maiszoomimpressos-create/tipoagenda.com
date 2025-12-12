@@ -6,21 +6,16 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
-import PermissionDebug from './PermissionDebug'; // Importar componente de debug
+import { useIsClient } from '@/hooks/useIsClient';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { session, loading, isClient, isProprietario, isAdmin, loadingRoles } = useSession();
+  const { session, loading } = useSession();
+  const { isClient, loadingClientCheck } = useIsClient();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const hasManagementRole = isProprietario || isAdmin;
-  
-  // O menu lateral deve aparecer se:
-  // 1. O usuário tiver um papel de gestão (Proprietário ou Admin)
-  // 2. E não estiver nas rotas de autenticação/cadastro de empresa (que usam layout próprio)
-  const isAuthRoute = ['/login', '/signup', '/reset-password'].includes(location.pathname);
-  const isAppPath = hasManagementRole && !isAuthRoute;
+  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
@@ -95,7 +90,7 @@ const MainApplication: React.FC = () => {
                     </Link>
                   </li>
                 ))}
-                {!loadingRoles && isClient && (
+                {!loadingClientCheck && isClient && (
                   <li>
                     <Link
                       to="/meus-agendamentos"
@@ -114,7 +109,6 @@ const MainApplication: React.FC = () => {
                 )}
               </ul>
             </nav>
-            <PermissionDebug /> {/* Adicionado para depuração */}
           </aside>
         )}
         <main className="flex-1 p-6">

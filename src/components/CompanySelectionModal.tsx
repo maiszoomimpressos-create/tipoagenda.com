@@ -7,12 +7,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
 import { setTargetCompanyId } from '@/utils/storage';
-import { useSession } from '@/components/SessionContextProvider'; // Use the unified session hook
+import { useIsClient } from '@/hooks/useIsClient';
 
 interface Company {
   id: string;
@@ -28,7 +28,7 @@ interface CompanySelectionModalProps {
 
 const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { isClient, loadingRoles } = useSession(); // Use isClient and loadingRoles from session context
+  const { isClient, loadingClientCheck } = useIsClient();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -70,7 +70,7 @@ const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({ isOpen, o
     navigate('/agendar'); // Redirect to the client appointment form
   };
 
-  if (loadingRoles || loading) {
+  if (loadingClientCheck || loading) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-[600px]">

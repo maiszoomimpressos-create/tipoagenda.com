@@ -13,7 +13,9 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useSession } from './SessionContextProvider'; // Use the unified session hook
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsClient } from '@/hooks/useIsClient'; // Import the new hook
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -24,27 +26,24 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
-  
-  // Use the unified session hook to get roles
-  const { isAdmin, isProprietario, isClient, loadingRoles } = useSession();
+  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
     } else {
-      // Redirection handled by SessionContextProvider
+      // O redirecionamento para a Landing Page será tratado pelo SessionContextProvider
+      // showSuccess('Logout realizado com sucesso!'); // O SessionContextProvider já exibe este toast
     }
   };
 
   const isProprietarioOrAdmin = isProprietario || isAdmin;
   
-  // O usuário é um cliente puro (não Proprietário/Admin)
+  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin)
   const isPureClient = isClient && !isProprietarioOrAdmin;
-  
-  // O usuário não tem função de gestão (pode ser cliente, ou um usuário novo sem empresa)
-  const hasManagementRole = isProprietarioOrAdmin;
-  const isLoadingRoles = loadingRoles;
 
   return (
     <DropdownMenu>
@@ -68,7 +67,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         </DropdownMenuItem>
         
         {/* Link para Dashboard (Proprietário/Admin) */}
-        {!isLoadingRoles && hasManagementRole && (
+        {!loadingProprietarioCheck && !loadingAdminCheck && isProprietarioOrAdmin && (
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <i className="fas fa-chart-line mr-2"></i>
             Dashboard
@@ -76,15 +75,15 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         )}
 
         {/* Link para Meus Agendamentos (Apenas Cliente Puro) */}
-        {!isLoadingRoles && isPureClient && (
+        {!loadingClientCheck && isPureClient && (
           <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
             <i className="fas fa-calendar-check mr-2"></i>
             Meus Agendamentos
           </DropdownMenuItem>
         )}
 
-        {/* Link para Cadastro de Empresa (Visível se NÃO tiver função de gestão) */}
-        {!isLoadingRoles && !hasManagementRole && (
+        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin) */}
+        {!loadingProprietarioCheck && !isProprietarioOrAdmin && (
           <DropdownMenuItem onClick={() => navigate('/register-company')}>
             <i className="fas fa-building mr-2"></i>
             Cadast. Empresa
@@ -92,7 +91,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         )}
 
         {/* Link para Configurações Admin (Apenas Admin) */}
-        {!isLoadingRoles && isAdmin && (
+        {!loadingAdminCheck && isAdmin && (
           <DropdownMenuItem onClick={() => navigate('/settings')}>
             <i className="fas fa-cog mr-2"></i>
             Configurações Admin
