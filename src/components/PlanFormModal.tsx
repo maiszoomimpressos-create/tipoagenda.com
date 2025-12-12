@@ -96,19 +96,30 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
   const statusValue = watch('status');
 
   useEffect(() => {
-    if (editingPlan) {
-      reset({
-        name: editingPlan.name,
-        description: editingPlan.description || '',
-        price: editingPlan.price.toFixed(2).replace('.', ','),
-        features: editingPlan.features ? editingPlan.features.join('\n') : '',
-        duration_months: editingPlan.duration_months,
-        status: editingPlan.status,
-      });
-    } else {
-      reset();
+    if (isOpen) {
+      if (editingPlan) {
+        // Load data for editing
+        reset({
+          name: editingPlan.name,
+          description: editingPlan.description || '',
+          price: editingPlan.price.toFixed(2).replace('.', ','),
+          features: editingPlan.features ? editingPlan.features.join('\n') : '',
+          duration_months: editingPlan.duration_months,
+          status: editingPlan.status,
+        });
+      } else {
+        // Reset to default values for new plan
+        reset({
+          name: '',
+          description: '',
+          price: '0.00' as any,
+          features: '',
+          duration_months: 1,
+          status: 'active',
+        });
+      }
     }
-  }, [editingPlan, reset]);
+  }, [editingPlan, reset, isOpen]); // Depend on isOpen to trigger reset when modal opens
 
   const onSubmit = async (data: PlanFormValues) => {
     setLoading(true);
