@@ -33,7 +33,7 @@ import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
-import ContractList from "./components/ContractList";
+import AdminDashboardPage from "./pages/AdminDashboardPage"; // Import new Admin Dashboard Page
 
 const queryClient = new QueryClient();
 
@@ -102,6 +102,9 @@ const App = () => (
               {/* Rotas de Cliente (protegidas por ClientProtectedRoute) */}
               <Route path="agendar" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
               <Route path="meus-agendamentos" element={<ClientProtectedRoute><ClientAppointmentsPage /></ClientProtectedRoute>} />
+
+              {/* Rotas de Administrador da Plataforma (protegidas por AdminProtectedRoute) */}
+              <Route path="admin-dashboard" element={<AdminProtectedRoute><AdminDashboardPage /></AdminProtectedRoute>} />
 
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

@@ -53,13 +53,9 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       proprietarioStatus = userType === 'PROPRIETARIO';
       adminStatus = userType === 'ADMIN';
       
-      // Note: We skip fetching get_user_context here for role determination, 
-      // as type_user.cod should reflect the highest privilege. 
-      // get_user_context is still useful for fetching company context elsewhere.
-
     } catch (error: any) {
       console.error('Error fetching user roles:', error);
-      // Do not show error toast here, just log and default to false
+      // Roles remain false if error occurs
     } finally {
       setIsClient(clientStatus);
       setIsProprietario(proprietarioStatus);
@@ -103,10 +99,11 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
             .single();
             
           const userType = typeData?.cod;
-          const hasManagementRole = userType === 'PROPRIETARIO' || userType === 'ADMIN';
-
-          if (hasManagementRole) {
-            navigate('/dashboard', { replace: true });
+          
+          if (userType === 'ADMIN') {
+            navigate('/admin-dashboard', { replace: true }); // Redireciona para o novo dashboard de admin
+          } else if (userType === 'PROPRIETARIO') {
+            navigate('/dashboard', { replace: true }); // Mantém o dashboard existente para Proprietário
           } else {
             navigate('/', { replace: true }); 
           }

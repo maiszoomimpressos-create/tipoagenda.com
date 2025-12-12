@@ -92,7 +92,11 @@ const LandingPage: React.FC = () => {
   // Logic to redirect Admin/Proprietario to Dashboard
   useEffect(() => {
     if (!sessionLoading && session && !isLoadingRoles) {
-      if (hasManagementRole) {
+      if (isAdmin) {
+        navigate('/admin-dashboard', { replace: true });
+        return;
+      }
+      if (isProprietario) {
         navigate('/dashboard', { replace: true });
         return;
       }
@@ -105,7 +109,7 @@ const LandingPage: React.FC = () => {
         }
       }
     }
-  }, [session, sessionLoading, isLoadingRoles, hasManagementRole, isClient, navigate]);
+  }, [session, sessionLoading, isLoadingRoles, isAdmin, isProprietario, isClient, navigate]);
 
 
   const filteredCompanies = companies.filter(company => {
@@ -117,7 +121,7 @@ const LandingPage: React.FC = () => {
     if (company.image_url) {
       return company.image_url;
     }
-    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
+    return `https://readdy.ai/api/search-image?query=modern%20professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
   };
 
   const handleBookAppointment = (companyId: string) => {
