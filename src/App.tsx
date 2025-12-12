@@ -35,8 +35,9 @@ import ClientAppointmentsPage from "./pages/ClientAppointmentsPage";
 import ProductFormPage from "./pages/ProductFormPage";
 import IndexPage from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
-import PlanManagementPage from "./pages/PlanManagementPage"; // Import new page
-import ContractManagementPage from "./pages/ContractManagementPage"; // Import new page
+import PlanManagementPage from "./pages/PlanManagementPage";
+import ContractManagementPage from "./pages/ContractManagementPage";
+import SubscriptionPlansPage from "./pages/SubscriptionPlansPage"; // Import new page
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -157,6 +158,7 @@ const App = () => (
               <Route path="estoque/edit/:productId" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
+              <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} /> {/* Novo item de menu */}
 
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />

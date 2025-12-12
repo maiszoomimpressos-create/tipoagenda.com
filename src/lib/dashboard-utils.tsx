@@ -88,7 +88,8 @@ export const menuItems = [
   { id: 'financeiro', label: 'Financeiro', icon: 'fas fa-dollar-sign', path: '/financeiro' },
   { id: 'estoque', label: 'Estoque', icon: 'fas fa-boxes', path: '/estoque' },
   { id: 'relatorios', label: 'Relatórios', icon: 'fas fa-chart-bar', path: '/relatorios' },
-  { id: 'fidelidade', label: 'Fidelidade', icon: 'fas fa-gift', path: '/fidelidade' }
+  { id: 'fidelidade', label: 'Fidelidade', icon: 'fas fa-gift', path: '/fidelidade' },
+  { id: 'planos', label: 'Planos', icon: 'fas fa-gem', path: '/planos' } // Novo item de menu
 ];
 
 export const mockData = {
