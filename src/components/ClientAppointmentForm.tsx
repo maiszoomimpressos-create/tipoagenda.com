@@ -157,6 +157,8 @@ const ClientAppointmentForm: React.FC = () => {
 
       // 2. Determine the target company ID from storage (if user clicked from Landing Page)
       const storedCompanyId = getTargetCompanyId();
+      console.log('ClientAppointmentForm: Target Company ID from storage:', storedCompanyId); // LOG ADDED
+      
       if (!storedCompanyId) {
         throw new Error('Nenhuma empresa selecionada. Por favor, selecione uma empresa na página inicial.');
       }
@@ -172,6 +174,7 @@ const ClientAppointmentForm: React.FC = () => {
 
       if (collaboratorsError) throw collaboratorsError;
       setCollaborators(collaboratorsData);
+      console.log('ClientAppointmentForm: Fetched collaborators count:', collaboratorsData.length); // LOG ADDED
 
       // 4. Fetch Services for the selected company
       const { data: servicesData, error: servicesError } = await supabase
@@ -183,6 +186,7 @@ const ClientAppointmentForm: React.FC = () => {
 
       if (servicesError) throw servicesError;
       setServices(servicesData);
+      console.log('ClientAppointmentForm: Fetched services count:', servicesData.length); // LOG ADDED
 
       // 5. Clear the target ID from storage once the context is established
       clearTargetCompanyId();
