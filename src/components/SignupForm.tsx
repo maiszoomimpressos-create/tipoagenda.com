@@ -69,7 +69,7 @@ const SignupForm: React.FC = () => {
       // Se o usuário foi criado (mesmo que precise de confirmação por e-mail)
       if (authData.user) {
         const newUser = authData.user;
-        const targetCompanyId = getTargetCompanyId();
+        const targetCompanyId = getTargetCompanyId(); // Still get it to clear it later
 
         // 2. Criar o registro na tabela 'clients' para o novo usuário
         try {
@@ -88,7 +88,7 @@ const SignupForm: React.FC = () => {
               address: 'N/A', // Placeholder
               number: '0', // Placeholder
               neighborhood: 'N/A', // Placeholder
-              company_id: targetCompanyId, // Associar à empresa do card (se houver) - este campo será usado por Proprietários/Admins para ver 'seus' clientes.
+              company_id: null, // Clients are not tied to a single company in 'clients' table
             });
 
           if (clientInsertError) {

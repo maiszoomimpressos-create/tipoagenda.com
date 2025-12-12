@@ -324,7 +324,8 @@ const ClientAppointmentForm: React.FC = () => {
         </Button>
       </div>
     );
-  }
+  );
+}
 
   return (
     <div className="space-y-6">

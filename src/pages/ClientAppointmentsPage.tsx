@@ -21,7 +21,7 @@ interface Appointment {
   status: string;
   client_nickname: string | null;
   clients: { name: string } | null;
-  collaborators: { first_name: string; last_name } | null;
+  collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
   companies: { name: string } | null; // Adicionar para exibir o nome da empresa
 }
