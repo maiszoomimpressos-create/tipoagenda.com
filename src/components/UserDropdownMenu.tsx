@@ -71,15 +71,15 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           </DropdownMenuItem>
         )}
 
-        {/* Link para Meus Agendamentos (Cliente) */}
-        {!loadingClientCheck && isClient && (
+        {/* Link para Meus Agendamentos (Visível se for Cliente OU se for Proprietário/Admin para fins de teste/acesso) */}
+        {!loadingClientCheck && (isClient || isProprietarioOrAdmin) && (
           <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
             <i className="fas fa-calendar-check mr-2"></i>
             Meus Agendamentos
           </DropdownMenuItem>
         )}
 
-        {/* Link para Cadastro de Empresa (Visível para todos, exceto se já for Proprietário/Admin) */}
+        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin) */}
         {!loadingProprietarioCheck && !isProprietarioOrAdmin && (
           <DropdownMenuItem onClick={() => navigate('/register-company')}>
             <i className="fas fa-building mr-2"></i>
