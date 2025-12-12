@@ -40,6 +40,8 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
     }
   };
 
+  const isProprietarioOrAdmin = isProprietario || isAdmin;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -60,22 +62,32 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-user mr-2"></i>
           Meu Perfil
         </DropdownMenuItem>
-        {!loadingClientCheck && isClient && ( // Conditionally render if user is a Client
-          <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
-            <i className="fas fa-calendar-check mr-2"></i>
-            Meus Agendamentos
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onClick={() => navigate('/register-company')}>
-          <i className="fas fa-building mr-2"></i>
-          Cadast. Empresa
-        </DropdownMenuItem>
-        {!loadingProprietarioCheck && isProprietario && (
+        
+        {/* Link para Dashboard (Proprietário/Admin) */}
+        {!loadingProprietarioCheck && !loadingAdminCheck && isProprietarioOrAdmin && (
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <i className="fas fa-chart-line mr-2"></i>
             Dashboard
           </DropdownMenuItem>
         )}
+
+        {/* Link para Meus Agendamentos (Cliente) */}
+        {!loadingClientCheck && isClient && (
+          <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
+            <i className="fas fa-calendar-check mr-2"></i>
+            Meus Agendamentos
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Cadastro de Empresa (Visível para todos, exceto se já for Proprietário/Admin) */}
+        {!loadingProprietarioCheck && !isProprietarioOrAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/register-company')}>
+            <i className="fas fa-building mr-2"></i>
+            Cadast. Empresa
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Configurações Admin (Apenas Admin) */}
         {!loadingAdminCheck && isAdmin && (
           <DropdownMenuItem onClick={() => navigate('/settings')}>
             <i className="fas fa-cog mr-2"></i>
