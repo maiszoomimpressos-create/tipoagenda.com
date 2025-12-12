@@ -56,15 +56,11 @@ const MainApplication: React.FC = () => {
           ) : (
             <div className="flex items-center gap-3">
               <Link to="/login">
-                <Button variant="ghost" className="!rounded-button whitespace-nowrap text-gray-700 hover:bg-gray-100">
+                <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
                   Login
                 </Button>
               </Link>
-              <Link to="/signup">
-                <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-                  Cadastrar
-                </Button>
-              </Link>
+              {/* Botão Cadastrar removido conforme solicitado */}
             </div>
           )}
         </div>
