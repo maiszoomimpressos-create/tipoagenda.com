@@ -23,7 +23,8 @@ interface Appointment {
   total_duration_minutes: number;
   status: string;
   client_nickname: string | null; // Adicionado o novo campo
-  clients: { name: string } | null;
+  client_id: string; // Adicionado para referência
+  clients: { name: string } | null; // Mantido para tipagem, mas será null na prática
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
 }
@@ -65,8 +66,8 @@ const AgendamentosPage: React.FC = () => {
           total_price,
           total_duration_minutes,
           status,
+          client_id,
           client_nickname,
-          clients(name),
           collaborators(first_name, last_name),
           appointment_services(
             services(name)
@@ -214,7 +215,8 @@ const AgendamentosPage: React.FC = () => {
           <p className="text-gray-600">Nenhum agendamento encontrado para {selectedTab === 'dia' ? 'o dia selecionado' : selectedTab === 'semana' ? 'a semana selecionada' : 'o mês selecionado'}.</p>
         ) : (
           appointments.map((agendamento) => {
-            const clientName = agendamento.clients?.name || 'Cliente Desconhecido';
+            // Usamos client_nickname como nome principal, e se não houver, usamos 'Cliente ID: XXXXX'
+            const clientDisplay = agendamento.client_nickname || `Cliente ID: ${agendamento.client_id.substring(0, 8)}...`;
             const collaboratorName = agendamento.collaborators ? `${agendamento.collaborators.first_name} ${agendamento.collaborators.last_name}` : 'Colaborador Desconhecido';
             const serviceNames = agendamento.appointment_services
               .map(as => as.services?.name)
@@ -238,7 +240,7 @@ const AgendamentosPage: React.FC = () => {
                       <div className={`w-4 h-4 rounded-full ${getStatusColor(agendamento.status)}`}></div>
                       <div>
                         <h3 className="font-semibold text-gray-900">
-                          {agendamento.client_nickname ? `${agendamento.client_nickname} (${clientName})` : clientName}
+                          {clientDisplay}
                         </h3>
                         <p className="text-sm text-gray-600">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
                       </div>
