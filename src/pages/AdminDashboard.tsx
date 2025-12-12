@@ -6,8 +6,38 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import ContractList from '@/components/ContractList'; // Import ContractList
-import { PlusCircle, Edit, Trash2, ArrowLeft, Tags, DollarSign } from 'lucide-react'; // Import icons
+import { Users, Building, DollarSign, FileText, Tags, LogOut } from 'lucide-react'; // Importando ícones Lucide
+
+// Componente auxiliar para padronizar os cards de gerenciamento
+interface ManagementCardProps {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  buttonText: string;
+  buttonColor: string;
+  onClick: () => void;
+}
+
+const ManagementCard: React.FC<ManagementCardProps> = ({ title, description, icon, buttonText, buttonColor, onClick }) => (
+  <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800 flex flex-col justify-between">
+    <CardHeader>
+      <div className="flex items-center gap-3 mb-2">
+        {icon}
+        <CardTitle className="text-gray-900 dark:text-white text-xl">{title}</CardTitle>
+      </div>
+      <p className="text-gray-700 dark:text-gray-300 text-sm">{description}</p>
+    </CardHeader>
+    <CardContent>
+      <Button 
+        className={`!rounded-button whitespace-nowrap w-full text-white font-semibold py-2.5 text-base ${buttonColor}`}
+        onClick={onClick}
+      >
+        {buttonText}
+      </Button>
+    </CardContent>
+  </Card>
+);
+
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +83,7 @@ const AdminDashboard: React.FC = () => {
             onClick={handleLogout}
             className="!rounded-button whitespace-nowrap bg-red-600 hover:bg-red-700 text-white"
           >
-            <i className="fas fa-sign-out-alt mr-2"></i>
+            <LogOut className="h-4 w-4 mr-2" />
             Sair
           </Button>
         </div>
@@ -62,94 +92,56 @@ const AdminDashboard: React.FC = () => {
           Bem-vindo, Administrador Global! Aqui você pode gerenciar as configurações de alto nível do sistema.
         </p>
 
+        {/* Group Box: Gerenciamento Principal */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Gerenciar Usuários</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 dark:text-gray-300">
-                Visualize e edite todos os usuários do sistema, incluindo seus papéis e status.
-              </p>
-              <Button className="!rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white w-full">
-                <i className="fas fa-users mr-2"></i>
-                Acessar Gerenciamento de Usuários
-              </Button>
-            </CardContent>
-          </Card>
+          <ManagementCard
+            title="Gerenciar Usuários"
+            description="Visualize e edite todos os usuários do sistema, incluindo seus papéis e status."
+            icon={<Users className="h-6 w-6 text-blue-600" />}
+            buttonText="Acessar Gerenciamento de Usuários"
+            buttonColor="bg-blue-600 hover:bg-blue-700"
+            onClick={() => { /* Implementar navegação para Gerenciamento de Usuários */ }}
+          />
 
-          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Gerenciar Empresas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 dark:text-gray-300">
-                Revise, aprove e gerencie todas as empresas cadastradas na plataforma.
-              </p>
-              <Button className="!rounded-button whitespace-nowrap bg-green-600 hover:bg-green-700 text-white w-full">
-                <i className="fas fa-building mr-2"></i>
-                Acessar Gerenciamento de Empresas
-              </Button>
-            </CardContent>
-          </Card>
+          <ManagementCard
+            title="Gerenciar Empresas"
+            description="Revise, aprove e gerencie todas as empresas cadastradas na plataforma."
+            icon={<Building className="h-6 w-6 text-green-600" />}
+            buttonText="Acessar Gerenciamento de Empresas"
+            buttonColor="bg-green-600 hover:bg-green-700"
+            onClick={() => { /* Implementar navegação para Gerenciamento de Empresas */ }}
+          />
 
-          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Gerenciar Planos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 dark:text-gray-300">
-                Defina e edite os planos de assinatura disponíveis para as empresas.
-              </p>
-              <Button 
-                className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black w-full"
-                onClick={() => navigate('/admin-dashboard/plans')}
-              >
-                <DollarSign className="h-4 w-4 mr-2" />
-                Gerenciar Planos
-              </Button>
-            </CardContent>
-          </Card>
+          <ManagementCard
+            title="Gerenciar Planos"
+            description="Defina e edite os planos de assinatura disponíveis para as empresas."
+            icon={<DollarSign className="h-6 w-6 text-yellow-600" />}
+            buttonText="Gerenciar Planos"
+            buttonColor="bg-yellow-600 hover:bg-yellow-700 text-black"
+            onClick={() => navigate('/admin-dashboard/plans')}
+          />
         </div>
 
-        {/* Moved sections from SettingsPage */}
-        <div className="max-w-4xl space-y-6">
-          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-gray-900 dark:text-white">Gerenciamento de Contratos</CardTitle>
-              <Button
-                className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
-                onClick={() => navigate('/admin-dashboard/new-contract')}
-              >
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Novo Contrato
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 dark:text-gray-300">
-                Crie e gerencie modelos de contratos para sua empresa.
-              </p>
-              <ContractList />
-            </CardContent>
-          </Card>
+        {/* Group Box: Configurações Globais */}
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white pt-4">Configurações Globais</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ManagementCard
+            title="Gerenciamento de Contratos"
+            description="Crie e gerencie modelos de contratos que as empresas devem aceitar no cadastro."
+            icon={<FileText className="h-6 w-6 text-purple-600" />}
+            buttonText="Gerenciar Contratos"
+            buttonColor="bg-purple-600 hover:bg-purple-700"
+            onClick={() => navigate('/admin-dashboard/contracts')}
+          />
 
-          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-gray-900 dark:text-white">Gerenciamento de Segmentos</CardTitle>
-              <Button
-                className="!rounded-button whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => navigate('/admin-dashboard/segments')}
-              >
-                <Tags className="h-4 w-4 mr-2" />
-                Gerenciar Segmentos
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-700 dark:text-gray-300">
-                Defina e organize os tipos de segmentos para as empresas cadastradas.
-              </p>
-            </CardContent>
-          </Card>
+          <ManagementCard
+            title="Gerenciamento de Segmentos"
+            description="Defina e organize os tipos de segmentos para as empresas cadastradas."
+            icon={<Tags className="h-6 w-6 text-pink-600" />}
+            buttonText="Gerenciar Segmentos"
+            buttonColor="bg-pink-600 hover:bg-pink-700"
+            onClick={() => navigate('/admin-dashboard/segments')}
+          />
         </div>
       </div>
     </div>

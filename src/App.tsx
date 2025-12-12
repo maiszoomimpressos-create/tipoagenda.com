@@ -36,6 +36,7 @@ import ProductFormPage from "./pages/ProductFormPage";
 import IndexPage from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import PlanManagementPage from "./pages/PlanManagementPage"; // Import new page
+import ContractManagementPage from "./pages/ContractManagementPage"; // Import new page
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -119,6 +120,7 @@ const App = () => (
             {/* Rota do Admin Global (sem layout MainApplication) */}
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de contratos e segmentos, agora aninhadas sob /admin-dashboard */}
+            <Route path="/admin-dashboard/contracts" element={<GlobalAdminProtectedRoute><ContractManagementPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/edit-contract/:contractId" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/segments" element={<GlobalAdminProtectedRoute><SegmentManagementPage /></GlobalAdminProtectedRoute>} />
