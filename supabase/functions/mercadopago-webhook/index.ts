@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import mercadopago from 'https://esm.sh/mercadopago@2.0.10';
+import { MercadoPagoConfig, Payment } from 'https://esm.sh/mercadopago@2.0.10'; // Importação atualizada
 import { format, addMonths, parseISO } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
@@ -22,9 +22,9 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  mercadopago.configure({
-    access_token: MERCADOPAGO_ACCESS_TOKEN,
-  });
+  // Nova forma de configurar o Mercado Pago
+  const client = new MercadoPagoConfig({ accessToken: MERCADOPAGO_ACCESS_TOKEN });
+  const paymentClient = new Payment(client);
 
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
@@ -44,8 +44,8 @@ serve(async (req) => {
     const paymentId = data.id;
 
     // 1. Fetch Payment Details from Mercado Pago
-    const paymentResponse = await mercadopago.payment.get(paymentId);
-    const payment = paymentResponse.body;
+    const paymentResponse = await paymentClient.get({ id: paymentId }); // Usando a instância de Payment
+    const payment = paymentResponse; // A resposta já é o objeto de pagamento diretamente
 
     console.log('Payment Status:', payment.status);
     console.log('External Reference:', payment.external_reference);

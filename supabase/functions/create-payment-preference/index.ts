@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import mercadopago from 'https://esm.sh/mercadopago@2.0.10';
+import { MercadoPagoConfig, Preference } from 'https://esm.sh/mercadopago@2.0.10'; // Importação atualizada
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,13 +46,13 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    console.log('Mercado Pago Access Token found. Configuring MP SDK...');
+    console.log('Mercado Pago Access Token found. Initializing MP SDK...');
 
-    mercadopago.configure({
-      access_token: MERCADOPAGO_ACCESS_TOKEN,
-    });
+    // Nova forma de configurar o Mercado Pago
+    const client = new MercadoPagoConfig({ accessToken: MERCADOPAGO_ACCESS_TOKEN });
+    const preference = new Preference(client);
 
-    const preference = {
+    const preferenceBody = {
       items: [
         {
           title: `Assinatura: ${planName} (${durationMonths} meses)`,
@@ -61,7 +61,6 @@ serve(async (req) => {
           currency_id: 'BRL',
         },
       ],
-      // Metadata para rastrear a transação no webhook
       external_reference: `${companyId}_${planId}`,
       back_urls: {
         success: `${SITE_URL}/planos?status=success`,
@@ -72,13 +71,13 @@ serve(async (req) => {
       notification_url: `${SUPABASE_URL}/functions/v1/mercadopago-webhook`,
     };
 
-    const mpResponse = await mercadopago.preferences.create(preference);
+    const mpResponse = await preference.create({ body: preferenceBody }); // Usando a instância de Preference
     
     console.log('Mercado Pago Preference created successfully.');
 
     return new Response(JSON.stringify({ 
-      preferenceId: mpResponse.body.id,
-      initPoint: mpResponse.body.init_point,
+      preferenceId: mpResponse.id, // mpResponse.body.id mudou para mpResponse.id
+      initPoint: mpResponse.init_point, // mpResponse.body.init_point mudou para mpResponse.init_point
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -86,7 +85,6 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Edge Function Error (create-payment-preference): Uncaught exception during MP call:', error.message);
-    // Retorna 400 se for um erro de requisição (ex: dados inválidos para MP)
     return new Response(JSON.stringify({ error: 'Failed to create payment preference: ' + error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
