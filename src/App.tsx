@@ -34,6 +34,7 @@ import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
 import IndexPage from "./pages/Index"; // Import the new IndexPage
+import AdminDashboard from "./pages/AdminDashboard"; // Import AdminDashboard
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin"; // Updated import
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin"; // New hook
 import { useIsClient } from "./hooks/useIsClient"; // Import new hook
