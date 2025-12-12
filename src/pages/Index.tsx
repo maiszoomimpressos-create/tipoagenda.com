@@ -64,3 +64,5 @@ const IndexPage: React.FC = () => {
   // If not logged in, or if logged in as a pure client, render the LandingPage
   return <LandingPage />;
 };
+
+export default IndexPage;
