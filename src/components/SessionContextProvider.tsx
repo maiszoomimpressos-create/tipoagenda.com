@@ -47,27 +47,22 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       }
       
       const userType = typeData?.cod;
-      clientStatus = userType === 'CLIENTE';
       
-      // 2. Fetch Management Roles (Proprietario/Admin) via RPC
-      if (userType === 'PROPRIETARIO' || userType === 'ADMIN') {
-        const { data: contextData, error: contextError } = await supabase
-          .rpc('get_user_context', { p_user_id: userId });
-
-        if (contextError) {
-          throw contextError;
-        }
-
-        proprietorStatus = contextData.some(role => role.role_type_description === 'Proprietário');
-        adminStatus = contextData.some(role => role.role_type_description === 'Admin');
-      }
+      // Determine primary role based on type_user.cod
+      clientStatus = userType === 'CLIENTE';
+      proprietarioStatus = userType === 'PROPRIETARIO';
+      adminStatus = userType === 'ADMIN';
+      
+      // Note: We skip fetching get_user_context here for role determination, 
+      // as type_user.cod should reflect the highest privilege. 
+      // get_user_context is still useful for fetching company context elsewhere.
 
     } catch (error: any) {
       console.error('Error fetching user roles:', error);
       // Do not show error toast here, just log and default to false
     } finally {
       setIsClient(clientStatus);
-      setIsProprietario(proprietorStatus);
+      setIsProprietario(proprietarioStatus);
       setIsAdmin(adminStatus);
       setLoadingRoles(false);
     }
@@ -100,7 +95,21 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
             return;
           }
           
-          navigate('/', { replace: true }); 
+          // Check roles immediately after sign in to decide redirection
+          const { data: typeData } = await supabase
+            .from('type_user')
+            .select('cod')
+            .eq('user_id', currentSession.user.id)
+            .single();
+            
+          const userType = typeData?.cod;
+          const hasManagementRole = userType === 'PROPRIETARIO' || userType === 'ADMIN';
+
+          if (hasManagementRole) {
+            navigate('/dashboard', { replace: true });
+          } else {
+            navigate('/', { replace: true }); 
+          }
 
         } else if (event === 'SIGNED_OUT') {
           showSuccess('Logout realizado com sucesso!');
