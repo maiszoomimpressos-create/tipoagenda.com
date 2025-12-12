@@ -147,7 +147,7 @@ const AdminDashboard: React.FC = () => {
             title="Chaves de Pagamento"
             description="Configure as chaves de API e tokens secretos para o processamento de pagamentos."
             icon={<Key className="h-6 w-6 text-orange-600" />}
-            buttonText="Gerenciar Chaves API"
+            buttonText="Instruções de Segurança"
             buttonColor="bg-orange-600 hover:bg-orange-700"
             onClick={() => navigate('/admin-dashboard/api-keys')}
           />
