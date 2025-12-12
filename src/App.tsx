@@ -33,6 +33,7 @@ import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
+import IndexPage from "./pages/Index"; // Import the new IndexPage
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useIsClient } from "./hooks/useIsClient"; // Import new hook
 import ContractList from "./components/ContractList";
@@ -99,7 +100,7 @@ const App = () => (
 
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
-              <Route index element={<LandingPage />} />
+              <Route index element={<IndexPage />} /> {/* Use IndexPage here */}
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               
