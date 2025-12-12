@@ -1,21 +1,99 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createButton, createCard } from '@/lib/dashboard-utils';
+import { supabase } from '@/integrations/supabase/client';
+import { showError } from '@/utils/toast';
+import { useSession } from '@/components/SessionContextProvider';
+import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface Transaction {
+  id: string;
+  transaction_type: 'recebimento' | 'despesa' | 'abertura';
+  total_amount: number;
+  transaction_date: string;
+  payment_method: string;
+  observations: string | null;
+  appointment_id: string | null;
+}
 
 const FinanceiroPage: React.FC = () => {
+  const { session, loading: sessionLoading } = useSession();
+  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [entradas, setEntradas] = useState(0);
+  const [saidas, setSaidas] = useState(0);
+
+  const fetchTransactions = useCallback(async () => {
+    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+      return;
+    }
+
+    setLoadingTransactions(true);
+    try {
+      // Fetch all transactions for the primary company
+      const { data, error } = await supabase
+        .from('caixa_movimentacoes')
+        .select('*')
+        .eq('company_id', primaryCompanyId)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+
+      setTransactions(data as Transaction[]);
+
+      // Calculate totals
+      let totalEntradas = 0;
+      let totalSaidas = 0;
+
+      data.forEach(t => {
+        if (t.transaction_type === 'recebimento' || t.transaction_type === 'abertura') {
+          totalEntradas += t.total_amount;
+        } else if (t.transaction_type === 'despesa') {
+          totalSaidas += t.total_amount;
+        }
+      });
+
+      setEntradas(totalEntradas);
+      setSaidas(totalSaidas);
+
+    } catch (error: any) {
+      console.error('Erro ao carregar transações financeiras:', error);
+      showError('Erro ao carregar dados financeiros: ' + error.message);
+      setTransactions([]);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
   const financeCards = [
-    { title: 'Entradas', value: 'R$ 48.520', icon: 'fas fa-arrow-up', color: 'green' },
-    { title: 'Saídas', value: 'R$ 12.340', icon: 'fas fa-arrow-down', color: 'red' },
-    { title: 'Saldo', value: 'R$ 36.180', icon: 'fas fa-wallet', color: 'yellow' }
+    { title: 'Entradas', value: `R$ ${entradas.toFixed(2).replace('.', ',')}`, icon: 'fas fa-arrow-up', color: 'green' },
+    { title: 'Saídas', value: `R$ ${saidas.toFixed(2).replace('.', ',')}`, icon: 'fas fa-arrow-down', color: 'red' },
+    { title: 'Saldo', value: `R$ ${(entradas - saidas).toFixed(2).replace('.', ',')}`, icon: 'fas fa-wallet', color: 'yellow' }
   ];
 
-  const transacoes = [
-    { tipo: 'entrada', descricao: 'Corte + Barba - Carlos Santos', valor: 'R$ 45,00', data: '30/10/2025' },
-    { tipo: 'entrada', descricao: 'Corte Tradicional - Pedro Lima', valor: 'R$ 30,00', data: '30/10/2025' },
-    { tipo: 'saida', descricao: 'Compra de produtos - Beauty Supply', valor: 'R$ 250,00', data: '29/10/2025' },
-    { tipo: 'entrada', descricao: 'Barba + Bigode - Rafael Oliveira', valor: 'R$ 25,00', data: '29/10/2025' }
-  ];
+  if (sessionLoading || loadingPrimaryCompany || loadingTransactions) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-700">Carregando dados financeiros...</p>
+      </div>
+    );
+  }
+
+  if (!primaryCompanyId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-500">Você precisa ter uma empresa primária cadastrada para acessar o financeiro.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -37,24 +115,37 @@ const FinanceiroPage: React.FC = () => {
         <CardHeader><CardTitle className="text-gray-900">Transações Recentes</CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {transacoes.map((transacao, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    transacao.tipo === 'entrada' ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
-                    <i className={`fas ${transacao.tipo === 'entrada' ? 'fa-arrow-up text-green-600' : 'fa-arrow-down text-red-600'}`}></i>
+            {transactions.length === 0 ? (
+              <p className="text-gray-600">Nenhuma transação registrada ainda.</p>
+            ) : (
+              transactions.map((transacao, index) => {
+                const isRecebimento = transacao.transaction_type === 'recebimento' || transacao.transaction_type === 'abertura';
+                const iconClass = isRecebimento ? 'fa-arrow-up text-green-600' : 'fa-arrow-down text-red-600';
+                const bgColor = isRecebimento ? 'bg-green-100' : 'bg-red-100';
+                const sign = isRecebimento ? '+' : '-';
+                const description = transacao.appointment_id ? 'Fechamento de Agendamento' : 
+                                    transacao.transaction_type === 'abertura' ? 'Abertura de Caixa' : 
+                                    transacao.observations || 'Transação Manual';
+                const dateFormatted = format(parseISO(transacao.transaction_date), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor}`}>
+                        <i className={`fas ${iconClass}`}></i>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{description}</p>
+                        <p className="text-sm text-gray-600">{dateFormatted} ({transacao.payment_method})</p>
+                      </div>
+                    </div>
+                    <p className={`font-semibold ${isRecebimento ? 'text-green-600' : 'text-red-600'}`}>
+                      {sign} R$ {transacao.total_amount.toFixed(2).replace('.', ',')}
+                    </p>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{transacao.descricao}</p>
-                    <p className="text-sm text-gray-600">{transacao.data}</p>
-                  </div>
-                </div>
-                <p className={`font-semibold ${transacao.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}`}>
-                  {transacao.tipo === 'entrada' ? '+' : '-'}{transacao.valor}
-                </p>
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
         </CardContent>
       </Card>
