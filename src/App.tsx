@@ -33,8 +33,6 @@ import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
-import { useIsAdmin } from "./hooks/useIsAdmin";
-import { useIsClient } from "./hooks/useIsClient"; // Import new hook
 import ContractList from "./components/ContractList";
 
 const queryClient = new QueryClient();
@@ -54,10 +52,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
-  const { loading: sessionLoading } = useSession();
+  const { isAdmin, loadingRoles, loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingAdminCheck) {
+  if (sessionLoading || loadingRoles) {
     return <div className="min-h-screen flex items-center justify-center">Verificando permissões...</div>;
   }
 
@@ -69,10 +66,9 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 const ClientProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isClient, loadingClientCheck } = useIsClient();
-  const { loading: sessionLoading } = useSession();
+  const { isClient, loadingRoles, loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingClientCheck) {
+  if (sessionLoading || loadingRoles) {
     return <div className="min-h-screen flex items-center justify-center">Verificando permissões de cliente...</div>;
   }
 

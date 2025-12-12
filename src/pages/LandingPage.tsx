@@ -7,9 +7,6 @@ import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
 import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
-import { useIsClient } from '@/hooks/useIsClient';
-import { useIsProprietario } from '@/hooks/useIsProprietario'; // Import hook
-import { useIsAdmin } from '@/hooks/useIsAdmin'; // Import hook
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 
 interface Company {
@@ -24,10 +21,7 @@ interface Company {
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { session, loading: sessionLoading } = useSession();
-  const { isClient, loadingClientCheck } = useIsClient();
-  const { isProprietario, loadingProprietarioCheck } = useIsProprietario(); // Use hook
-  const { isAdmin, loadingAdminCheck } = useIsAdmin(); // Use hook
+  const { session, loading: sessionLoading, isClient, isProprietario, isAdmin, loadingRoles } = useSession();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -35,7 +29,7 @@ const LandingPage: React.FC = () => {
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
 
   const hasManagementRole = isProprietario || isAdmin;
-  const isLoadingRoles = loadingClientCheck || loadingProprietarioCheck || loadingAdminCheck;
+  const isLoadingRoles = loadingRoles;
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },

@@ -6,12 +6,10 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
-import { useIsClient } from '@/hooks/useIsClient';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { session, loading } = useSession();
-  const { isClient, loadingClientCheck } = useIsClient();
+  const { session, loading, isClient, loadingRoles } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -90,7 +88,7 @@ const MainApplication: React.FC = () => {
                     </Link>
                   </li>
                 ))}
-                {!loadingClientCheck && isClient && (
+                {!loadingRoles && isClient && (
                   <li>
                     <Link
                       to="/meus-agendamentos"

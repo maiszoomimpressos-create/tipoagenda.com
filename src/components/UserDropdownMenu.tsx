@@ -13,9 +13,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsClient } from '@/hooks/useIsClient';
+import { useSession } from './SessionContextProvider'; // Use the unified session hook
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -26,17 +24,16 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
-  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
-  const { isClient, loadingClientCheck } = useIsClient();
+  
+  // Use the unified session hook to get roles
+  const { isAdmin, isProprietario, isClient, loadingRoles } = useSession();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
     } else {
-      // O redirecionamento para a Landing Page será tratado pelo SessionContextProvider
-      // showSuccess('Logout realizado com sucesso!'); // O SessionContextProvider já exibe este toast
+      // Redirection handled by SessionContextProvider
     }
   };
 
@@ -47,7 +44,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   
   // O usuário não tem função de gestão (pode ser cliente, ou um usuário novo sem empresa)
   const hasManagementRole = isProprietarioOrAdmin;
-  const isLoadingRoles = loadingProprietarioCheck || loadingAdminCheck;
+  const isLoadingRoles = loadingRoles;
 
   return (
     <DropdownMenu>
@@ -79,7 +76,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         )}
 
         {/* Link para Meus Agendamentos (Apenas Cliente Puro) */}
-        {!loadingClientCheck && isPureClient && (
+        {!isLoadingRoles && isPureClient && (
           <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
             <i className="fas fa-calendar-check mr-2"></i>
             Meus Agendamentos
@@ -95,7 +92,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         )}
 
         {/* Link para Configurações Admin (Apenas Admin) */}
-        {!loadingAdminCheck && isAdmin && (
+        {!isLoadingRoles && isAdmin && (
           <DropdownMenuItem onClick={() => navigate('/settings')}>
             <i className="fas fa-cog mr-2"></i>
             Configurações Admin
