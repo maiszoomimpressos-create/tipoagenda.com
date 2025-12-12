@@ -29,8 +29,11 @@ import ServiceFormPage from "./pages/ServiceFormPage";
 import EditClientPage from "./pages/EditClientPage";
 import CollaboratorFormPage from "./pages/CollaboratorFormPage";
 import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage";
-import EditAgendamentoPage from "./pages/EditAgendamentoPage"; // Import the new page
+import EditAgendamentoPage from "./pages/EditAgendamentoPage";
+import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
+import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import { useIsAdmin } from "./hooks/useIsAdmin";
+import { useIsClient } from "./hooks/useIsClient"; // Import new hook
 import ContractList from "./components/ContractList";
 
 const queryClient = new QueryClient();
@@ -64,6 +67,22 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
   return <>{children}</>;
 };
 
+const ClientProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isClient, loadingClientCheck } = useIsClient();
+  const { loading: sessionLoading } = useSession();
+
+  if (sessionLoading || loadingClientCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de cliente...</div>;
+  }
+
+  if (!isClient) {
+    // If not a client, redirect to a more appropriate page or login
+    return <Navigate to="/" replace />; // Or /login, or /dashboard if they are another role
+  }
+
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -83,10 +102,14 @@ const App = () => (
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               
+              {/* Rotas de Cliente (protegidas por ClientProtectedRoute) */}
+              <Route path="agendar" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
+              <Route path="meus-agendamentos" element={<ClientProtectedRoute><ClientAppointmentsPage /></ClientProtectedRoute>} />
+
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
-              <Route path="agendamentos/edit/:appointmentId" element={<ProtectedRoute><EditAgendamentoPage /></ProtectedRoute>} /> {/* Nova rota de edição */}
+              <Route path="agendamentos/edit/:appointmentId" element={<ProtectedRoute><EditAgendamentoPage /></ProtectedRoute>} />
               <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} />
               <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
               <Route path="servicos/edit/:serviceId" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />

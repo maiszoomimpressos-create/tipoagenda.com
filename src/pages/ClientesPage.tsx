@@ -49,10 +49,11 @@ const ClientesPage: React.FC = () => {
     }
 
     setLoadingClients(true);
+    // REMOVIDO: .eq('company_id', primaryCompanyId)
+    // Confiamos no RLS para filtrar apenas os clientes que o Proprietário/Admin pode ver
     const { data, error } = await supabase
       .from('clients')
       .select('id, name, phone, email, status, points') // Incluir email
-      .eq('company_id', primaryCompanyId)
       .order('name', { ascending: true });
 
     if (error) {
