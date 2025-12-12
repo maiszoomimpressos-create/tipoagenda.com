@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { Users, Building, DollarSign, FileText, Tags, LogOut } from 'lucide-react'; // Importando ícones Lucide
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key } from 'lucide-react'; // Importando ícones Lucide
 
 // Componente auxiliar para padronizar os cards de gerenciamento
 interface ManagementCardProps {
@@ -141,6 +141,15 @@ const AdminDashboard: React.FC = () => {
             buttonText="Gerenciar Segmentos"
             buttonColor="bg-pink-600 hover:bg-pink-700"
             onClick={() => navigate('/admin-dashboard/segments')}
+          />
+          
+          <ManagementCard
+            title="Chaves de Pagamento"
+            description="Configure as chaves de API e tokens secretos para o processamento de pagamentos."
+            icon={<Key className="h-6 w-6 text-orange-600" />}
+            buttonText="Gerenciar Chaves API"
+            buttonColor="bg-orange-600 hover:bg-orange-700"
+            onClick={() => navigate('/admin-dashboard/api-keys')}
           />
         </div>
       </div>

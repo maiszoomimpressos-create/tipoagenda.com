@@ -37,7 +37,8 @@ import IndexPage from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import PlanManagementPage from "./pages/PlanManagementPage";
 import ContractManagementPage from "./pages/ContractManagementPage";
-import SubscriptionPlansPage from "./pages/SubscriptionPlansPage"; // Import new page
+import SubscriptionPlansPage from "./pages/SubscriptionPlansPage";
+import ApiKeysPage from "./pages/ApiKeysPage"; // Import new page
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -122,11 +123,13 @@ const App = () => (
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de contratos e segmentos, agora aninhadas sob /admin-dashboard */}
             <Route path="/admin-dashboard/contracts" element={<GlobalAdminProtectedRoute><ContractManagementPage /></GlobalAdminProtectedRoute>} />
-            <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></ContractRegistrationPage>} />
             <Route path="/admin-dashboard/edit-contract/:contractId" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/segments" element={<GlobalAdminProtectedRoute><SegmentManagementPage /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de planos */}
             <Route path="/admin-dashboard/plans" element={<GlobalAdminProtectedRoute><PlanManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* Rotas de gerenciamento de chaves de API */}
+            <Route path="/admin-dashboard/api-keys" element={<GlobalAdminProtectedRoute><ApiKeysPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
@@ -158,7 +161,7 @@ const App = () => (
               <Route path="estoque/edit/:productId" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
-              <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} /> {/* Novo item de menu */}
+              <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
 
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
