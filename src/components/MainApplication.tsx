@@ -9,11 +9,17 @@ import { menuItems } from '@/lib/dashboard-utils';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { session, loading, isClient, loadingRoles } = useSession();
+  const { session, loading, isClient, isProprietario, isAdmin, loadingRoles } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos'].includes(location.pathname);
+  const hasManagementRole = isProprietario || isAdmin;
+  
+  // O menu lateral deve aparecer se:
+  // 1. O usuário tiver um papel de gestão (Proprietário ou Admin)
+  // 2. E não estiver nas rotas de autenticação/cadastro de empresa (que usam layout próprio)
+  const isAuthRoute = ['/login', '/signup', '/reset-password'].includes(location.pathname);
+  const isAppPath = hasManagementRole && !isAuthRoute;
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
