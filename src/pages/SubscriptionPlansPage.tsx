@@ -39,6 +39,7 @@ const SubscriptionPlansPage: React.FC = () => {
 
   const fetchSubscriptionData = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+      console.log('SubscriptionPlansPage: Waiting for session or primary company ID.');
       return;
     }
 
@@ -51,7 +52,11 @@ const SubscriptionPlansPage: React.FC = () => {
         .eq('status', 'active') // Only fetch active plans for subscription
         .order('price', { ascending: true });
 
-      if (plansError) throw plansError;
+      if (plansError) {
+        console.error('SubscriptionPlansPage: Error fetching plans:', plansError);
+        throw plansError;
+      }
+      console.log('SubscriptionPlansPage: Fetched plans count:', plansData.length);
       setAvailablePlans(plansData as Plan[]);
 
       // 2. Fetch current active subscription for the primary company
@@ -72,6 +77,7 @@ const SubscriptionPlansPage: React.FC = () => {
         .single();
 
       if (subError && subError.code !== 'PGRST116') { // PGRST116 is "No rows found"
+        console.error('SubscriptionPlansPage: Error fetching subscription:', subError);
         throw subError;
       }
       
@@ -166,6 +172,11 @@ const SubscriptionPlansPage: React.FC = () => {
       default: return null;
     }
   };
+
+  useEffect(() => {
+    fetchSubscriptionData();
+  }, [fetchSubscriptionData]);
+
 
   if (loadingData || sessionLoading || loadingPrimaryCompany) {
     return (
