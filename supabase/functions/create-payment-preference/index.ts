@@ -45,6 +45,8 @@ serve(async (req) => {
       console.error('MERCADOPAGO_ACCESS_TOKEN not set.');
       return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    
+    console.log('Mercado Pago Access Token found. Configuring MP SDK...');
 
     mercadopago.configure({
       access_token: MERCADOPAGO_ACCESS_TOKEN,
@@ -71,6 +73,8 @@ serve(async (req) => {
     };
 
     const mpResponse = await mercadopago.preferences.create(preference);
+    
+    console.log('Mercado Pago Preference created successfully.');
 
     return new Response(JSON.stringify({ 
       preferenceId: mpResponse.body.id,
@@ -81,9 +85,10 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    console.error('Edge Function Error (create-payment-preference):', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    console.error('Edge Function Error (create-payment-preference): Uncaught exception during MP call:', error.message);
+    // Retorna 400 se for um erro de requisição (ex: dados inválidos para MP)
+    return new Response(JSON.stringify({ error: 'Failed to create payment preference: ' + error.message }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
