@@ -7,8 +7,8 @@ import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
 import { useIsClient } from '@/hooks/useIsClient';
-import { useIsProprietario } from '@/hooks/useIsProprietario'; // Importar hook
-import { useIsAdmin } from '@/hooks/useIsAdmin'; // Importar hook
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -28,10 +28,10 @@ const MainApplication: React.FC = () => {
     navigate(path);
   };
 
-  // Adiciona o item de Configurações ao final da lista de menus se for Proprietário/Admin
+  // Adiciona o item de Configurações ao final da lista de menus SE FOR ADMIN
   const finalMenuItems = [...menuItems];
-  if (!loadingProprietarioCheck && !loadingAdminCheck && isProprietarioOrAdmin) {
-    finalMenuItems.push({ id: 'settings', label: 'Configurações', icon: 'fas fa-cog', path: '/settings' });
+  if (!loadingAdminCheck && isAdmin) { // CORRIGIDO: Apenas se for Admin
+    finalMenuItems.push({ id: 'settings', label: 'Configurações Admin', icon: 'fas fa-cog', path: '/settings' });
   }
 
 
