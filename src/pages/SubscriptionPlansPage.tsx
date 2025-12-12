@@ -7,8 +7,9 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Check, X, DollarSign, Clock, Zap } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Badge } from "@/components/ui/badge";
 
 interface Plan {
   id: string;
@@ -87,10 +88,7 @@ const SubscriptionPlansPage: React.FC = () => {
     fetchSubscriptionData();
   }, [fetchSubscriptionData]);
 
-  const handleSubscribe = async (planId: string, price: number) => {
-    // Implementar lógica de checkout/pagamento aqui.
-    // Por enquanto, simular a ativação de um plano gratuito ou teste.
-    
+  const handleSubscribe = async (plan: Plan) => {
     if (!primaryCompanyId || !session?.user) {
         showError('Erro de autenticação ou empresa primária não encontrada.');
         return;
@@ -101,20 +99,28 @@ const SubscriptionPlansPage: React.FC = () => {
         return;
     }
 
-    // Simulação de Inserção de Assinatura (Assumindo que o pagamento foi processado)
     setLoadingData(true);
     try {
-        const today = format(new Date(), 'yyyy-MM-dd');
+        const today = new Date();
+        const startDate = format(today, 'yyyy-MM-dd');
         
-        // Para planos de teste/grátis, definimos uma data de fim (ex: 30 dias)
-        // Para planos pagos, a data de fim seria definida após a confirmação do pagamento.
+        let endDate: string | null = null;
+        
+        // Se a duração for maior que 0, calcula a data de término
+        if (plan.duration_months > 0) {
+            const calculatedEndDate = addMonths(today, plan.duration_months);
+            endDate = format(calculatedEndDate, 'yyyy-MM-dd');
+        }
+        
+        // Simulação de Inserção de Assinatura (Assumindo que o pagamento foi processado)
+        // Em um sistema real, isso seria feito após a confirmação do gateway de pagamento.
         const { data, error } = await supabase
             .from('company_subscriptions')
             .insert({
                 company_id: primaryCompanyId,
-                plan_id: planId,
-                start_date: today,
-                end_date: null, // Assumindo que é um plano recorrente até ser cancelado
+                plan_id: plan.id,
+                start_date: startDate,
+                end_date: endDate, // Data de término calculada
                 status: 'active',
             })
             .select()
@@ -122,7 +128,7 @@ const SubscriptionPlansPage: React.FC = () => {
 
         if (error) throw error;
 
-        showSuccess('Assinatura ativada com sucesso! Bem-vindo ao plano.');
+        showSuccess(`Assinatura do plano ${plan.name} ativada com sucesso!`);
         fetchSubscriptionData(); // Refresh data
     } catch (error: any) {
         console.error('Erro ao assinar plano:', error);
@@ -186,7 +192,7 @@ const SubscriptionPlansPage: React.FC = () => {
               <p className="text-2xl font-bold text-yellow-600">{currentSubscription.subscription_plans.name}</p>
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
                 <p className="flex items-center gap-2"><Clock className="h-4 w-4" /> Início: {format(parseISO(currentSubscription.start_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
-                <p className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> Preço: R$ {currentSubscription.subscription_plans.price.toFixed(2).replace('.', ',')} / mês</p>
+                <p className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> Preço: R$ {currentSubscription.subscription_plans.price.toFixed(2).replace('.', ',')} / {currentSubscription.subscription_plans.duration_months} {currentSubscription.subscription_plans.duration_months > 1 ? 'meses' : 'mês'}</p>
                 {currentSubscription.end_date && (
                     <p className="flex items-center gap-2"><X className="h-4 w-4 text-red-500" /> Expira em: {format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
                 )}
@@ -235,7 +241,7 @@ const SubscriptionPlansPage: React.FC = () => {
                 </ul>
                 <Button
                   className={`!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base ${buttonClass}`}
-                  onClick={() => handleSubscribe(plan.id, plan.price)}
+                  onClick={() => handleSubscribe(plan)}
                   disabled={buttonDisabled}
                 >
                   {buttonText}
