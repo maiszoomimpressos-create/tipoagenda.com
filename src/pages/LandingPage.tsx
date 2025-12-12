@@ -8,6 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useIsProprietario } from '@/hooks/useIsProprietario'; // Import hook
+import { useIsAdmin } from '@/hooks/useIsAdmin'; // Import hook
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 
 interface Company {
@@ -24,11 +26,16 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario(); // Use hook
+  const { isAdmin, loadingAdminCheck } = useIsAdmin(); // Use hook
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
+
+  const hasManagementRole = isProprietario || isAdmin;
+  const isLoadingRoles = loadingClientCheck || loadingProprietarioCheck || loadingAdminCheck;
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -88,19 +95,23 @@ const LandingPage: React.FC = () => {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  // Logic to open the selection modal if the user is a client and just logged in without a target company
+  // Logic to redirect Admin/Proprietario to Dashboard
   useEffect(() => {
-    if (!sessionLoading && session && isClient && !loadingClientCheck) {
-      const targetCompanyId = getTargetCompanyId();
-      
-      // If the user is a client, is logged in, and there is NO target company ID set in storage, 
-      // it means they logged in directly via /login or /signup and need to select a company.
-      if (!targetCompanyId) {
-        setIsSelectionModalOpen(true);
+    if (!sessionLoading && session && !isLoadingRoles) {
+      if (hasManagementRole) {
+        navigate('/dashboard', { replace: true });
+        return;
       }
-      // Note: If targetCompanyId IS set, the SessionContextProvider already redirected them to /agendar.
+      
+      // Logic to open the selection modal if the user is a client and just logged in without a target company
+      if (isClient) {
+        const targetCompanyId = getTargetCompanyId();
+        if (!targetCompanyId) {
+          setIsSelectionModalOpen(true);
+        }
+      }
     }
-  }, [session, sessionLoading, isClient, loadingClientCheck]);
+  }, [session, sessionLoading, isLoadingRoles, hasManagementRole, isClient, navigate]);
 
 
   const filteredCompanies = companies.filter(company => {
@@ -126,6 +137,15 @@ const LandingPage: React.FC = () => {
       navigate('/login');
     }
   };
+
+  // If roles are loading or user is a manager, show loading state briefly before redirect
+  if (sessionLoading || isLoadingRoles) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-700">Verificando permissões...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -341,7 +361,7 @@ const LandingPage: React.FC = () => {
       </section>
       
       {/* Company Selection Modal */}
-      {session && isClient && !loadingClientCheck && (
+      {session && isClient && !isLoadingRoles && (
         <CompanySelectionModal 
           isOpen={isSelectionModalOpen} 
           onClose={() => setIsSelectionModalOpen(false)} 

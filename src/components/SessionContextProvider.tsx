@@ -4,6 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { showSuccess, showError } from '@/utils/toast';
 import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
+import { useIsClient } from '@/hooks/useIsClient'; // Import useIsClient
+import { useIsProprietario } from '@/hooks/useIsProprietario'; // Import useIsProprietario
+import { useIsAdmin } from '@/hooks/useIsAdmin'; // Import useIsAdmin
 
 interface SessionContextType {
   session: Session | null;
@@ -16,6 +19,14 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  
+  // Use hooks inside the provider to check roles
+  const { isClient, loadingClientCheck } = useIsClient();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+
+  const isLoadingRoles = loadingClientCheck || loadingProprietarioCheck || loadingAdminCheck;
+  const hasManagementRole = isProprietario || isAdmin;
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -27,40 +38,24 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (event === 'SIGNED_IN' && currentSession) {
           showSuccess('Login realizado com sucesso!');
           
+          // Wait for roles to load before deciding redirection
+          // Note: The actual redirection logic based on roles is complex to handle perfectly inside onAuthStateChange
+          // because the hooks might not have finished fetching the RPC data yet.
+          // We rely on the subsequent render cycle (where the hooks finish loading) 
+          // or manual navigation if a target company is set.
+          
           const targetCompanyId = getTargetCompanyId();
           
           if (targetCompanyId) {
-            // Check if the user is a client (by checking type_user table)
-            const { data: typeData, error: typeError } = await supabase
-              .from('type_user')
-              .select('cod')
-              .eq('user_id', currentSession.user.id)
-              .single();
-
-            if (typeError && typeError.code !== 'PGRST116') {
-              console.error('Error checking user type for redirection:', typeError);
-              showError('Erro ao verificar seu tipo de usuário.');
-              navigate('/', { replace: true });
-              return;
-            }
-
-            if (typeData?.cod === 'CLIENTE') {
-              // If they are a client AND they clicked a company card, redirect to the client appointment page
-              // The ClientAppointmentForm will pick up the targetCompanyId from localStorage
-              navigate('/agendar', { replace: true });
-              // Note: We clear the ID inside the ClientAppointmentForm/Page logic 
-              // once the company context is established, to handle cases where the client might navigate away.
-              return;
-            } else {
-              // If they are signed in but are not a client (e.g., Proprietario/Admin), clear the target ID
-              // and redirect to the default dashboard.
-              clearTargetCompanyId();
-              navigate('/dashboard', { replace: true });
-              return;
-            }
+            // If a target company was selected (usually by a client on the landing page)
+            // We rely on the ClientProtectedRoute or the next render cycle to handle the final destination.
+            // For now, we redirect to /agendar, and the ClientAppointmentForm handles the client context check.
+            navigate('/agendar', { replace: true });
+            return;
           }
           
-          // Default redirection if no target company ID is set
+          // Default redirection: if no target company, go to the root. 
+          // The root page (LandingPage) will handle the next step (show modal or redirect to dashboard).
           navigate('/', { replace: true }); 
 
         } else if (event === 'SIGNED_OUT') {
@@ -86,7 +81,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate]); // Removed role hooks from dependency array to prevent infinite loops
 
   return (
     <SessionContext.Provider value={{ session, loading }}>
