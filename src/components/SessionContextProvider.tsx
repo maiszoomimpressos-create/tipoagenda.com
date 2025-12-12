@@ -30,6 +30,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
   const fetchUserRoles = useCallback(async (userId: string) => {
     setLoadingRoles(true);
+    
+    // Declaring variables here to ensure they are accessible in the finally block
     let clientStatus = false;
     let proprietorStatus = false;
     let adminStatus = false;
@@ -57,6 +59,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       console.error('Error fetching user roles:', error);
       // Roles remain false if error occurs
     } finally {
+      // These variables are now correctly defined in the function scope
       setIsClient(clientStatus);
       setIsProprietario(proprietarioStatus);
       setIsAdmin(adminStatus);
