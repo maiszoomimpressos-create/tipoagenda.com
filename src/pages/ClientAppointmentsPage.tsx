@@ -20,7 +20,7 @@ interface Appointment {
   total_duration_minutes: number;
   status: string;
   client_nickname: string | null;
-  clients: { name: string } | null;
+  // clients: { name: string } | null; // REMOVIDO: Causa recursão
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
   companies: { name: string } | null; // Adicionar para exibir o nome da empresa
@@ -34,7 +34,7 @@ const ClientAppointmentsPage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
   const [cancellingAppointment, setCancellingAppointment] = useState(false);
-  const [clientProfileFound, setClientProfileFound] = useState(false);
+  const [clientContext, setClientContext] = useState<{ clientId: string; clientName: string } | null>(null); // Novo estado para armazenar o contexto do cliente
 
   const createClientProfileIfMissing = useCallback(async (userId: string) => {
     let clientId: string = '';
@@ -54,7 +54,6 @@ const ClientAppointmentsPage: React.FC = () => {
     if (existingClient) {
       clientId = existingClient.id;
       clientName = existingClient.name;
-      setClientProfileFound(true); // Indicate that a client profile exists
     } else {
       // 2. If client record was not found, create it
       const { data: profileData, error: profileError } = await supabase
@@ -92,7 +91,6 @@ const ClientAppointmentsPage: React.FC = () => {
       if (insertError) throw insertError;
       clientId = newClient.id;
       clientName = name;
-      setClientProfileFound(true);
     }
 
     return { clientId, clientName };
@@ -110,6 +108,7 @@ const ClientAppointmentsPage: React.FC = () => {
       // 1. Get the client's profile data (or create it if missing)
       const clientData = await createClientProfileIfMissing(session.user.id);
       const clientId = clientData.clientId;
+      setClientContext(clientData); // Armazena o contexto do cliente
 
       // 2. Fetch all appointments for this client across all companies
       const { data, error } = await supabase
@@ -122,7 +121,6 @@ const ClientAppointmentsPage: React.FC = () => {
           total_duration_minutes,
           status,
           client_nickname,
-          clients(name),
           collaborators(first_name, last_name),
           appointment_services(
             services(name)
@@ -206,8 +204,7 @@ const ClientAppointmentsPage: React.FC = () => {
     );
   }
   
-  // Removed the conditional rendering for "Você ainda não está associado a uma empresa."
-  // Now, if appointments.length === 0, it means no appointments were found, which is the correct state.
+  const clientName = clientContext?.clientName || 'Cliente';
 
   return (
     <div className="space-y-6">
@@ -227,7 +224,6 @@ const ClientAppointmentsPage: React.FC = () => {
           <p className="text-gray-600">Você não possui agendamentos. Clique em "Novo Agendamento" para começar!</p>
         ) : (
           appointments.map((agendamento) => {
-            const clientName = agendamento.clients?.name || 'Cliente Desconhecido';
             const collaboratorName = agendamento.collaborators ? `${agendamento.collaborators.first_name} ${agendamento.collaborators.last_name}` : 'Colaborador Desconhecido';
             const serviceNames = agendamento.appointment_services
               .map(as => as.services?.name)
@@ -257,7 +253,7 @@ const ClientAppointmentsPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex flex-col items-end w-1/4">
-                      <p className="font-semibold text-gray-900">{formattedDate}</p>
+                      <p className="font-semibold text-gray-900">{formattedDate}</p> {/* Display date here */}
                       <p className="font-semibold text-gray-900">{formattedTimeRange}</p>
                       <p className="text-sm text-gray-600">{collaboratorName}</p>
                     </div>
