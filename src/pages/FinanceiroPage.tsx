@@ -34,9 +34,9 @@ const FinanceiroPage: React.FC = () => {
 
     setLoadingTransactions(true);
     try {
-      // Fetch all transactions for the primary company
+      // Fetch all transactions for the primary company from cash_movements
       const { data, error } = await supabase
-        .from('caixa_movimentacoes')
+        .from('cash_movements')
         .select('*')
         .eq('company_id', primaryCompanyId)
         .order('transaction_date', { ascending: false });

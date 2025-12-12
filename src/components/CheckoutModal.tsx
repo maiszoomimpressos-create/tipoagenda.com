@@ -203,9 +203,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       if (appUpdateError) throw appUpdateError;
 
-      // 2. Insert Transaction into caixa_movimentacoes
+      // 2. Insert Transaction into cash_movements (antiga caixa_movimentacoes)
       const { data: transactionData, error: transactionError } = await supabase
-        .from('caixa_movimentacoes')
+        .from('cash_movements')
         .insert({
           company_id: companyId,
           appointment_id: appointmentId,
@@ -221,7 +221,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (transactionError) throw transactionError;
       const transactionId = transactionData.id;
 
-      // 3. Insert Products Sold into transacao_produtos and update inventory
+      // 3. Insert Products Sold into transaction_products (antiga transacao_produtos) and update inventory
       if (productsSold.length > 0) {
         const transactionProductsToInsert = productsSold.map(p => ({
           transaction_id: transactionId,
@@ -231,7 +231,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }));
 
         const { error: prodInsertError } = await supabase
-          .from('transacao_produtos')
+          .from('transaction_products')
           .insert(transactionProductsToInsert);
 
         if (prodInsertError) throw prodInsertError;
