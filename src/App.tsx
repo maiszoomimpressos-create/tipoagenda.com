@@ -1,3 +1,4 @@
+import React from 'react'; // Adicionando importação explícita do React
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -123,7 +124,7 @@ const App = () => (
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de contratos e segmentos, agora aninhadas sob /admin-dashboard */}
             <Route path="/admin-dashboard/contracts" element={<GlobalAdminProtectedRoute><ContractManagementPage /></GlobalAdminProtectedRoute>} />
-            <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></ContractRegistrationPage>} />
+            <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/edit-contract/:contractId" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/segments" element={<GlobalAdminProtectedRoute><SegmentManagementPage /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de planos */}
