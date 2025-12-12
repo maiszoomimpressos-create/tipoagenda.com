@@ -30,37 +30,15 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           const targetCompanyId = getTargetCompanyId();
           
           if (targetCompanyId) {
-            // Check if the user is a client (by checking type_user table)
-            const { data: typeData, error: typeError } = await supabase
-              .from('type_user')
-              .select('cod')
-              .eq('user_id', currentSession.user.id)
-              .single();
-
-            if (typeError && typeError.code !== 'PGRST116') {
-              console.error('Error checking user type for redirection:', typeError);
-              showError('Erro ao verificar seu tipo de usuário.');
-              navigate('/', { replace: true });
-              return;
-            }
-
-            if (typeData?.cod === 'CLIENTE') {
-              // If they are a client AND they clicked a company card, redirect to the client appointment page
-              // The ClientAppointmentForm will pick up the targetCompanyId from localStorage
-              navigate('/agendar', { replace: true });
-              // Note: We clear the ID inside the ClientAppointmentForm/Page logic 
-              // once the company context is established, to handle cases where the client might navigate away.
-              return;
-            } else {
-              // If they are signed in but are not a client (e.g., Proprietario/Admin), clear the target ID
-              // and redirect to the default dashboard.
-              clearTargetCompanyId();
-              navigate('/dashboard', { replace: true });
-              return;
-            }
+            // If a target company is set, assume the user is trying to book an appointment
+            // and redirect them to the client appointment page.
+            // The ClientAppointmentForm will handle clearing the targetCompanyId.
+            navigate('/agendar', { replace: true });
+            return;
           }
           
-          // Default redirection if no target company ID is set
+          // If no targetCompanyId, redirect to the root.
+          // The IndexPage will then handle the role-based redirection.
           navigate('/', { replace: true }); 
 
         } else if (event === 'SIGNED_OUT') {

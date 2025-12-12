@@ -1,3 +1,4 @@
+import React from 'react'; // Adicionando importação explícita do React
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -21,7 +22,7 @@ import FidelidadePage from "./pages/FidelidadePage";
 import NovoAgendamentoPage from "./pages/NovoAgendamentoPage";
 import NovoClientePage from "./pages/NovoClientePage";
 import FecharCaixaPage from "./pages/FecharCaixaPage";
-import SettingsPage from "./pages/SettingsPage";
+// import SettingsPage from "./pages/SettingsPage"; // Removed
 import ContractRegistrationPage from "./pages/ContractRegistrationPage";
 import SegmentManagementPage from "./pages/SegmentManagementPage";
 import ServicesPage from "./pages/ServicesPage";
@@ -30,10 +31,18 @@ import EditClientPage from "./pages/EditClientPage";
 import CollaboratorFormPage from "./pages/CollaboratorFormPage";
 import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage";
 import EditAgendamentoPage from "./pages/EditAgendamentoPage";
-import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
-import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
-import { useIsAdmin } from "./hooks/useIsAdmin";
-import { useIsClient } from "./hooks/useIsClient"; // Import new hook
+import ClientAppointmentPage from "./pages/ClientAppointmentPage";
+import ClientAppointmentsPage from "./pages/ClientAppointmentsPage";
+import ProductFormPage from "./pages/ProductFormPage";
+import IndexPage from "./pages/Index";
+import AdminDashboard from "./pages/AdminDashboard";
+import PlanManagementPage from "./pages/PlanManagementPage";
+import ContractManagementPage from "./pages/ContractManagementPage";
+import SubscriptionPlansPage from "./pages/SubscriptionPlansPage";
+import ApiKeysPage from "./pages/ApiKeysPage"; // Import new page
+import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
+import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
+import { useIsClient } from "./hooks/useIsClient";
 import ContractList from "./components/ContractList";
 
 const queryClient = new QueryClient();
@@ -52,15 +61,30 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+const GlobalAdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingAdminCheck) {
-    return <div className="min-h-screen flex items-center justify-center">Verificando permissões...</div>;
+  if (sessionLoading || loadingGlobalAdminCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de administrador global...</div>;
   }
 
-  if (!isAdmin) {
+  if (!isGlobalAdmin) {
+    return <Navigate to="/" replace />; // Redirect to root if not global admin
+  }
+
+  return <>{children}</>;
+};
+
+const CompanyAdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { loading: sessionLoading } = useSession();
+
+  if (sessionLoading || loadingCompanyAdminCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de administrador da empresa...</div>;
+  }
+
+  if (!isCompanyAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -96,9 +120,22 @@ const App = () => (
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
 
+            {/* Rota do Admin Global (sem layout MainApplication) */}
+            <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
+            {/* Rotas de gerenciamento de contratos e segmentos, agora aninhadas sob /admin-dashboard */}
+            <Route path="/admin-dashboard/contracts" element={<GlobalAdminProtectedRoute><ContractManagementPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/edit-contract/:contractId" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/segments" element={<GlobalAdminProtectedRoute><SegmentManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* Rotas de gerenciamento de planos */}
+            <Route path="/admin-dashboard/plans" element={<GlobalAdminProtectedRoute><PlanManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* Rotas de gerenciamento de chaves de API */}
+            <Route path="/admin-dashboard/api-keys" element={<GlobalAdminProtectedRoute><ApiKeysPage /></GlobalAdminProtectedRoute>} />
+
+
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
-              <Route index element={<LandingPage />} />
+              <Route index element={<IndexPage />} />
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               
@@ -121,19 +158,18 @@ const App = () => (
               <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
+              <Route path="estoque/new" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
+              <Route path="estoque/edit/:productId" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
+              <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
 
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
 
-              {/* Rotas de Administrador (protegidas por AdminProtectedRoute) */}
-              <Route path="settings" element={<AdminProtectedRoute><SettingsPage /></AdminProtectedRoute>} />
-              <Route path="settings/new-contract" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
-              <Route path="settings/edit-contract/:contractId" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
-              <Route path="settings/segments" element={<AdminProtectedRoute><SegmentManagementPage /></AdminProtectedRoute>} />
+              {/* A rota /settings não existe mais, suas funcionalidades foram movidas */}
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -7,19 +7,35 @@ import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { session, loading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos'].includes(location.pathname);
+  const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
+  
+  // Define se estamos em uma rota de aplicação que deve ter sidebar
+  // A sidebar deve aparecer apenas para Proprietários ou Admins de Empresa
+  const isAppPath = isProprietarioOrCompanyAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard', '/admin-dashboard/new-contract', '/admin-dashboard/edit-contract', '/admin-dashboard/segments'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
   };
+
+  // Adiciona o item de Configurações ao final da lista de menus SE FOR ADMIN
+  const finalMenuItems = [...menuItems];
+  // O item de Configurações Globais agora está no DropdownMenu do UserDropdownMenu e no AdminDashboard
+  // Não é mais um item do sidebar do MainApplication.
+  // A sidebar do MainApplication é para Proprietários/Admins de Empresa.
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -73,7 +89,7 @@ const MainApplication: React.FC = () => {
           } min-h-full`}>
             <nav className="p-4">
               <ul className="space-y-2">
-                {menuItems.map((item) => (
+                {finalMenuItems.map((item) => (
                   <li key={item.id}>
                     <Link
                       to={item.path}
