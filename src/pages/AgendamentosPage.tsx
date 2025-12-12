@@ -24,7 +24,7 @@ interface Appointment {
   status: string;
   client_nickname: string | null; // Adicionado o novo campo
   client_id: string; // Adicionado para referência
-  clients: { name: string } | null; // Mantido para tipagem, mas será null na prática
+  clients: { name: string } | null; // Adicionado para buscar o nome do cliente
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
 }
@@ -68,6 +68,7 @@ const AgendamentosPage: React.FC = () => {
           status,
           client_id,
           client_nickname,
+          clients(name),
           collaborators(first_name, last_name),
           appointment_services(
             services(name)
@@ -215,8 +216,10 @@ const AgendamentosPage: React.FC = () => {
           <p className="text-gray-600">Nenhum agendamento encontrado para {selectedTab === 'dia' ? 'o dia selecionado' : selectedTab === 'semana' ? 'a semana selecionada' : 'o mês selecionado'}.</p>
         ) : (
           appointments.map((agendamento) => {
-            // Usamos client_nickname como nome principal, e se não houver, usamos 'Cliente ID: XXXXX'
-            const clientDisplay = agendamento.client_nickname || `Cliente ID: ${agendamento.client_id.substring(0, 8)}...`;
+            // Prioriza client_nickname, depois clients.name, e por último o ID truncado
+            const clientNameFromClientsTable = agendamento.clients?.name;
+            const clientDisplay = agendamento.client_nickname || clientNameFromClientsTable || `Cliente ID: ${agendamento.client_id.substring(0, 8)}...`;
+            
             const collaboratorName = agendamento.collaborators ? `${agendamento.collaborators.first_name} ${agendamento.collaborators.last_name}` : 'Colaborador Desconhecido';
             const serviceNames = agendamento.appointment_services
               .map(as => as.services?.name)
