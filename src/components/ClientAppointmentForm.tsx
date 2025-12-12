@@ -264,11 +264,14 @@ const ClientAppointmentForm: React.FC = () => {
 
     try {
       const startTimeForDb = data.appointmentTime.split(' ')[0];
+      
+      // Extract only the first name from the full client name
+      const clientFirstName = clientContext.clientName.split(' ')[0];
 
       const response = await supabase.functions.invoke('book-appointment', {
         body: JSON.stringify({
           clientId: clientContext.clientId,
-          clientNickname: clientContext.clientName, // <-- Garantindo que o nome do cliente seja enviado
+          clientNickname: clientFirstName, // <-- Usando apenas o primeiro nome
           collaboratorId: data.collaboratorId,
           serviceIds: data.serviceIds,
           appointmentDate: data.appointmentDate,
