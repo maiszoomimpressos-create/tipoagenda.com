@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
-import { setTargetCompanyId } from '@/utils/storage';
+import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
+import { useSession } from '@/components/SessionContextProvider';
+import { useIsClient } from '@/hooks/useIsClient';
+import CompanySelectionModal from '@/components/CompanySelectionModal';
 
 interface Company {
   id: string;
@@ -19,10 +22,13 @@ interface Company {
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { session, loading: sessionLoading } = useSession();
+  const { isClient, loadingClientCheck } = useIsClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -49,21 +55,16 @@ const LandingPage: React.FC = () => {
           image_url,
           services(price, duration_minutes)
         `)
-        .eq('ativo', true) // FILTRO ADICIONADO: Apenas empresas ativas
+        .eq('ativo', true)
         .order('name', { ascending: true });
 
       if (error) throw error;
 
       const processedCompanies: Company[] = companiesData.map(company => {
-        // Calcular preço mínimo e rating médio (simulado)
         const prices = company.services.map(s => s.price);
         const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-        
-        // Simulação de rating (já que não temos a tabela de avaliações)
         const avgRating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1);
 
-        // Mapear segment_type (ID) para uma categoria de exibição (simulada)
-        
         return {
           id: company.id,
           name: company.name,
@@ -87,27 +88,43 @@ const LandingPage: React.FC = () => {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  // A filtragem por categoria e busca agora é feita localmente
+  // Logic to open the selection modal if the user is a client and just logged in without a target company
+  useEffect(() => {
+    if (!sessionLoading && session && isClient && !loadingClientCheck) {
+      const targetCompanyId = getTargetCompanyId();
+      
+      // If the user is a client, is logged in, and there is NO target company ID set in storage, 
+      // it means they logged in directly via /login or /signup and need to select a company.
+      if (!targetCompanyId) {
+        setIsSelectionModalOpen(true);
+      }
+      // Note: If targetCompanyId IS set, the SessionContextProvider already redirected them to /agendar.
+    }
+  }, [session, sessionLoading, isClient, loadingClientCheck]);
+
+
   const filteredCompanies = companies.filter(company => {
-    // Por enquanto, vamos focar apenas na busca por nome.
     const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Para manter a funcionalidade de busca:
     return matchesSearch;
   });
 
-  // Função para obter a URL da imagem, usando placeholder se não houver
   const getImageUrl = (company: Company) => {
     if (company.image_url) {
       return company.image_url;
     }
-    // Usar um placeholder baseado no nome da empresa
     return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
   };
 
   const handleBookAppointment = (companyId: string) => {
     setTargetCompanyId(companyId);
-    navigate('/login');
+    
+    if (session && isClient) {
+      // If already logged in as a client, redirect directly to booking page
+      navigate('/agendar');
+    } else {
+      // If not logged in, redirect to login (SessionContextProvider handles redirection to /agendar after login)
+      navigate('/login');
+    }
   };
 
   return (
@@ -311,17 +328,25 @@ const LandingPage: React.FC = () => {
             Junte-se a milhares de usuários que já descobriram a forma mais fácil de agendar serviços
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black">
+            <Button className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black" onClick={() => navigate('/signup')}>
               <i className="fas fa-user-plus mr-2"></i>
               Cadastrar-se Grátis
             </Button>
-            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900">
+            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" onClick={() => navigate('/register-company')}>
               <i className="fas fa-store mr-2"></i>
               Sou Profissional
             </Button>
           </div>
         </div>
       </section>
+      
+      {/* Company Selection Modal */}
+      {session && isClient && !loadingClientCheck && (
+        <CompanySelectionModal 
+          isOpen={isSelectionModalOpen} 
+          onClose={() => setIsSelectionModalOpen(false)} 
+        />
+      )}
     </div>
   );
 };
