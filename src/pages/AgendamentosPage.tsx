@@ -24,7 +24,7 @@ interface Appointment {
   status: string;
   client_nickname: string | null; // Adicionado o novo campo
   client_id: string; // Adicionado para referência
-  clients: { name: string } | null; // Adicionado para buscar o nome do cliente
+  clients: { name: string, client_auth_id: string | null } | null; // Adicionado client_auth_id
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
 }
@@ -68,7 +68,7 @@ const AgendamentosPage: React.FC = () => {
           status,
           client_id,
           client_nickname,
-          clients(name),
+          clients(name, client_auth_id),
           collaborators(first_name, last_name),
           appointment_services(
             services(name)
@@ -107,7 +107,36 @@ const AgendamentosPage: React.FC = () => {
         throw error;
       }
 
-      setAppointments(data as Appointment[]);
+      // Process data to ensure client name is available even if RLS on clients table fails for auto-registered clients
+      const processedAppointments: Appointment[] = await Promise.all(data.map(async (agendamento: any) => {
+        let clientNameFromClientsTable = agendamento.clients?.name;
+        let clientNickname = agendamento.client_nickname;
+        
+        // Fallback logic: If nickname is missing AND clients.name is missing, try to fetch from profiles
+        if (!clientNickname && !clientNameFromClientsTable && agendamento.clients?.client_auth_id) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', agendamento.clients.client_auth_id)
+            .single();
+
+          if (!profileError && profileData) {
+            clientNameFromClientsTable = `${profileData.first_name} ${profileData.last_name}`;
+          }
+        }
+
+        // Update the object for display
+        return {
+          ...agendamento,
+          client_nickname: clientNickname,
+          clients: {
+            ...agendamento.clients,
+            name: clientNameFromClientsTable,
+          },
+        } as Appointment;
+      }));
+
+      setAppointments(processedAppointments);
     } catch (error: any) {
       console.error('Erro ao carregar agendamentos:', error);
       showError('Erro ao carregar agendamentos: ' + error.message);
