@@ -95,6 +95,8 @@ const SignupForm: React.FC = () => {
               });
 
             if (clientInsertError) {
+              // Log the specific error code and message for debugging
+              console.error("Erro ao inserir cliente na tabela clients:", clientInsertError);
               throw clientInsertError;
             }
 
@@ -106,6 +108,8 @@ const SignupForm: React.FC = () => {
             });
 
             if (assignRoleError) {
+              // Log the specific error code and message for debugging
+              console.error("Erro ao associar cliente à empresa (user_companies):", assignRoleError);
               throw assignRoleError;
             }
 
