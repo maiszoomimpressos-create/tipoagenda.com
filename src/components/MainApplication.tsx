@@ -6,6 +6,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
+import PermissionDebug from './PermissionDebug'; // Importar componente de debug
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -113,6 +114,7 @@ const MainApplication: React.FC = () => {
                 )}
               </ul>
             </nav>
+            <PermissionDebug /> {/* Adicionado para depuração */}
           </aside>
         )}
         <main className="flex-1 p-6">
