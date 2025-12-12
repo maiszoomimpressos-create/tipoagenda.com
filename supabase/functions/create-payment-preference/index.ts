@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import { MercadoPagoConfig, Preference } from 'https://esm.sh/mercadopago@2.0.10'; // Importação atualizada
+import mercadopago from 'https://esm.sh/mercadopago@1.5.17'; // Downgrade para 1.5.17
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,11 +46,12 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    console.log('Mercado Pago Access Token found. Initializing MP SDK...');
+    console.log('Mercado Pago Access Token found. Configuring MP SDK (v1.x)...');
 
-    // Nova forma de configurar o Mercado Pago
-    const client = new MercadoPagoConfig({ accessToken: MERCADOPAGO_ACCESS_TOKEN });
-    const preference = new Preference(client);
+    // Usando a API da versão 1.x
+    mercadopago.configure({
+      access_token: MERCADOPAGO_ACCESS_TOKEN,
+    });
 
     const preferenceBody = {
       items: [
@@ -71,13 +72,13 @@ serve(async (req) => {
       notification_url: `${SUPABASE_URL}/functions/v1/mercadopago-webhook`,
     };
 
-    const mpResponse = await preference.create({ body: preferenceBody }); // Usando a instância de Preference
+    const mpResponse = await mercadopago.preferences.create(preferenceBody);
     
     console.log('Mercado Pago Preference created successfully.');
 
     return new Response(JSON.stringify({ 
-      preferenceId: mpResponse.id, // mpResponse.body.id mudou para mpResponse.id
-      initPoint: mpResponse.init_point, // mpResponse.body.init_point mudou para mpResponse.init_point
+      preferenceId: mpResponse.body.id, // Acessando .body.id para v1.x
+      initPoint: mpResponse.body.init_point, // Acessando .body.init_point para v1.x
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

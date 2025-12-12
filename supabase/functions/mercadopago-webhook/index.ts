@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import { MercadoPagoConfig, Payment } from 'https://esm.sh/mercadopago@2.0.10'; // Importação atualizada
+import mercadopago from 'https://esm.sh/mercadopago@1.5.17'; // Downgrade para 1.5.17
 import { format, addMonths, parseISO } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
@@ -22,9 +22,10 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Nova forma de configurar o Mercado Pago
-  const client = new MercadoPagoConfig({ accessToken: MERCADOPAGO_ACCESS_TOKEN });
-  const paymentClient = new Payment(client);
+  // Usando a API da versão 1.x
+  mercadopago.configure({
+    access_token: MERCADOPAGO_ACCESS_TOKEN,
+  });
 
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
@@ -37,21 +38,19 @@ serve(async (req) => {
     console.log('Webhook Received:', { type, data });
 
     if (type !== 'payment' || !data || !data.id) {
-      // Acknowledge receipt of non-payment notification types
       return new Response(JSON.stringify({ received: true, message: 'Non-payment notification type received or missing data ID.' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
     const paymentId = data.id;
 
-    // 1. Fetch Payment Details from Mercado Pago
-    const paymentResponse = await paymentClient.get({ id: paymentId }); // Usando a instância de Payment
-    const payment = paymentResponse; // A resposta já é o objeto de pagamento diretamente
+    // 1. Fetch Payment Details from Mercado Pago (usando a API v1.x)
+    const paymentResponse = await mercadopago.payment.get(paymentId);
+    const payment = paymentResponse.body; // Acessando .body para v1.x
 
     console.log('Payment Status:', payment.status);
     console.log('External Reference:', payment.external_reference);
 
     if (payment.status !== 'approved') {
-      // Only process approved payments
       return new Response(JSON.stringify({ received: true, message: `Payment status is ${payment.status}, not approved.` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
