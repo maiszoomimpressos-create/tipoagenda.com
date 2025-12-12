@@ -8,21 +8,24 @@ import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
 import { useIsClient } from '@/hooks/useIsClient';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin'; // Updated import
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin'; // New hook
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { session, loading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin(); // Updated hook
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin(); // New hook
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isProprietarioOrAdmin = isProprietario || isAdmin;
+  const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
   
   // Define se estamos em uma rota de aplicação que deve ter sidebar
-  const isAppPath = isProprietarioOrAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos'].includes(location.pathname);
+  // A sidebar deve aparecer apenas para Proprietários ou Admins de Empresa
+  const isAppPath = isProprietarioOrCompanyAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
@@ -30,8 +33,8 @@ const MainApplication: React.FC = () => {
 
   // Adiciona o item de Configurações ao final da lista de menus SE FOR ADMIN
   const finalMenuItems = [...menuItems];
-  if (!loadingAdminCheck && isAdmin) { // CORRIGIDO: Apenas se for Admin
-    finalMenuItems.push({ id: 'settings', label: 'Configurações Admin', icon: 'fas fa-cog', path: '/settings' });
+  if (!loadingProprietarioCheck && isProprietarioOrCompanyAdmin) { // Configurações da Empresa para Proprietário/Admin da Empresa
+    finalMenuItems.push({ id: 'settings', label: 'Configurações da Empresa', icon: 'fas fa-cog', path: '/settings' });
   }
 
 

@@ -13,9 +13,10 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin'; // Updated import
 import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsClient } from '@/hooks/useIsClient'; // Import the new hook
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin'; // New hook
+import { useIsClient } from '@/hooks/useIsClient'; // Use the new hook
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -26,8 +27,9 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin(); // Updated hook
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin(); // New hook
   const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
 
   const handleLogout = async () => {
@@ -40,10 +42,11 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
     }
   };
 
-  const isProprietarioOrAdmin = isProprietario || isAdmin;
+  const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
+  const isAnyAdminRole = isGlobalAdmin || isProprietarioOrCompanyAdmin;
   
-  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin)
-  const isPureClient = isClient && !isProprietarioOrAdmin;
+  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin/GlobalAdmin)
+  const isPureClient = isClient && !isAnyAdminRole;
 
   return (
     <DropdownMenu>
@@ -66,8 +69,16 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           Meu Perfil
         </DropdownMenuItem>
         
-        {/* Link para Dashboard (Proprietário/Admin) */}
-        {!loadingProprietarioCheck && !loadingAdminCheck && isProprietarioOrAdmin && (
+        {/* Link para Dashboard Admin Global (Apenas Admin Global) */}
+        {!loadingGlobalAdminCheck && isGlobalAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>
+            <i className="fas fa-user-shield mr-2"></i> {/* Ícone para Admin Global */}
+            Dashboard Admin Global
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Dashboard (Proprietário/Admin da Empresa) */}
+        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && isProprietarioOrCompanyAdmin && (
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <i className="fas fa-chart-line mr-2"></i>
             Dashboard
@@ -82,19 +93,19 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           </DropdownMenuItem>
         )}
 
-        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin) */}
-        {!loadingProprietarioCheck && !loadingAdminCheck && !isProprietarioOrAdmin && (
+        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin da Empresa E NÃO for Admin Global) */}
+        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && !loadingGlobalAdminCheck && !isAnyAdminRole && (
           <DropdownMenuItem onClick={() => navigate('/register-company')}>
             <i className="fas fa-building mr-2"></i>
             Cadast. Empresa
           </DropdownMenuItem>
         )}
 
-        {/* Link para Configurações Admin (Apenas Admin) */}
-        {!loadingAdminCheck && isAdmin && (
+        {/* Link para Configurações da Empresa (Apenas Proprietário/Admin da Empresa) */}
+        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && isProprietarioOrCompanyAdmin && (
           <DropdownMenuItem onClick={() => navigate('/settings')}>
             <i className="fas fa-cog mr-2"></i>
-            Configurações Admin
+            Configurações da Empresa
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

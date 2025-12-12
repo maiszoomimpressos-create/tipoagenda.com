@@ -34,7 +34,8 @@ import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
 import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
 import IndexPage from "./pages/Index"; // Import the new IndexPage
-import { useIsAdmin } from "./hooks/useIsAdmin";
+import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin"; // Updated import
+import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin"; // New hook
 import { useIsClient } from "./hooks/useIsClient"; // Import new hook
 import ContractList from "./components/ContractList";
 
@@ -54,15 +55,30 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+const GlobalAdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingAdminCheck) {
-    return <div className="min-h-screen flex items-center justify-center">Verificando permissões...</div>;
+  if (sessionLoading || loadingGlobalAdminCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de administrador global...</div>;
   }
 
-  if (!isAdmin) {
+  if (!isGlobalAdmin) {
+    return <Navigate to="/" replace />; // Redirect to root if not global admin
+  }
+
+  return <>{children}</>;
+};
+
+const CompanyAdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin(); // Updated hook
+  const { loading: sessionLoading } = useSession();
+
+  if (sessionLoading || loadingCompanyAdminCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de administrador da empresa...</div>;
+  }
+
+  if (!isCompanyAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -97,6 +113,9 @@ const App = () => (
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
+
+            {/* Rota do Admin Global (sem layout MainApplication) */}
+            <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
 
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
@@ -133,11 +152,11 @@ const App = () => (
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
 
-              {/* Rotas de Administrador (protegidas por AdminProtectedRoute) */}
-              <Route path="settings" element={<AdminProtectedRoute><SettingsPage /></AdminProtectedRoute>} />
-              <Route path="settings/new-contract" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
-              <Route path="settings/edit-contract/:contractId" element={<AdminProtectedRoute><ContractRegistrationPage /></AdminProtectedRoute>} />
-              <Route path="settings/segments" element={<AdminProtectedRoute><SegmentManagementPage /></AdminProtectedRoute>} />
+              {/* Rotas de Administrador da Empresa (protegidas por CompanyAdminProtectedRoute) */}
+              <Route path="settings" element={<CompanyAdminProtectedRoute><SettingsPage /></CompanyAdminProtectedRoute>} />
+              <Route path="settings/new-contract" element={<CompanyAdminProtectedRoute><ContractRegistrationPage /></CompanyAdminProtectedRoute>} />
+              <Route path="settings/edit-contract/:contractId" element={<CompanyAdminProtectedRoute><ContractRegistrationPage /></CompanyAdminProtectedRoute>} />
+              <Route path="settings/segments" element={<CompanyAdminProtectedRoute><SegmentManagementPage /></CompanyAdminProtectedRoute>} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
