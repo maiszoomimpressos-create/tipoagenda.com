@@ -24,8 +24,6 @@ const signupSchema = z.object({
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
-const CLIENTE_ROLE_ID = 4; // Assuming CLIENTE role ID is 4
-
 const SignupForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
@@ -73,60 +71,43 @@ const SignupForm: React.FC = () => {
         const newUser = authData.user;
         const targetCompanyId = getTargetCompanyId();
 
-        // 2. Se houver um targetCompanyId, criar o registro na tabela 'clients' e 'user_companies'
-        if (targetCompanyId) {
-          try {
-            // Inserir na tabela 'clients'
-            const { error: clientInsertError } = await supabase
-              .from('clients')
-              .insert({
-                client_auth_id: newUser.id,
-                user_id: newUser.id, // Definir user_id como o ID do próprio cliente para auto-cadastro
-                name: `${firstName} ${lastName}`,
-                phone: newUser.user_metadata.phone_number || '00000000000', // Usar placeholder se não houver
-                email: newUser.email || email,
-                birth_date: newUser.user_metadata.birth_date || '1900-01-01', // Usar placeholder
-                zip_code: '00000000', // Placeholder
-                state: 'XX', // Placeholder
-                city: 'N/A', // Placeholder
-                address: 'N/A', // Placeholder
-                number: '0', // Placeholder
-                neighborhood: 'N/A', // Placeholder
-                company_id: targetCompanyId, // Associar à empresa do card
-              });
-
-            if (clientInsertError) {
-              // Log the specific error code and message for debugging
-              console.error("Erro ao inserir cliente na tabela clients:", clientInsertError);
-              throw clientInsertError;
-            }
-
-            // Chamar a função RPC para associar o usuário à empresa na tabela 'user_companies'
-            const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
-              p_user_id: newUser.id,
-              p_company_id: targetCompanyId,
-              p_role_type_id: CLIENTE_ROLE_ID,
+        // 2. Criar o registro na tabela 'clients' para o novo usuário
+        try {
+          const { error: clientInsertError } = await supabase
+            .from('clients')
+            .insert({
+              client_auth_id: newUser.id,
+              user_id: newUser.id, // Definir user_id como o ID do próprio cliente para auto-cadastro
+              name: `${firstName} ${lastName}`,
+              phone: newUser.user_metadata.phone_number || '00000000000', // Usar placeholder se não houver
+              email: newUser.email || email,
+              birth_date: newUser.user_metadata.birth_date || '1900-01-01', // Usar placeholder
+              zip_code: '00000000', // Placeholder
+              state: 'XX', // Placeholder
+              city: 'N/A', // Placeholder
+              address: 'N/A', // Placeholder
+              number: '0', // Placeholder
+              neighborhood: 'N/A', // Placeholder
+              company_id: targetCompanyId, // Associar à empresa do card (se houver) - este campo será usado por Proprietários/Admins para ver 'seus' clientes.
             });
 
-            if (assignRoleError) {
-              // Log the specific error code and message for debugging
-              console.error("Erro ao associar cliente à empresa (user_companies):", assignRoleError);
-              throw assignRoleError;
-            }
-
-            showSuccess('Cadastro realizado e associado à empresa com sucesso! Verifique seu e-mail para confirmar.');
-            clearTargetCompanyId(); // Limpar o ID da empresa alvo após o uso
-          } catch (associationError: any) {
-            console.error("Erro ao associar cliente à empresa:", associationError);
-            showError('Cadastro realizado, mas houve um erro ao associar à empresa: ' + associationError.message);
-            // Não retornamos aqui para que a mensagem de sucesso do signup ainda seja exibida
+          if (clientInsertError) {
+            console.error("Erro ao inserir cliente na tabela clients:", clientInsertError);
+            throw clientInsertError;
           }
-        } else {
-          // Fluxo padrão se não houver targetCompanyId
-          showSuccess('Verifique seu e-mail para confirmar o cadastro!');
+
+          // REMOVIDO: Inserção na tabela user_companies com CLIENTE_ROLE_ID.
+          // Um cliente não é um 'membro' de uma empresa no mesmo sentido que um colaborador.
+          // A associação cliente-empresa para agendamentos é feita na tabela 'appointments'.
+          // O tipo de usuário 'CLIENTE' já é definido pelo trigger handle_new_user.
+
+          showSuccess('Cadastro realizado com sucesso! Verifique seu e-mail para confirmar.');
+          clearTargetCompanyId(); // Limpar o ID da empresa alvo após o uso
+        } catch (clientCreationError: any) {
+          console.error("Erro ao criar registro de cliente:", clientCreationError);
+          showError('Cadastro realizado, mas houve um erro ao criar seu perfil de cliente: ' + clientCreationError.message);
         }
       } else {
-        // Caso authData.user seja null, mas não houve signUpError (ex: email já cadastrado)
         showError('Não foi possível completar o cadastro. Verifique se o e-mail já está em uso.');
       }
 

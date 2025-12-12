@@ -44,13 +44,12 @@ interface Service {
   duration_minutes: number;
 }
 
-const CLIENTE_ROLE_ID = 4; // Assuming CLIENTE role ID is 4 based on common Supabase setups (Proprietario=1, Admin=2, Colaborador=3, Cliente=4) - NOTE: This should be fetched dynamically if possible, but using a safe assumption for now.
-
 const ClientAppointmentForm: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const [loading, setLoading] = useState(false); // For form submission
-  const [clientContext, setClientContext] = useState<{ clientId: string; companyId: string; clientName: string } | null>(null);
+  const [clientContext, setClientContext] = useState<{ clientId: string; clientName: string } | null>(null);
+  const [targetCompanyId, setTargetCompanyIdState] = useState<string | null>(null); // State to hold the company ID for this form
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loadingData, setLoadingData] = useState(true); // For initial data fetch
@@ -80,15 +79,14 @@ const ClientAppointmentForm: React.FC = () => {
   const selectedServiceIds = watch('serviceIds');
   const selectedAppointmentTime = watch('appointmentTime');
 
-  const createClientProfileIfMissing = useCallback(async (userId: string, companyIdFromStorage: string | null) => {
-    let clientCompanyId: string | null = null;
-    let clientName: string = '';
+  const createClientProfileIfMissing = useCallback(async (userId: string) => {
     let clientId: string = '';
+    let clientName: string = '';
 
     // 1. Try to fetch the client profile from 'clients' table
     const { data: existingClient, error: checkClientError } = await supabase
       .from('clients')
-      .select('id, company_id, name')
+      .select('id, name')
       .eq('client_auth_id', userId)
       .single();
 
@@ -99,57 +97,8 @@ const ClientAppointmentForm: React.FC = () => {
     if (existingClient) {
       clientId = existingClient.id;
       clientName = existingClient.name;
-      clientCompanyId = existingClient.company_id;
-    }
-
-    // 2. If clientCompanyId is still null, try to find it in user_companies
-    if (!clientCompanyId) {
-      const { data: userCompanyData, error: ucError } = await supabase
-        .from('user_companies')
-        .select('company_id')
-        .eq('user_id', userId)
-        .eq('role_type', CLIENTE_ROLE_ID) // Assuming CLIENTE_ROLE_ID is 4
-        .single();
-
-      if (ucError && ucError.code !== 'PGRST116') {
-        throw ucError;
-      }
-
-      if (userCompanyData) {
-        clientCompanyId = userCompanyData.company_id;
-        // If we found a company in user_companies but clients.company_id was null, update clients table
-        if (existingClient && !existingClient.company_id) {
-          const { error: updateClientCompanyError } = await supabase
-            .from('clients')
-            .update({ company_id: clientCompanyId })
-            .eq('id', clientId);
-          if (updateClientCompanyError) throw updateClientCompanyError;
-        }
-      }
-    }
-
-    // 3. If companyIdFromStorage is provided (from Landing Page click), prioritize it and ensure association
-    if (companyIdFromStorage && clientCompanyId !== companyIdFromStorage) {
-      clientCompanyId = companyIdFromStorage; // Prioritize the company from storage
-      // Ensure client record is updated with this company_id
-      if (clientId) {
-        const { error: updateClientError } = await supabase
-          .from('clients')
-          .update({ company_id: clientCompanyId })
-          .eq('id', clientId);
-        if (updateClientError) throw updateClientError;
-      }
-      // Ensure user_companies has this association
-      const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
-        p_user_id: userId,
-        p_company_id: clientCompanyId,
-        p_role_type_id: CLIENTE_ROLE_ID
-      });
-      if (assignRoleError) throw assignRoleError;
-    }
-
-    // 4. If client record was not found initially, create it
-    if (!clientId) {
+    } else {
+      // 2. If client record was not found, create it
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('first_name, last_name, phone_number')
@@ -177,7 +126,7 @@ const ClientAppointmentForm: React.FC = () => {
           address: 'N/A',
           number: '0',
           neighborhood: 'N/A',
-          company_id: clientCompanyId, // Use the determined companyId
+          company_id: null, // Clients are not tied to a single company in 'clients' table
         })
         .select('id')
         .single();
@@ -185,19 +134,9 @@ const ClientAppointmentForm: React.FC = () => {
       if (insertError) throw insertError;
       clientId = newClient.id;
       clientName = name;
-
-      // Ensure user_companies has this association if it was just created
-      if (clientCompanyId) {
-        const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
-          p_user_id: userId,
-          p_company_id: clientCompanyId,
-          p_role_type_id: CLIENTE_ROLE_ID
-        });
-        if (assignRoleError) throw assignRoleError;
-      }
     }
 
-    return { clientId, companyId: clientCompanyId, clientName };
+    return { clientId, clientName };
 
   }, [session?.user.email, session?.user.user_metadata.phone_number]);
 
@@ -209,32 +148,25 @@ const ClientAppointmentForm: React.FC = () => {
 
     setLoadingData(true);
     try {
-      // 1. Determine the target company ID from storage (if user clicked from Landing Page)
-      const targetCompanyId = getTargetCompanyId();
-      
-      let clientData: { clientId: string; companyId: string | null; clientName: string };
-
-      // 2. Fetch client's own data or create it if missing, handling association if targetCompanyId is set
-      clientData = await createClientProfileIfMissing(session.user.id, targetCompanyId);
-      
-      const companyIdToUse = clientData.companyId;
-
-      if (!companyIdToUse) {
-        // If the client profile exists but has no associated company, and no target is set, redirect.
-        throw new Error('Você não está associado a uma empresa. Por favor, selecione uma empresa na página inicial.');
-      }
-
+      // 1. Get the client's profile data (or create it if missing)
+      const clientData = await createClientProfileIfMissing(session.user.id);
       setClientContext({ 
         clientId: clientData.clientId, 
-        companyId: companyIdToUse, 
         clientName: clientData.clientName 
       });
+
+      // 2. Determine the target company ID from storage (if user clicked from Landing Page)
+      const storedCompanyId = getTargetCompanyId();
+      if (!storedCompanyId) {
+        throw new Error('Nenhuma empresa selecionada. Por favor, selecione uma empresa na página inicial.');
+      }
+      setTargetCompanyIdState(storedCompanyId);
 
       // 3. Fetch Collaborators for the selected company
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
         .select('id, first_name, last_name')
-        .eq('company_id', companyIdToUse)
+        .eq('company_id', storedCompanyId)
         .eq('status', 'Ativo')
         .order('first_name', { ascending: true });
 
@@ -245,7 +177,7 @@ const ClientAppointmentForm: React.FC = () => {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('id, name, price, duration_minutes')
-        .eq('company_id', companyIdToUse)
+        .eq('company_id', storedCompanyId)
         .eq('status', 'Ativo')
         .order('name', { ascending: true });
 
@@ -253,9 +185,7 @@ const ClientAppointmentForm: React.FC = () => {
       setServices(servicesData);
 
       // 5. Clear the target ID from storage once the context is established
-      if (targetCompanyId) {
-        clearTargetCompanyId();
-      }
+      clearTargetCompanyId();
 
     } catch (error: any) {
       console.error('Erro ao carregar dados iniciais para agendamento do cliente:', error);
@@ -282,13 +212,13 @@ const ClientAppointmentForm: React.FC = () => {
   // Effect to fetch available time slots
   useEffect(() => {
     const fetchSlots = async () => {
-      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && clientContext?.companyId) {
+      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && targetCompanyId) {
         setLoading(true);
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           const slots = await getAvailableTimeSlots(
             supabase,
-            clientContext.companyId,
+            targetCompanyId,
             selectedCollaboratorId,
             selectedDate,
             totalDurationMinutes
@@ -307,7 +237,7 @@ const ClientAppointmentForm: React.FC = () => {
       }
     };
     fetchSlots();
-  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, clientContext?.companyId, setValue]);
+  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, targetCompanyId, setValue]);
 
 
   const handleServiceChange = (serviceId: string, checked: boolean) => {
@@ -322,7 +252,7 @@ const ClientAppointmentForm: React.FC = () => {
 
   const onSubmit = async (data: ClientAppointmentFormValues) => {
     setLoading(true);
-    if (!session?.user || !clientContext?.clientId || !clientContext?.companyId) {
+    if (!session?.user || !clientContext?.clientId || !targetCompanyId) {
       showError('Erro de autenticação ou dados do cliente/empresa faltando.');
       setLoading(false);
       return;
@@ -342,7 +272,7 @@ const ClientAppointmentForm: React.FC = () => {
           totalDurationMinutes: totalDurationMinutes,
           totalPriceCalculated: totalPriceCalculated,
           observations: data.observations,
-          companyId: clientContext.companyId, // Use the company ID determined in fetchInitialData
+          companyId: targetCompanyId, // Use the company ID determined in fetchInitialData
         }),
         headers: {
           'Content-Type': 'application/json',
@@ -378,8 +308,8 @@ const ClientAppointmentForm: React.FC = () => {
     );
   }
 
-  if (!session?.user || !clientContext) {
-    // If clientContext is null here, it means fetchInitialData failed to find the client profile or company association.
+  if (!session?.user || !clientContext || !targetCompanyId) {
+    // If clientContext or targetCompanyId is null here, it means fetchInitialData failed to find the client profile or company association.
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">

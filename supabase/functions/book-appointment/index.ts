@@ -42,23 +42,6 @@ async function getAvailableTimeSlotsBackend(
 
   if (exError) throw exError;
 
-  // 3. Fetch existing appointments for the selected date and collaborator
-  let appointmentsQuery = supabase
-    .from('appointments')
-    .select('id, appointment_time, total_duration_minutes')
-    .eq('collaborator_id', collaboratorId)
-    .eq('company_id', companyId)
-    .eq('appointment_date', format(date, 'yyyy-MM-dd'))
-    .neq('status', 'cancelado');
-
-  if (excludeAppointmentId) {
-    appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
-  }
-
-  const { data: existingAppointments, error: appError } = await appointmentsQuery;
-
-  if (appError) throw appError;
-
   let effectiveWorkingIntervals: Array<{ start: Date; end: Date }> = [];
   let busyIntervals: Array<{ start: Date; end: Date }> = [];
 
@@ -93,6 +76,23 @@ async function getAvailableTimeSlotsBackend(
   if (effectiveWorkingIntervals.length === 0) {
     return [];
   }
+
+  // 3. Fetch existing appointments for the selected date and collaborator
+  let appointmentsQuery = supabase
+    .from('appointments')
+    .select('id, appointment_time, total_duration_minutes')
+    .eq('collaborator_id', collaboratorId)
+    .eq('company_id', companyId)
+    .eq('appointment_date', format(date, 'yyyy-MM-dd'))
+    .neq('status', 'cancelado');
+
+  if (excludeAppointmentId) {
+    appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
+  }
+
+  const { data: existingAppointments, error: appError } = await appointmentsQuery;
+
+  if (appError) throw appError;
 
   if (existingAppointments) {
     existingAppointments.forEach(app => {
@@ -181,7 +181,7 @@ serve(async (req) => {
 
     const {
       clientId,
-      clientNickname,
+      clientNickname, // This will be ignored in the insert, as client name is fetched from clients table
       collaboratorId,
       serviceIds,
       appointmentDate,
@@ -213,7 +213,7 @@ serve(async (req) => {
     // 1. Verify if the authenticated user is the client they are trying to book for
     const { data: clientData, error: clientFetchError } = await supabaseAdmin
       .from('clients')
-      .select('id, client_auth_id, company_id') // Select company_id to check if it's already set
+      .select('id, client_auth_id')
       .eq('id', clientId)
       .single();
 
@@ -224,24 +224,11 @@ serve(async (req) => {
       });
     }
     
-    // 2. IMPLEMENTATION OF THE BUSINESS RULE: Associate the client with the company if they are not already associated.
-    if (clientData.company_id === null) {
-        const { error: updateClientError } = await supabaseAdmin
-            .from('clients')
-            .update({ company_id: companyId })
-            .eq('id', clientId);
+    // REMOVIDO: A regra de negócio de associar o cliente à empresa se não estiver associado.
+    // Um cliente pode agendar em qualquer empresa, e a associação é feita por agendamento.
+    // O campo `company_id` na tabela `clients` é para a visão do proprietário/admin.
 
-        if (updateClientError) {
-            console.error('Edge Function Error (book-appointment): Failed to associate client with company:', updateClientError.message);
-            return new Response(JSON.stringify({ error: 'Failed to associate client with company: ' + updateClientError.message }), {
-                status: 500,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-        }
-    }
-
-
-    // 3. Re-verify time slot availability on the backend to prevent race conditions
+    // 2. Re-verify time slot availability on the backend to prevent race conditions
     const parsedAppointmentDate = parse(appointmentDate, 'yyyy-MM-dd', new Date());
     const startTimeForDb = appointmentTime.split(' ')[0]; // "HH:MM"
     const endTimeForDb = format(addMinutes(parse(startTimeForDb, 'HH:mm', parsedAppointmentDate), totalDurationMinutes), 'HH:mm');
@@ -262,13 +249,13 @@ serve(async (req) => {
       });
     }
 
-    // 4. Insert the main appointment entry
+    // 3. Insert the main appointment entry
     const { data: appointment, error: insertAppointmentError } = await supabaseAdmin
       .from('appointments')
       .insert({
         company_id: companyId,
         client_id: clientId,
-        client_nickname: clientNickname,
+        // client_nickname: clientNickname, // Removed, client name can be fetched via client_id
         collaborator_id: collaboratorId,
         appointment_date: appointmentDate,
         appointment_time: startTimeForDb,
@@ -288,7 +275,7 @@ serve(async (req) => {
       });
     }
 
-    // 5. Link services to the appointment in appointment_services table
+    // 4. Link services to the appointment in appointment_services table
     const appointmentServicesToInsert = serviceIds.map((serviceId: string) => ({
       appointment_id: appointment.id,
       service_id: serviceId,
