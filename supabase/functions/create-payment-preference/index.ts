@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import mercadopago from 'https://esm.sh/mercadopago@1.5.17'; // Downgrade para 1.5.17
+// Removendo a importação do SDK do Mercado Pago
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,12 +46,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    console.log('Mercado Pago Access Token found. Configuring MP SDK (v1.x)...');
-
-    // Usando a API da versão 1.x
-    mercadopago.configure({
-      access_token: MERCADOPAGO_ACCESS_TOKEN,
-    });
+    console.log('Mercado Pago Access Token found. Creating preference via direct API call...');
 
     const preferenceBody = {
       items: [
@@ -72,13 +67,28 @@ serve(async (req) => {
       notification_url: `${SUPABASE_URL}/functions/v1/mercadopago-webhook`,
     };
 
-    const mpResponse = await mercadopago.preferences.create(preferenceBody);
+    const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify(preferenceBody),
+    });
+
+    if (!mpResponse.ok) {
+      const errorData = await mpResponse.json();
+      console.error('Mercado Pago API Error:', mpResponse.status, errorData);
+      throw new Error(`Mercado Pago API error: ${errorData.message || mpResponse.statusText}`);
+    }
+
+    const mpData = await mpResponse.json();
     
     console.log('Mercado Pago Preference created successfully.');
 
     return new Response(JSON.stringify({ 
-      preferenceId: mpResponse.body.id, // Acessando .body.id para v1.x
-      initPoint: mpResponse.body.init_point, // Acessando .body.init_point para v1.x
+      preferenceId: mpData.id,
+      initPoint: mpData.init_point,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

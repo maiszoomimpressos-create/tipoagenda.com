@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import mercadopago from 'https://esm.sh/mercadopago@1.5.17'; // Downgrade para 1.5.17
+// Removendo a importação do SDK do Mercado Pago
 import { format, addMonths, parseISO } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
@@ -22,11 +22,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Usando a API da versão 1.x
-  mercadopago.configure({
-    access_token: MERCADOPAGO_ACCESS_TOKEN,
-  });
-
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -43,9 +38,21 @@ serve(async (req) => {
 
     const paymentId = data.id;
 
-    // 1. Fetch Payment Details from Mercado Pago (usando a API v1.x)
-    const paymentResponse = await mercadopago.payment.get(paymentId);
-    const payment = paymentResponse.body; // Acessando .body para v1.x
+    // 1. Fetch Payment Details from Mercado Pago directly via API
+    const mpPaymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+      },
+    });
+
+    if (!mpPaymentResponse.ok) {
+      const errorData = await mpPaymentResponse.json();
+      console.error('Mercado Pago Payment API Error:', mpPaymentResponse.status, errorData);
+      throw new Error(`Mercado Pago Payment API error: ${errorData.message || mpPaymentResponse.statusText}`);
+    }
+
+    const payment = await mpPaymentResponse.json();
 
     console.log('Payment Status:', payment.status);
     console.log('External Reference:', payment.external_reference);
