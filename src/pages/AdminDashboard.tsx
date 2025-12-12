@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
-import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin'; // Import the hook
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
+import ContractList from '@/components/ContractList'; // Import ContractList
+import { PlusCircle, Edit, Trash2, ArrowLeft, Tags } from 'lucide-react'; // Import icons
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -107,7 +109,45 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* Adicione mais seções conforme necessário */}
+        {/* Moved sections from SettingsPage */}
+        <div className="max-w-4xl space-y-6">
+          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-gray-900 dark:text-white">Gerenciamento de Contratos</CardTitle>
+              <Button
+                className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+                onClick={() => navigate('/admin-dashboard/new-contract')}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Novo Contrato
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-700 dark:text-gray-300">
+                Crie e gerencie modelos de contratos para sua empresa.
+              </p>
+              <ContractList />
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-gray-900 dark:text-white">Gerenciamento de Segmentos</CardTitle>
+              <Button
+                className="!rounded-button whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => navigate('/admin-dashboard/segments')}
+              >
+                <Tags className="h-4 w-4 mr-2" />
+                Gerenciar Segmentos
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-700 dark:text-gray-300">
+                Defina e organize os tipos de segmentos para as empresas cadastradas.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

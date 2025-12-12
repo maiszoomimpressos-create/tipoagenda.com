@@ -13,10 +13,10 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin'; // Updated import
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin'; // New hook
-import { useIsClient } from '@/hooks/useIsClient'; // Use the new hook
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
+import { useIsClient } from '@/hooks/useIsClient';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -27,10 +27,10 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
-  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin(); // Updated hook
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
-  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin(); // New hook
-  const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
+  const { isClient, loadingClientCheck } = useIsClient();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -101,11 +101,11 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           </DropdownMenuItem>
         )}
 
-        {/* Link para Configurações da Empresa (Apenas Proprietário/Admin da Empresa) */}
-        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && isProprietarioOrCompanyAdmin && (
-          <DropdownMenuItem onClick={() => navigate('/settings')}>
+        {/* Link para Configurações da Empresa (AGORA APENAS PARA ADMIN GLOBAL) */}
+        {!loadingGlobalAdminCheck && isGlobalAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>
             <i className="fas fa-cog mr-2"></i>
-            Configurações da Empresa
+            Configurações Globais
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

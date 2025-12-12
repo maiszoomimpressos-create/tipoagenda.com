@@ -52,7 +52,7 @@ const ContractRegistrationPage: React.FC = () => {
       if (error) {
         showError('Erro ao carregar contrato: ' + error.message);
         console.error('Error fetching contract:', error);
-        navigate('/settings'); // Redirect if contract not found or error
+        navigate('/admin-dashboard'); // Redirect if contract not found or error
       } else if (data) {
         reset({
           contractName: data.contract_name,
@@ -104,7 +104,7 @@ const ContractRegistrationPage: React.FC = () => {
       console.error('Error saving contract:', error);
     } else {
       showSuccess('Contrato ' + (contractId ? 'atualizado' : 'cadastrado') + ' com sucesso!');
-      navigate('/settings'); // Go back to settings page
+      navigate('/admin-dashboard'); // Go back to admin dashboard
     }
     setLoading(false);
   };
@@ -119,7 +119,7 @@ const ContractRegistrationPage: React.FC = () => {
           <Button
             variant="ghost"
             className="absolute left-0 top-0 !rounded-button whitespace-nowrap text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/admin-dashboard')} // Navigate back to admin dashboard
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar

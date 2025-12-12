@@ -8,16 +8,16 @@ import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
 import { useIsClient } from '@/hooks/useIsClient';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin'; // Updated import
-import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin'; // New hook
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { session, loading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
-  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin(); // Updated hook
-  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin(); // New hook
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -25,7 +25,7 @@ const MainApplication: React.FC = () => {
   
   // Define se estamos em uma rota de aplicação que deve ter sidebar
   // A sidebar deve aparecer apenas para Proprietários ou Admins de Empresa
-  const isAppPath = isProprietarioOrCompanyAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'].includes(location.pathname);
+  const isAppPath = isProprietarioOrCompanyAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard', '/admin-dashboard/new-contract', '/admin-dashboard/edit-contract', '/admin-dashboard/segments'].includes(location.pathname);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
@@ -33,10 +33,9 @@ const MainApplication: React.FC = () => {
 
   // Adiciona o item de Configurações ao final da lista de menus SE FOR ADMIN
   const finalMenuItems = [...menuItems];
-  if (!loadingProprietarioCheck && isProprietarioOrCompanyAdmin) { // Configurações da Empresa para Proprietário/Admin da Empresa
-    finalMenuItems.push({ id: 'settings', label: 'Configurações da Empresa', icon: 'fas fa-cog', path: '/settings' });
-  }
-
+  // O item de Configurações Globais agora está no DropdownMenu do UserDropdownMenu e no AdminDashboard
+  // Não é mais um item do sidebar do MainApplication.
+  // A sidebar do MainApplication é para Proprietários/Admins de Empresa.
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">

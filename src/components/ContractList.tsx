@@ -99,7 +99,7 @@ const ContractList: React.FC = () => {
                   variant="outline"
                   size="sm"
                   className="!rounded-button whitespace-nowrap"
-                  onClick={() => navigate(`/settings/edit-contract/${contract.id}`)}
+                  onClick={() => navigate(`/admin-dashboard/edit-contract/${contract.id}`)}
                 >
                   <i className="fas fa-edit mr-2"></i>
                   Editar
