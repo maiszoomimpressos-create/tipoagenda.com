@@ -81,6 +81,7 @@ const SignupForm: React.FC = () => {
               .from('clients')
               .insert({
                 client_auth_id: newUser.id,
+                user_id: newUser.id, // Definir user_id como o ID do próprio cliente para auto-cadastro
                 name: `${firstName} ${lastName}`,
                 phone: newUser.user_metadata.phone_number || '00000000000', // Usar placeholder se não houver
                 email: newUser.email || email,
