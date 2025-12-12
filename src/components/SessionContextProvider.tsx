@@ -37,10 +37,9 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
             return;
           }
           
-          // Default redirection if no target company ID is set (assumes admin/proprietario flow or general user)
-          // The IndexPage will handle the final decision based on roles if they navigate to /.
-          // For direct login, we push to dashboard.
-          navigate('/dashboard', { replace: true }); 
+          // If no targetCompanyId, redirect to the root.
+          // The IndexPage will then handle the role-based redirection.
+          navigate('/', { replace: true }); 
 
         } else if (event === 'SIGNED_OUT') {
           showSuccess('Logout realizado com sucesso!');

@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin'; // Renamed hook
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin'; // New hook
 import { useIsClient } from '@/hooks/useIsClient';
 import LandingPage from './LandingPage';
 
@@ -10,40 +11,47 @@ const IndexPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin(); // Renamed hook
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin(); // New hook
   const { isClient, loadingClientCheck } = useIsClient();
 
-  const loadingRoles = loadingProprietarioCheck || loadingAdminCheck || loadingClientCheck;
+  const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck;
 
   useEffect(() => {
+    console.log('IndexPage useEffect - sessionLoading:', sessionLoading, 'loadingRoles:', loadingRoles);
+    console.log('IndexPage useEffect - isGlobalAdmin:', isGlobalAdmin, 'isProprietario:', isProprietario, 'isCompanyAdmin:', isCompanyAdmin, 'isClient:', isClient);
+
     if (sessionLoading) {
+      console.log('IndexPage: Session still loading, returning.');
       return;
     }
 
     if (!session) {
-      // If not logged in, show the public landing page
+      console.log('IndexPage: No session, rendering LandingPage (public).');
       return; 
     }
 
     if (loadingRoles) {
+      console.log('IndexPage: Roles still loading, returning.');
       return;
     }
 
-    const isProprietarioOrAdmin = isProprietario || isAdmin;
-
-    if (isProprietarioOrAdmin) {
-      // If user is Proprietario or Admin, redirect to the main dashboard
+    if (isGlobalAdmin) {
+      console.log('IndexPage: User is GLOBAL_ADMIN, redirecting to /admin-dashboard');
+      navigate('/admin-dashboard', { replace: true });
+    } else if (isProprietario || isCompanyAdmin) {
+      console.log('IndexPage: User is Proprietario or CompanyAdmin, redirecting to /dashboard');
       navigate('/dashboard', { replace: true });
     } else if (isClient) {
-      // If user is a pure client, they stay on the LandingPage to select a company for booking
+      console.log('IndexPage: User is a pure client, rendering LandingPage (for company selection or /agendar if target set).');
       // The LandingPage component handles the CompanySelectionModal logic.
-      // We do nothing here, allowing the LandingPage component to render below.
+      // If a target company was set before login, SessionContextProvider would have redirected to /agendar.
+      // If not, LandingPage will show the company selection modal.
     } else {
-      // If logged in but no specific role (e.g., new user who hasn't registered a company yet)
-      // Redirect to the company registration page.
+      console.log('IndexPage: Logged in but no specific role, redirecting to /register-company');
       navigate('/register-company', { replace: true });
     }
-  }, [session, sessionLoading, loadingRoles, isProprietario, isAdmin, isClient, navigate]);
+  }, [session, sessionLoading, loadingRoles, isGlobalAdmin, isProprietario, isCompanyAdmin, isClient, navigate]);
 
   if (sessionLoading || (session && loadingRoles)) {
     return (
@@ -56,5 +64,3 @@ const IndexPage: React.FC = () => {
   // If not logged in, or if logged in as a pure client, render the LandingPage
   return <LandingPage />;
 };
-
-export default IndexPage;
