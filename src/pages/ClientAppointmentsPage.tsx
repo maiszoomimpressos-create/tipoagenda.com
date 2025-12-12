@@ -38,96 +38,128 @@ const ClientAppointmentsPage: React.FC = () => {
   const [clientCompanyId, setClientCompanyId] = useState<string | null>(null);
   const [clientProfileFound, setClientProfileFound] = useState(false); // New state
 
-  const createClientProfileIfMissing = useCallback(async (userId: string, companyIdToAssociate: string | null) => {
-    // 1. Try to fetch the client profile again
-    const { data: existingClient, error: checkError } = await supabase
+  const createClientProfileIfMissing = useCallback(async (userId: string, companyIdFromStorage: string | null) => {
+    let clientCompanyId: string | null = null;
+    let clientName: string = '';
+    let clientId: string = '';
+
+    // 1. Try to fetch the client profile from 'clients' table
+    const { data: existingClient, error: checkClientError } = await supabase
       .from('clients')
       .select('id, company_id, name')
       .eq('client_auth_id', userId)
       .single();
 
+    if (checkClientError && checkClientError.code !== 'PGRST116') { // Not 'No rows found' error
+      throw checkClientError;
+    }
+
     if (existingClient) {
-      setClientProfileFound(true);
-      // If client exists but needs association (only if companyIdToAssociate is set and client.company_id is null)
-      if (companyIdToAssociate && !existingClient.company_id) {
-        // Associate client with the company
-        const { error: updateError } = await supabase
-          .from('clients')
-          .update({ company_id: companyIdToAssociate })
-          .eq('id', existingClient.id);
-        
-        if (updateError) throw updateError;
+      clientId = existingClient.id;
+      clientName = existingClient.name;
+      clientCompanyId = existingClient.company_id;
+      setClientProfileFound(true); // Indicate that a client profile exists
+    }
 
-        // Also associate in user_companies table (using CLIENTE_ROLE_ID)
-        const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
-          p_user_id: userId,
-          p_company_id: companyIdToAssociate,
-          p_role_type_id: CLIENTE_ROLE_ID // Assuming CLIENTE_ROLE_ID is 4
-        });
-        if (assignRoleError) throw assignRoleError;
-        
-        existingClient.company_id = companyIdToAssociate; // Update local object
+    // 2. If clientCompanyId is still null, try to find it in user_companies
+    if (!clientCompanyId) {
+      const { data: userCompanyData, error: ucError } = await supabase
+        .from('user_companies')
+        .select('company_id')
+        .eq('user_id', userId)
+        .eq('role_type', CLIENTE_ROLE_ID) // Assuming CLIENTE_ROLE_ID is 4
+        .single();
+
+      if (ucError && ucError.code !== 'PGRST116') {
+        throw ucError;
       }
-      return { clientId: existingClient.id, companyId: existingClient.company_id };
+
+      if (userCompanyData) {
+        clientCompanyId = userCompanyData.company_id;
+        // If we found a company in user_companies but clients.company_id was null, update clients table
+        if (existingClient && !existingClient.company_id) {
+          const { error: updateClientCompanyError } = await supabase
+            .from('clients')
+            .update({ company_id: clientCompanyId })
+            .eq('id', clientId);
+          if (updateClientCompanyError) throw updateClientCompanyError;
+        }
+      }
     }
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      throw checkError;
-    }
-
-    // 2. If not found (PGRST116), fetch data from profiles to populate required fields
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, phone_number')
-      .eq('id', userId)
-      .single();
-
-    if (profileError) {
-      throw profileError;
-    }
-
-    const name = `${profileData.first_name || 'Novo'} ${profileData.last_name || 'Cliente'}`;
-    const phone = profileData.phone_number || '00000000000'; // Placeholder
-    const email = session?.user.email || 'unknown@example.com';
-
-    // 3. Insert the missing client record using placeholders for address fields
-    const { data: newClient, error: insertError } = await supabase
-      .from('clients')
-      .insert({
-        client_auth_id: userId,
-        name: name,
-        phone: phone,
-        email: email,
-        birth_date: '1900-01-01', // Placeholder
-        zip_code: '00000000', // Placeholder
-        state: 'XX', // Placeholder
-        city: 'N/A', // Placeholder
-        address: 'N/A', // Placeholder
-        number: '0', // Placeholder
-        neighborhood: 'N/A', // Placeholder
-        company_id: companyIdToAssociate, // Associate company immediately if target is set
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      throw insertError;
-    }
-    
-    // 4. If company was associated on insert, also assign role in user_companies
-    if (companyIdToAssociate) {
+    // 3. If companyIdFromStorage is provided (from Landing Page click), prioritize it and ensure association
+    if (companyIdFromStorage && clientCompanyId !== companyIdFromStorage) {
+      clientCompanyId = companyIdFromStorage; // Prioritize the company from storage
+      // Ensure client record is updated with this company_id
+      if (clientId) {
+        const { error: updateClientError } = await supabase
+          .from('clients')
+          .update({ company_id: clientCompanyId })
+          .eq('id', clientId);
+        if (updateClientError) throw updateClientError;
+      }
+      // Ensure user_companies has this association
       const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
         p_user_id: userId,
-        p_company_id: companyIdToAssociate,
-        p_role_type_id: CLIENTE_ROLE_ID // Assuming CLIENTE_ROLE_ID is 4
+        p_company_id: clientCompanyId,
+        p_role_type_id: CLIENTE_ROLE_ID
       });
       if (assignRoleError) throw assignRoleError;
     }
 
-    setClientProfileFound(true);
-    return { clientId: newClient.id, companyId: companyIdToAssociate };
+    // 4. If client record was not found initially, create it
+    if (!clientId) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, phone_number')
+        .eq('id', userId)
+        .single();
 
-  }, [session?.user.email]);
+      if (profileError) throw profileError;
+
+      const name = `${profileData.first_name || 'Novo'} ${profileData.last_name || 'Cliente'}`;
+      const phone = session?.user.user_metadata.phone_number || profileData.phone_number || '00000000000';
+      const email = session?.user.email || 'unknown@example.com';
+
+      const { data: newClient, error: insertError } = await supabase
+        .from('clients')
+        .insert({
+          client_auth_id: userId,
+          user_id: userId, // Self-registered client
+          name: name,
+          phone: phone,
+          email: email,
+          birth_date: '1900-01-01',
+          zip_code: '00000000',
+          state: 'XX',
+          city: 'N/A',
+          address: 'N/A',
+          number: '0',
+          neighborhood: 'N/A',
+          company_id: clientCompanyId, // Use the determined companyId
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+      clientId = newClient.id;
+      clientName = name;
+
+      // Ensure user_companies has this association if it was just created
+      if (clientCompanyId) {
+        const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
+          p_user_id: userId,
+          p_company_id: clientCompanyId,
+          p_role_type_id: CLIENTE_ROLE_ID
+        });
+        if (assignRoleError) throw assignRoleError;
+      }
+      setClientProfileFound(true);
+    }
+
+    return { clientId, companyId: clientCompanyId, clientName };
+
+  }, [session?.user.email, session?.user.user_metadata.phone_number]);
 
 
   const fetchAppointments = useCallback(async () => {
