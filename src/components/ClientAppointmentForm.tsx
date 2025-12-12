@@ -268,7 +268,7 @@ const ClientAppointmentForm: React.FC = () => {
       const response = await supabase.functions.invoke('book-appointment', {
         body: JSON.stringify({
           clientId: clientContext.clientId,
-          clientNickname: clientContext.clientName, // Use client's name as nickname for now
+          clientNickname: clientContext.clientName, // <-- Garantindo que o nome do cliente seja enviado
           collaboratorId: data.collaboratorId,
           serviceIds: data.serviceIds,
           appointmentDate: data.appointmentDate,

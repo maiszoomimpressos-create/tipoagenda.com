@@ -181,7 +181,7 @@ serve(async (req) => {
 
     const {
       clientId,
-      clientNickname, // This will be ignored in the insert, as client name is fetched from clients table
+      clientNickname, // <-- Agora vamos usar este campo
       collaboratorId,
       serviceIds,
       appointmentDate,
@@ -224,10 +224,6 @@ serve(async (req) => {
       });
     }
     
-    // REMOVIDO: A regra de negócio de associar o cliente à empresa se não estiver associado.
-    // Um cliente pode agendar em qualquer empresa, e a associação é feita por agendamento.
-    // O campo `company_id` na tabela `clients` é para a visão do proprietário/admin.
-
     // 2. Re-verify time slot availability on the backend to prevent race conditions
     const parsedAppointmentDate = parse(appointmentDate, 'yyyy-MM-dd', new Date());
     const startTimeForDb = appointmentTime.split(' ')[0]; // "HH:MM"
@@ -255,7 +251,7 @@ serve(async (req) => {
       .insert({
         company_id: companyId,
         client_id: clientId,
-        // client_nickname: clientNickname, // Removed, client name can be fetched via client_id
+        client_nickname: clientNickname, // <-- AGORA INSERIMOS O NICKNAME/NOME
         collaborator_id: collaboratorId,
         appointment_date: appointmentDate,
         appointment_time: startTimeForDb,
