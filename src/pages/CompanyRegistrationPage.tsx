@@ -59,9 +59,7 @@ const CompanyRegistrationPage: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [segmentOptions, setSegmentOptions] = useState<{ value: string; label: string }[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
-  // isAddressFieldsDisabled will no longer disable fields, but can still be used for internal logic if needed
-  const [isAddressFieldsDisabled, setIsAddressFieldsDisabled] = useState(false);
-
+  // isAddressFieldsDisabled was removed as it was unused
 
   const {
     register,
@@ -319,6 +317,7 @@ const CompanyRegistrationPage: React.FC = () => {
         image_url: pendingImageUrl,
         contract_accepted: true,
         accepted_contract_id: latestContract.id,
+        ativo: true, // Set ativo to true upon successful registration and contract acceptance
       })
       .select()
       .single();

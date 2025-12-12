@@ -14,7 +14,8 @@ import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { useIsProprietario } from '@/hooks/useIsProprietario'; // Import the new hook
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsClient } from '@/hooks/useIsClient'; // Import the new hook
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -26,7 +27,8 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
   const { isAdmin, loadingAdminCheck } = useIsAdmin();
-  const { isProprietario, loadingProprietarioCheck } = useIsProprietario(); // Use the new hook
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -37,6 +39,11 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
       // showSuccess('Logout realizado com sucesso!'); // O SessionContextProvider já exibe este toast
     }
   };
+
+  const isProprietarioOrAdmin = isProprietario || isAdmin;
+  
+  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin)
+  const isPureClient = isClient && !isProprietarioOrAdmin;
 
   return (
     <DropdownMenu>
@@ -58,17 +65,33 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-user mr-2"></i>
           Meu Perfil
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/register-company')}>
-          <i className="fas fa-building mr-2"></i>
-          Cadast. Empresa
-        </DropdownMenuItem>
-        {!loadingProprietarioCheck && isProprietario && ( // Conditionally render if user is Proprietário
+        
+        {/* Link para Dashboard (Proprietário/Admin) */}
+        {!loadingProprietarioCheck && !loadingAdminCheck && isProprietarioOrAdmin && (
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <i className="fas fa-chart-line mr-2"></i>
             Dashboard
           </DropdownMenuItem>
         )}
-        {!loadingAdminCheck && isAdmin && ( // Conditionally render if user is admin
+
+        {/* Link para Meus Agendamentos (Apenas Cliente Puro) */}
+        {!loadingClientCheck && isPureClient && (
+          <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
+            <i className="fas fa-calendar-check mr-2"></i>
+            Meus Agendamentos
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin) */}
+        {!loadingProprietarioCheck && !isProprietarioOrAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/register-company')}>
+            <i className="fas fa-building mr-2"></i>
+            Cadast. Empresa
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Configurações Admin (Apenas Admin) */}
+        {!loadingAdminCheck && isAdmin && (
           <DropdownMenuItem onClick={() => navigate('/settings')}>
             <i className="fas fa-cog mr-2"></i>
             Configurações Admin
