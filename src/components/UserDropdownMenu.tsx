@@ -83,7 +83,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         )}
 
         {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin) */}
-        {!loadingProprietarioCheck && !isProprietarioOrAdmin && (
+        {!loadingProprietarioCheck && !loadingAdminCheck && !isProprietarioOrAdmin && (
           <DropdownMenuItem onClick={() => navigate('/register-company')}>
             <i className="fas fa-building mr-2"></i>
             Cadast. Empresa
