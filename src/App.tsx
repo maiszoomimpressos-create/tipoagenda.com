@@ -32,6 +32,7 @@ import CollaboratorSchedulePage from "./pages/CollaboratorSchedulePage";
 import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage"; // Import new client appointment page
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage"; // Import new client appointments list page
+import ProductFormPage from "./pages/ProductFormPage"; // Import new product form page
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useIsClient } from "./hooks/useIsClient"; // Import new hook
 import ContractList from "./components/ContractList";
@@ -121,6 +122,8 @@ const App = () => (
               <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
+              <Route path="estoque/new" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
+              <Route path="estoque/edit/:productId" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
 
