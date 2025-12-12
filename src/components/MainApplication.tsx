@@ -25,7 +25,8 @@ const MainApplication: React.FC = () => {
   
   // Define se estamos em uma rota de aplicação que deve ter sidebar
   // A sidebar deve aparecer apenas para Proprietários ou Admins de Empresa
-  const isAppPath = isProprietarioOrCompanyAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard', '/admin-dashboard/new-contract', '/admin-dashboard/edit-contract', '/admin-dashboard/segments'].includes(location.pathname);
+  const isAppPath = isProprietarioOrCompanyAdmin && 
+    !['/', '/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'].some(path => location.pathname.startsWith(path) && location.pathname.length === path.length);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
