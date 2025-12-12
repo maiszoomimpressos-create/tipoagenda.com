@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 // Esquema de validação com Zod simplificado
 const signupSchema = z.object({
@@ -22,6 +23,8 @@ const signupSchema = z.object({
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
+
+const CLIENTE_ROLE_ID = 4; // Assuming CLIENTE role ID is 4
 
 const SignupForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -41,31 +44,93 @@ const SignupForm: React.FC = () => {
     },
   });
 
-  // Funções de formatação removidas, pois os campos foram removidos.
-
   const onSubmit = async (data: SignupFormValues) => {
     setLoading(true);
     const { email, password, firstName, lastName } = data;
 
-    // Apenas nome e sobrenome são enviados no user_metadata
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          // Campos removidos: phone_number, cpf, birth_date, gender
+    try {
+      // 1. Realizar o cadastro do usuário no Supabase Auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          },
         },
-      },
-    });
-    if (error) {
-      console.error("Erro no cadastro:", error); // Adicionado para depuração
-      showError(error.message);
-    } else {
-      showSuccess('Verifique seu e-mail para confirmar o cadastro!');
+      });
+
+      if (signUpError) {
+        console.error("Erro no cadastro:", signUpError);
+        showError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Se o usuário foi criado (mesmo que precise de confirmação por e-mail)
+      if (authData.user) {
+        const newUser = authData.user;
+        const targetCompanyId = getTargetCompanyId();
+
+        // 2. Se houver um targetCompanyId, criar o registro na tabela 'clients' e 'user_companies'
+        if (targetCompanyId) {
+          try {
+            // Inserir na tabela 'clients'
+            const { error: clientInsertError } = await supabase
+              .from('clients')
+              .insert({
+                client_auth_id: newUser.id,
+                name: `${firstName} ${lastName}`,
+                phone: newUser.user_metadata.phone_number || '00000000000', // Usar placeholder se não houver
+                email: newUser.email || email,
+                birth_date: newUser.user_metadata.birth_date || '1900-01-01', // Usar placeholder
+                zip_code: '00000000', // Placeholder
+                state: 'XX', // Placeholder
+                city: 'N/A', // Placeholder
+                address: 'N/A', // Placeholder
+                number: '0', // Placeholder
+                neighborhood: 'N/A', // Placeholder
+                company_id: targetCompanyId, // Associar à empresa do card
+              });
+
+            if (clientInsertError) {
+              throw clientInsertError;
+            }
+
+            // Chamar a função RPC para associar o usuário à empresa na tabela 'user_companies'
+            const { error: assignRoleError } = await supabase.rpc('assign_user_to_company', {
+              p_user_id: newUser.id,
+              p_company_id: targetCompanyId,
+              p_role_type_id: CLIENTE_ROLE_ID,
+            });
+
+            if (assignRoleError) {
+              throw assignRoleError;
+            }
+
+            showSuccess('Cadastro realizado e associado à empresa com sucesso! Verifique seu e-mail para confirmar.');
+            clearTargetCompanyId(); // Limpar o ID da empresa alvo após o uso
+          } catch (associationError: any) {
+            console.error("Erro ao associar cliente à empresa:", associationError);
+            showError('Cadastro realizado, mas houve um erro ao associar à empresa: ' + associationError.message);
+            // Não retornamos aqui para que a mensagem de sucesso do signup ainda seja exibida
+          }
+        } else {
+          // Fluxo padrão se não houver targetCompanyId
+          showSuccess('Verifique seu e-mail para confirmar o cadastro!');
+        }
+      } else {
+        // Caso authData.user seja null, mas não houve signUpError (ex: email já cadastrado)
+        showError('Não foi possível completar o cadastro. Verifique se o e-mail já está em uso.');
+      }
+
+    } catch (error: any) {
+      console.error("Erro inesperado no cadastro:", error);
+      showError('Erro inesperado: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -106,8 +171,6 @@ const SignupForm: React.FC = () => {
         {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
       </div>
       
-      {/* Campos removidos: Número de Telefone, CPF, Data de Nascimento, Gênero */}
-
       <div>
         <Label htmlFor="password">Crie uma senha</Label>
         <Input
