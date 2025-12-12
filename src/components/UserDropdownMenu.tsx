@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
-import { useIsClient } from '@/hooks/useIsClient'; // Import the new hook
+import { useIsClient } from '@/hooks/useIsClient';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -28,7 +28,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const userName = user?.user_metadata?.first_name || userEmail;
   const { isAdmin, loadingAdminCheck } = useIsAdmin();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
-  const { isClient, loadingClientCheck } = useIsClient(); // Use the new hook
+  const { isClient, loadingClientCheck } = useIsClient();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -42,8 +42,12 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
 
   const isProprietarioOrAdmin = isProprietario || isAdmin;
   
-  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin)
+  // O usuário é um cliente puro (não Proprietário/Admin)
   const isPureClient = isClient && !isProprietarioOrAdmin;
+  
+  // O usuário não tem função de gestão (pode ser cliente, ou um usuário novo sem empresa)
+  const hasManagementRole = isProprietarioOrAdmin;
+  const isLoadingRoles = loadingProprietarioCheck || loadingAdminCheck;
 
   return (
     <DropdownMenu>
@@ -67,7 +71,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
         </DropdownMenuItem>
         
         {/* Link para Dashboard (Proprietário/Admin) */}
-        {!loadingProprietarioCheck && !loadingAdminCheck && isProprietarioOrAdmin && (
+        {!isLoadingRoles && hasManagementRole && (
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <i className="fas fa-chart-line mr-2"></i>
             Dashboard
@@ -82,8 +86,8 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           </DropdownMenuItem>
         )}
 
-        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin) */}
-        {!loadingProprietarioCheck && !isProprietarioOrAdmin && (
+        {/* Link para Cadastro de Empresa (Visível se NÃO tiver função de gestão) */}
+        {!isLoadingRoles && !hasManagementRole && (
           <DropdownMenuItem onClick={() => navigate('/register-company')}>
             <i className="fas fa-building mr-2"></i>
             Cadast. Empresa
