@@ -7,7 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import ContractList from '@/components/ContractList'; // Import ContractList
-import { PlusCircle, Edit, Trash2, ArrowLeft, Tags } from 'lucide-react'; // Import icons
+import { PlusCircle, Edit, Trash2, ArrowLeft, Tags, DollarSign } from 'lucide-react'; // Import icons
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -95,15 +95,18 @@ const AdminDashboard: React.FC = () => {
 
           <Card className="border-gray-200 dark:border-gray-700 dark:bg-gray-800">
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Configurações do Sistema</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">Gerenciar Planos</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-gray-700 dark:text-gray-300">
-                Ajuste configurações globais, como termos de serviço, políticas e integrações.
+                Defina e edite os planos de assinatura disponíveis para as empresas.
               </p>
-              <Button className="!rounded-button whitespace-nowrap bg-purple-600 hover:bg-purple-700 text-white w-full">
-                <i className="fas fa-cogs mr-2"></i>
-                Acessar Configurações Globais
+              <Button 
+                className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black w-full"
+                onClick={() => navigate('/admin-dashboard/plans')}
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                Gerenciar Planos
               </Button>
             </CardContent>
           </Card>
