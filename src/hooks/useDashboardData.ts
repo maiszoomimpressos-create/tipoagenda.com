@@ -4,7 +4,7 @@ import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from './usePrimaryCompany';
 import { useReportsData } from './useReportsData';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, parse, addMinutes } from 'date-fns';
 
 interface AppointmentToday {
   id: string;
