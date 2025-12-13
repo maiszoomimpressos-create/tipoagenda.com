@@ -194,12 +194,11 @@ const CompanyManagementPage: React.FC = () => {
                           >
                             {company.ativo ? 'Desativar' : 'Ativar'}
                           </Button>
-                          {/* Botão de Gerenciamento de Assinatura (Futuro) */}
                           <Button
                             variant="outline"
                             size="sm"
                             className="!rounded-button whitespace-nowrap ml-2"
-                            onClick={() => showError('Gerenciamento de assinatura em desenvolvimento.')}
+                            onClick={() => navigate(`/admin-dashboard/companies/details/${company.id}`)}
                           >
                             Gerenciar
                           </Button>

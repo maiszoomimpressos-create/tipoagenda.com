@@ -42,6 +42,7 @@ import SubscriptionPlansPage from "./pages/SubscriptionPlansPage";
 import ApiKeysPage from "./pages/ApiKeysPage"; // Import new page
 import SubscriptionExpiredPage from "./pages/SubscriptionExpiredPage"; // Importar página de expiração
 import CompanyManagementPage from "./pages/CompanyManagementPage"; // Import new page
+import CompanyDetailsPage from "./pages/CompanyDetailsPage"; // Import new page
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -135,6 +136,7 @@ const App = () => (
             <Route path="/admin-dashboard/api-keys" element={<GlobalAdminProtectedRoute><ApiKeysPage /></GlobalAdminProtectedRoute>} />
             {/* Rota de gerenciamento de empresas */}
             <Route path="/admin-dashboard/companies" element={<GlobalAdminProtectedRoute><CompanyManagementPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/companies/details/:companyId" element={<GlobalAdminProtectedRoute><CompanyDetailsPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
