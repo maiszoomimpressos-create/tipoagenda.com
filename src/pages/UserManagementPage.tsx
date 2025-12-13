@@ -30,23 +30,32 @@ const UserManagementPage: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch all user types and join with profiles (which links to auth.users)
-      const { data: userTypeData, error } = await supabase
+      // 1. Fetch all user types and auth data
+      const { data: userTypeData, error: typeError } = await supabase
         .from('type_user')
         .select(`
           user_id,
           cod,
           descr,
-          profiles(first_name, last_name),
           auth_users:user_id(email, created_at, raw_user_meta_data)
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (typeError) throw typeError;
 
+      // 2. Fetch all profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name');
+
+      if (profilesError) throw profilesError;
+
+      const profileMap = new Map(profilesData.map(p => [p.id, p]));
+
+      // 3. Combine data
       const processedUsers: UserData[] = userTypeData.map((item: any) => {
         const authUser = item.auth_users;
-        const profile = item.profiles?.[0] || {};
+        const profile = profileMap.get(item.user_id) || {};
         
         return {
           id: item.user_id,

@@ -50,14 +50,12 @@ const UserDetailsPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // 1. Fetch Auth User Data (Email, Created At)
-      // Since we cannot query auth.users directly, we rely on the type_user join used previously
+      // 1. Fetch Auth User Data and User Type
       const { data: userTypeData, error: typeError } = await supabase
         .from('type_user')
         .select(`
           cod,
           descr,
-          profiles(*),
           auth_users:user_id(email, created_at)
         `)
         .eq('user_id', userId)
@@ -70,9 +68,17 @@ const UserDetailsPage: React.FC = () => {
       }
 
       const authUser = userTypeData.auth_users;
-      const profile = userTypeData.profiles?.[0] || null;
       
-      // 2. Fetch User Companies/Roles using RPC
+      // 2. Fetch Profile Data separately
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, phone_number, cpf, birth_date, gender')
+        .eq('id', userId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') throw profileError;
+
+      // 3. Fetch User Companies/Roles using RPC
       const { data: companyContext, error: companyError } = await supabase
         .rpc('get_user_context', { p_user_id: userId });
 
@@ -82,7 +88,7 @@ const UserDetailsPage: React.FC = () => {
         id: userId,
         email: authUser?.email || 'N/A',
         created_at: authUser?.created_at || 'N/A',
-        profile: profile as Profile,
+        profile: profileData as Profile,
         userType: { cod: userTypeData.cod, descr: userTypeData.descr },
         companies: companyContext as UserCompany[],
       });
