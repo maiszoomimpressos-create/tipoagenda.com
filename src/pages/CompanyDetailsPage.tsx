@@ -74,6 +74,21 @@ const CompanyDetailsPage: React.FC = () => {
   const ativoValue = watch('ativo');
   const segmentTypeValue = watch('segment_type');
 
+  const formatPhoneNumberInput = (value: string) => {
+    if (!value) return '';
+    let cleaned = value.replace(/\D/g, '');
+    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
+
+    if (cleaned.length <= 2) {
+      return `(${cleaned}`;
+    } else if (cleaned.length <= 7) {
+      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
+    } else if (cleaned.length <= 11) {
+      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
+    }
+    return cleaned;
+  };
+
   const fetchCompanyData = useCallback(async () => {
     if (!companyId) return;
 
@@ -131,21 +146,6 @@ const CompanyDetailsPage: React.FC = () => {
   useEffect(() => {
     fetchCompanyData();
   }, [fetchCompanyData]);
-
-  const formatPhoneNumberInput = (value: string) => {
-    if (!value) return '';
-    let cleaned = value.replace(/\D/g, '');
-    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
-
-    if (cleaned.length <= 2) {
-      return `(${cleaned}`;
-    } else if (cleaned.length <= 7) {
-      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
-    } else if (cleaned.length <= 11) {
-      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
-    }
-    return cleaned;
-  };
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatPhoneNumberInput(e.target.value);
