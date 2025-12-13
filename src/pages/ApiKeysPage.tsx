@@ -51,7 +51,7 @@ const ApiKeysPage: React.FC = () => {
           <CardContent className="space-y-4">
             <ol className="list-decimal list-inside space-y-3 text-gray-700">
               <li>
-                Acesse o console do Supabase e navegue até a seção **Edge Functions > Secrets**.
+                Acesse o console do Supabase e navegue até a seção Edge Functions &gt; Secrets.
                 <a href={supabaseSecretsLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 mt-1">
                   Ir para Supabase Secrets <ExternalLink className="h-4 w-4" />
                 </a>
