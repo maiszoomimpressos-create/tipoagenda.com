@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
 import { menuItems } from '@/lib/dashboard-utils';
@@ -10,33 +10,58 @@ import { useIsClient } from '@/hooks/useIsClient';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus'; // Importar novo hook
+import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage'; // Importar página de expiração
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, Zap } from 'lucide-react';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { session, loading } = useSession();
-  const { isClient, loadingClientCheck } = useIsClient();
+  const { session, loading: sessionLoading } = useSession();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
   const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
+  const { isClient, loadingClientCheck } = useIsClient();
+  
+  // Novo: Status da Assinatura
+  const { status: subscriptionStatus, endDate, loading: loadingSubscription } = useSubscriptionStatus();
+
   const location = useLocation();
   const navigate = useNavigate();
 
   const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
   
-  // Define se estamos em uma rota de aplicação que deve ter sidebar
-  // A sidebar deve aparecer apenas para Proprietários ou Admins de Empresa
-  const isAppPath = isProprietarioOrCompanyAdmin && location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard', '/admin-dashboard/new-contract', '/admin-dashboard/edit-contract', '/admin-dashboard/segments'].includes(location.pathname);
+  // Rotas que não devem ter sidebar, mesmo para Proprietários/Admins
+  const excludedPaths = ['/', '/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'];
+  
+  // Define se estamos em uma rota de aplicação que deve ter sidebar (para Proprietários/Admins)
+  const isAppPath = isProprietarioOrCompanyAdmin && 
+    !excludedPaths.some(path => location.pathname.startsWith(path) && location.pathname.length === path.length);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
   };
 
-  // Adiciona o item de Configurações ao final da lista de menus SE FOR ADMIN
   const finalMenuItems = [...menuItems];
-  // O item de Configurações Globais agora está no DropdownMenu do UserDropdownMenu e no AdminDashboard
-  // Não é mais um item do sidebar do MainApplication.
-  // A sidebar do MainApplication é para Proprietários/Admins de Empresa.
 
+  // Se o usuário é Proprietário/Admin e a assinatura expirou, bloqueia o acesso a todas as rotas de gerenciamento
+  if (isProprietarioOrCompanyAdmin && subscriptionStatus === 'expired') {
+    // Permite apenas acesso a rotas públicas, perfil, e a página de planos
+    if (!['/planos', '/profile'].includes(location.pathname)) {
+      return <SubscriptionExpiredPage endDate={endDate} />;
+    }
+  }
+
+  // Se o usuário está carregando a sessão ou os status, exibe loading
+  if (sessionLoading || loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingSubscription) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-700">Carregando aplicação...</p>
+      </div>
+    );
+  }
+
+  // Renderiza o componente principal
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
@@ -59,9 +84,7 @@ const MainApplication: React.FC = () => {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div>
-          ) : session ? (
+          {session ? (
             <div className="flex items-center gap-4">
               <Button variant="ghost" className="!rounded-button cursor-pointer relative">
                 <i className="fas fa-bell text-gray-600"></i>
@@ -128,6 +151,17 @@ const MainApplication: React.FC = () => {
           </aside>
         )}
         <main className="flex-1 p-6">
+          {/* Aviso de Expiração */}
+          {isProprietarioOrCompanyAdmin && subscriptionStatus === 'expiring_soon' && endDate && (
+            <Alert className="mb-6 border-yellow-500 bg-yellow-50 text-yellow-800">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertTitle className="text-yellow-800">Aviso de Expiração!</AlertTitle>
+              <AlertDescription>
+                Sua assinatura expira em breve, no dia {format(parseISO(endDate), 'dd/MM/yyyy', { locale: ptBR })}. 
+                <Link to="/planos" className="font-semibold underline ml-1">Renove agora</Link> para evitar a interrupção dos serviços.
+              </AlertDescription>
+            </Alert>
+          )}
           <Outlet />
         </main>
       </div>

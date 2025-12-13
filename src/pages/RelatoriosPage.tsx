@@ -159,7 +159,7 @@ const RelatoriosPage: React.FC = () => {
                 <p className="text-gray-600">Nenhum colaborador com agendamentos concluídos no período.</p>
               ) : (
                 collaborators.map((colaborador) => (
-                  <div key={colaborador.id} className="flex items-center justify-between">
+                  <div key={colaborador.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <Avatar className="w-8 h-8">
                         <AvatarFallback className="bg-gray-200 text-gray-700 text-sm">
@@ -170,7 +170,7 @@ const RelatoriosPage: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">{colaborador.appointments} atendimentos</p>
-                      <p className="text-sm text-yellow-600">Comissão: R$ {colaborador.commission.toFixed(2).replace('.', ',')}</p>
+                      <p className="text-sm font-bold text-yellow-600">Comissão: R$ {colaborador.commission.toFixed(2).replace('.', ',')}</p>
                     </div>
                   </div>
                 ))

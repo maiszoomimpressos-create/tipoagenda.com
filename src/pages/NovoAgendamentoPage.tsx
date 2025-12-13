@@ -100,11 +100,11 @@ const NovoAgendamentoPage: React.FC = () => {
 
     setLoadingData(true);
     try {
-      // Fetch Clients
+      // Fetch Clients: Inclui clientes associados à empresa primária OU clientes que não têm company_id (auto-registrados)
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('id, name')
-        .eq('company_id', primaryCompanyId)
+        .or(`company_id.eq.${primaryCompanyId},company_id.is.null`)
         .order('name', { ascending: true });
 
       if (clientsError) throw clientsError;
@@ -246,6 +246,34 @@ const NovoAgendamentoPage: React.FC = () => {
         .insert(appointmentServicesToInsert);
 
       if (servicesLinkError) throw servicesLinkError;
+
+      // 3. If the client was previously unassociated (company_id is null), associate them now.
+      // We use the admin client for this update to bypass RLS if necessary, although the user should have update permission on clients they created.
+      const selectedClient = clients.find(c => c.id === data.clientId);
+      if (selectedClient) {
+        const { data: clientDetails, error: clientDetailsError } = await supabase
+          .from('clients')
+          .select('company_id')
+          .eq('id', data.clientId)
+          .single();
+
+        if (clientDetailsError) throw clientDetailsError;
+
+        if (clientDetails.company_id === null) {
+          const { error: updateClientError } = await supabase
+            .from('clients')
+            .update({ company_id: primaryCompanyId })
+            .eq('id', data.clientId);
+          
+          if (updateClientError) {
+            console.warn('Falha ao associar cliente auto-registrado à empresa:', updateClientError.message);
+            // Continue, mas loga o erro
+          } else {
+            console.log('Cliente auto-registrado associado à empresa primária com sucesso.');
+          }
+        }
+      }
+
 
       showSuccess('Agendamento criado com sucesso!');
       navigate('/agendamentos'); // Redirect to appointments list

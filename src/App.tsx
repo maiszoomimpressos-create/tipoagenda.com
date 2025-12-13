@@ -40,6 +40,7 @@ import PlanManagementPage from "./pages/PlanManagementPage";
 import ContractManagementPage from "./pages/ContractManagementPage";
 import SubscriptionPlansPage from "./pages/SubscriptionPlansPage";
 import ApiKeysPage from "./pages/ApiKeysPage"; // Import new page
+import SubscriptionExpiredPage from "./pages/SubscriptionExpiredPage"; // Importar página de expiração
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
