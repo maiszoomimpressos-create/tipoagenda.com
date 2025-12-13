@@ -15,35 +15,40 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false); // Novo estado para rastrear o carregamento inicial
   const navigate = useNavigate();
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log('SessionContextProvider - Auth event:', event, 'Session:', currentSession);
+        
+        const previousSession = session; // Captura a sessão anterior antes de atualizar o estado
+
         setSession(currentSession);
         setLoading(false);
 
         if (event === 'SIGNED_IN' && currentSession) {
-          showSuccess('Login realizado com sucesso!');
+          // Só mostra o toast de sucesso se for um login fresco (não uma revalidação de token)
+          if (!previousSession) {
+            showSuccess('Login realizado com sucesso!');
+          }
           
           const targetCompanyId = getTargetCompanyId();
           
           if (targetCompanyId) {
-            // If a target company is set, assume the user is trying to book an appointment
-            // and redirect them to the client appointment page.
-            // The ClientAppointmentForm will handle clearing the targetCompanyId.
+            // Se uma empresa alvo estiver definida, redireciona para a página de agendamento do cliente.
             navigate('/agendar', { replace: true });
             return;
           }
           
-          // If no targetCompanyId, redirect to the root.
-          // The IndexPage will then handle the role-based redirection.
+          // Se não houver empresa alvo, redireciona para a raiz.
+          // O IndexPage cuidará do redirecionamento baseado no papel.
           navigate('/', { replace: true }); 
 
         } else if (event === 'SIGNED_OUT') {
           showSuccess('Logout realizado com sucesso!');
-          clearTargetCompanyId(); // Clear any pending target company on logout
+          clearTargetCompanyId(); // Limpa qualquer empresa alvo pendente no logout
           navigate('/', { replace: true }); 
         } else if (event === 'PASSWORD_RECOVERY') {
           showSuccess('Verifique seu e-mail para redefinir a senha.');
@@ -59,12 +64,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       console.log('SessionContextProvider - Initial getSession:', initialSession);
       setSession(initialSession);
       setLoading(false);
+      setInitialLoadComplete(true); // Marca o carregamento inicial como completo
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, session]); // Adicionado 'session' como dependência para que 'previousSession' seja capturado corretamente
 
   return (
     <SessionContext.Provider value={{ session, loading }}>
