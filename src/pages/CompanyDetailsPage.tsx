@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Building, Save, History } from 'lucide-react';
+import { ArrowLeft, Building, Save, History, DollarSign } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { format, parseISO } from 'date-fns';
