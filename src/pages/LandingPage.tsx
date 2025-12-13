@@ -1,11 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { supabase } from '@/integrations/supabase/client';
+import { showError } from '@/utils/toast';
+import { useNavigate } from 'react-router-dom';
+import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
+import { useSession } from '@/components/SessionContextProvider';
+import { useIsClient } from '@/hooks/useIsClient';
+import CompanySelectionModal from '@/components/CompanySelectionModal';
+
+interface Company {
+  id: string;
+  name: string;
+  segment_type: string | null; // Segment ID
+  image_url: string | null;
+  // Adicionando campos para simular dados de serviço na listagem
+  min_price: number;
+  avg_rating: number;
+}
 
 const LandingPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { session, loading: sessionLoading } = useSession();
+  const { isClient, loadingClientCheck } = useIsClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -19,26 +42,90 @@ const LandingPage: React.FC = () => {
     { id: 'pet', name: 'Pet Care', icon: 'fas fa-paw' }
   ];
 
-  const services = [
-    { name: 'Barbearia Premium', category: 'beleza', rating: 4.9, price: 'A partir de R$ 35' },
-    { name: 'Salão de Beleza', category: 'beleza', rating: 4.8, price: 'A partir de R$ 45' },
-    { name: 'Nutricionista', category: 'saude', rating: 4.7, price: 'A partir de R$ 80' },
-    { name: 'Personal Trainer', category: 'fitness', rating: 4.9, price: 'A partir de R$ 60' },
-    { name: 'Psicólogo Online', category: 'saude', rating: 4.8, price: 'A partir de R$ 120' },
-    { name: 'Coach de Carreira', category: 'educacao', rating: 4.6, price: 'A partir de R$ 150' },
-    { name: 'Consultoria Financeira', category: 'negocios', rating: 4.8, price: 'A partir de R$ 200' },
-    { name: 'Eletricista', category: 'casa', rating: 4.7, price: 'A partir de R$ 80' },
-    { name: 'Mecânico Automotivo', category: 'auto', rating: 4.8, price: 'A partir de R$ 100' },
-    { name: 'Veterinário', category: 'pet', rating: 4.9, price: 'A partir de R$ 90' },
-    { name: 'Manicure & Pedicure', category: 'beleza', rating: 4.7, price: 'A partir de R$ 25' },
-    { name: 'Massoterapia', category: 'saude', rating: 4.8, price: 'A partir de R$ 70' }
-  ];
+  const fetchCompanies = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Buscar todas as empresas cadastradas que estão ativas
+      const { data: companiesData, error } = await supabase
+        .from('companies')
+        .select(`
+          id,
+          name,
+          segment_type,
+          image_url,
+          services(price, duration_minutes)
+        `)
+        .eq('ativo', true)
+        .order('name', { ascending: true });
 
-  const filteredServices = services.filter(service => {
-    const matchesCategory = selectedCategory === 'todos' || service.category === selectedCategory;
-    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
+      if (error) throw error;
+
+      const processedCompanies: Company[] = companiesData.map(company => {
+        const prices = company.services.map(s => s.price);
+        const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        const avgRating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1);
+
+        return {
+          id: company.id,
+          name: company.name,
+          segment_type: company.segment_type,
+          image_url: company.image_url,
+          min_price: minPrice,
+          avg_rating: parseFloat(avgRating),
+        };
+      });
+
+      setCompanies(processedCompanies);
+    } catch (error: any) {
+      console.error('Erro ao carregar empresas:', error);
+      showError('Erro ao carregar empresas: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCompanies();
+  }, [fetchCompanies]);
+
+  // Logic to open the selection modal if the user is a client and just logged in without a target company
+  useEffect(() => {
+    if (!sessionLoading && session && isClient && !loadingClientCheck) {
+      const targetCompanyId = getTargetCompanyId();
+      
+      // If the user is a client, is logged in, and there is NO target company ID set in storage, 
+      // it means they logged in directly via /login or /signup and need to select a company.
+      if (!targetCompanyId) {
+        setIsSelectionModalOpen(true);
+      }
+      // Note: If targetCompanyId IS set, the SessionContextProvider already redirected them to /agendar.
+    }
+  }, [session, sessionLoading, isClient, loadingClientCheck]);
+
+
+  const filteredCompanies = companies.filter(company => {
+    const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
   });
+
+  const getImageUrl = (company: Company) => {
+    if (company.image_url) {
+      return company.image_url;
+    }
+    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
+  };
+
+  const handleBookAppointment = (companyId: string) => {
+    setTargetCompanyId(companyId);
+    
+    if (session && isClient) {
+      // If already logged in as a client, redirect directly to booking page
+      navigate('/agendar');
+    } else {
+      // If not logged in, redirect to login (SessionContextProvider handles redirection to /agendar after login)
+      navigate('/login');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -146,33 +233,44 @@ const LandingPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Services Grid */}
+          {/* Services/Companies Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredServices.map((service, index) => (
-              <Card key={index} className="border-gray-200 cursor-pointer hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="relative mb-4">
-                    <img
-                      src={`https://readdy.ai/api/search-image?query=professional%20${service.name.toLowerCase()}%20service%20provider%20in%20modern%20clean%20workspace%20with%20professional%20tools%20and%20equipment&width=300&height=200&seq=${service.name.replace(/\s+/g, '-').toLowerCase()}&orientation=landscape`}
-                      alt={service.name}
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                    <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
-                      <div className="flex items-center gap-1">
-                        <i className="fas fa-star text-yellow-500 text-sm"></i>
-                        <span className="text-sm font-semibold">{service.rating}</span>
+            {loading ? (
+              <p className="text-gray-600 col-span-full text-center">Carregando empresas...</p>
+            ) : filteredCompanies.length === 0 ? (
+              <p className="text-gray-600 col-span-full text-center">Nenhuma empresa encontrada com os critérios de busca.</p>
+            ) : (
+              filteredCompanies.map((company) => (
+                <Card key={company.id} className="border-gray-200 cursor-pointer hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="relative mb-4">
+                      <img
+                        src={getImageUrl(company)}
+                        alt={company.name}
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
+                        <div className="flex items-center gap-1">
+                          <i className="fas fa-star text-yellow-500 text-sm"></i>
+                          <span className="text-sm font-semibold">{company.avg_rating}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">{service.name}</h3>
-                  <p className="text-yellow-600 font-semibold mb-4">{service.price}</p>
-                  <Button className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black">
-                    <i className="fas fa-calendar-alt mr-2"></i>
-                    Agendar Agora
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    <h3 className="font-bold text-gray-900 text-lg mb-2">{company.name}</h3>
+                    <p className="text-yellow-600 font-semibold mb-4">
+                      {company.min_price > 0 ? `A partir de R$ ${company.min_price.toFixed(2).replace('.', ',')}` : 'Preço sob consulta'}
+                    </p>
+                    <Button 
+                      className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black"
+                      onClick={() => handleBookAppointment(company.id)}
+                    >
+                      <i className="fas fa-calendar-alt mr-2"></i>
+                      Agendar Agora
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -230,17 +328,25 @@ const LandingPage: React.FC = () => {
             Junte-se a milhares de usuários que já descobriram a forma mais fácil de agendar serviços
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black">
+            <Button className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black" onClick={() => navigate('/signup')}>
               <i className="fas fa-user-plus mr-2"></i>
               Cadastrar-se Grátis
             </Button>
-            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900">
+            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" onClick={() => navigate('/register-company')}>
               <i className="fas fa-store mr-2"></i>
               Sou Profissional
             </Button>
           </div>
         </div>
       </section>
+      
+      {/* Company Selection Modal */}
+      {session && isClient && !loadingClientCheck && (
+        <CompanySelectionModal 
+          isOpen={isSelectionModalOpen} 
+          onClose={() => setIsSelectionModalOpen(false)} 
+        />
+      )}
     </div>
   );
 };

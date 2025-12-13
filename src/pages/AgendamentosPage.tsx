@@ -13,7 +13,7 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit } from 'lucide-react';
-import AppointmentStatusModal from '@/components/AppointmentStatusModal'; // Importar o novo modal
+import CheckoutModal from '@/components/CheckoutModal'; // Importar o novo modal
 
 interface Appointment {
   id: string;
@@ -23,7 +23,8 @@ interface Appointment {
   total_duration_minutes: number;
   status: string;
   client_nickname: string | null; // Adicionado o novo campo
-  clients: { name: string } | null;
+  client_id: string; // Adicionado para referência
+  clients: { name: string, client_auth_id: string | null } | null; // Adicionado client_auth_id
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
 }
@@ -45,9 +46,9 @@ const AgendamentosPage: React.FC = () => {
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
 
-  // Estados para o modal de status
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [appointmentToEditStatus, setAppointmentToEditStatus] = useState<{ id: string; status: string } | null>(null);
+  // Estados para o modal de checkout
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [appointmentToCheckout, setAppointmentToCheckout] = useState<{ id: string; status: string } | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -65,8 +66,9 @@ const AgendamentosPage: React.FC = () => {
           total_price,
           total_duration_minutes,
           status,
+          client_id,
           client_nickname,
-          clients(name),
+          clients(name, client_auth_id),
           collaborators(first_name, last_name),
           appointment_services(
             services(name)
@@ -105,7 +107,36 @@ const AgendamentosPage: React.FC = () => {
         throw error;
       }
 
-      setAppointments(data as Appointment[]);
+      // Process data to ensure client name is available even if RLS on clients table fails for auto-registered clients
+      const processedAppointments: Appointment[] = await Promise.all(data.map(async (agendamento: any) => {
+        let clientNameFromClientsTable = agendamento.clients?.name;
+        let clientNickname = agendamento.client_nickname;
+        
+        // Fallback logic: If nickname is missing AND clients.name is missing, try to fetch from profiles
+        if (!clientNickname && !clientNameFromClientsTable && agendamento.clients?.client_auth_id) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', agendamento.clients.client_auth_id)
+            .single();
+
+          if (!profileError && profileData) {
+            clientNameFromClientsTable = `${profileData.first_name} ${profileData.last_name}`;
+          }
+        }
+
+        // Update the object for display
+        return {
+          ...agendamento,
+          client_nickname: clientNickname,
+          clients: {
+            ...agendamento.clients,
+            name: clientNameFromClientsTable,
+          },
+        } as Appointment;
+      }));
+
+      setAppointments(processedAppointments);
     } catch (error: any) {
       console.error('Erro ao carregar agendamentos:', error);
       showError('Erro ao carregar agendamentos: ' + error.message);
@@ -140,12 +171,12 @@ const AgendamentosPage: React.FC = () => {
     fetchAppointments();
   }, [fetchAppointments]);
 
-  const handleOpenStatusModal = (id: string, status: string) => {
-    setAppointmentToEditStatus({ id, status });
-    setIsStatusModalOpen(true);
+  const handleOpenCheckoutModal = (id: string, status: string) => {
+    setAppointmentToCheckout({ id, status });
+    setIsCheckoutModalOpen(true);
   };
 
-  const handleStatusUpdated = () => {
+  const handleCheckoutComplete = () => {
     fetchAppointments(); // Re-fetch appointments to update the list
   };
 
@@ -214,7 +245,10 @@ const AgendamentosPage: React.FC = () => {
           <p className="text-gray-600">Nenhum agendamento encontrado para {selectedTab === 'dia' ? 'o dia selecionado' : selectedTab === 'semana' ? 'a semana selecionada' : 'o mês selecionado'}.</p>
         ) : (
           appointments.map((agendamento) => {
-            const clientName = agendamento.clients?.name || 'Cliente Desconhecido';
+            // Prioriza client_nickname, depois clients.name, e por último o ID truncado
+            const clientNameFromClientsTable = agendamento.clients?.name;
+            const clientDisplay = agendamento.client_nickname || clientNameFromClientsTable || `Cliente ID: ${agendamento.client_id.substring(0, 8)}...`;
+            
             const collaboratorName = agendamento.collaborators ? `${agendamento.collaborators.first_name} ${agendamento.collaborators.last_name}` : 'Colaborador Desconhecido';
             const serviceNames = agendamento.appointment_services
               .map(as => as.services?.name)
@@ -238,7 +272,7 @@ const AgendamentosPage: React.FC = () => {
                       <div className={`w-4 h-4 rounded-full ${getStatusColor(agendamento.status)}`}></div>
                       <div>
                         <h3 className="font-semibold text-gray-900">
-                          {agendamento.client_nickname ? `${agendamento.client_nickname} (${clientName})` : clientName}
+                          {clientDisplay}
                         </h3>
                         <p className="text-sm text-gray-600">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
                       </div>
@@ -253,10 +287,10 @@ const AgendamentosPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="!rounded-button whitespace-nowrap"
+                        className="!rounded-button whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenStatusModal(agendamento.id, agendamento.status);
+                          handleOpenCheckoutModal(agendamento.id, agendamento.status);
                         }}
                         disabled={isFinalizedOrCanceled}
                       >
@@ -286,13 +320,13 @@ const AgendamentosPage: React.FC = () => {
         )}
       </div>
 
-      {appointmentToEditStatus && (
-        <AppointmentStatusModal
-          isOpen={isStatusModalOpen}
-          onClose={() => setIsStatusModalOpen(false)}
-          appointmentId={appointmentToEditStatus.id}
-          currentStatus={appointmentToEditStatus.status}
-          onStatusUpdated={handleStatusUpdated}
+      {appointmentToCheckout && primaryCompanyId && (
+        <CheckoutModal
+          isOpen={isCheckoutModalOpen}
+          onClose={() => setIsCheckoutModalOpen(false)}
+          appointmentId={appointmentToCheckout.id}
+          companyId={primaryCompanyId}
+          onCheckoutComplete={handleCheckoutComplete}
         />
       )}
     </div>

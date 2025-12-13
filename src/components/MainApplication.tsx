@@ -1,31 +1,73 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
-import { menuItems } from '@/lib/dashboard-utils'; // Importar menuItems do arquivo de utilitários
+import { menuItems } from '@/lib/dashboard-utils';
+import { useIsClient } from '@/hooks/useIsClient';
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus'; // Importar novo hook
+import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage'; // Importar página de expiração
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, Zap } from 'lucide-react';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { session, loading } = useSession();
+  const { session, loading: sessionLoading } = useSession();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
+  const { isClient, loadingClientCheck } = useIsClient();
+  
+  // Novo: Status da Assinatura
+  const { status: subscriptionStatus, endDate, loading: loadingSubscription } = useSubscriptionStatus();
+
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Determine if the current path is an "app" path (i.e., not landing or auth)
-  const isAppPath = location.pathname !== '/' && !['/login', '/signup', '/reset-password', '/profile', '/register-company'].includes(location.pathname);
+  const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
+  
+  // Rotas que não devem ter sidebar, mesmo para Proprietários/Admins
+  const excludedPaths = ['/', '/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'];
+  
+  // Define se estamos em uma rota de aplicação que deve ter sidebar (para Proprietários/Admins)
+  const isAppPath = isProprietarioOrCompanyAdmin && 
+    !excludedPaths.some(path => location.pathname.startsWith(path) && location.pathname.length === path.length);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
   };
 
+  const finalMenuItems = [...menuItems];
+
+  // Se o usuário é Proprietário/Admin e a assinatura expirou, bloqueia o acesso a todas as rotas de gerenciamento
+  if (isProprietarioOrCompanyAdmin && subscriptionStatus === 'expired') {
+    // Permite apenas acesso a rotas públicas, perfil, e a página de planos
+    if (!['/planos', '/profile'].includes(location.pathname)) {
+      return <SubscriptionExpiredPage endDate={endDate} />;
+    }
+  }
+
+  // Se o usuário está carregando a sessão ou os status, exibe loading
+  if (sessionLoading || loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingSubscription) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-700">Carregando aplicação...</p>
+      </div>
+    );
+  }
+
+  // Renderiza o componente principal
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header Section - Always present */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Left side of the header */}
           <div className="flex items-center gap-4">
-            {isAppPath && ( // Show hamburger only on app paths
+            {isAppPath && (
               <Button
                 variant="ghost"
                 className="lg:hidden !rounded-button cursor-pointer"
@@ -42,10 +84,7 @@ const MainApplication: React.FC = () => {
             </Link>
           </div>
 
-          {/* Right side of the header */}
-          {loading ? (
-            <div className="w-24 h-8 bg-gray-200 rounded-button animate-pulse"></div> // Placeholder for loading state
-          ) : session ? (
+          {session ? (
             <div className="flex items-center gap-4">
               <Button variant="ghost" className="!rounded-button cursor-pointer relative">
                 <i className="fas fa-bell text-gray-600"></i>
@@ -56,29 +95,24 @@ const MainApplication: React.FC = () => {
           ) : (
             <div className="flex items-center gap-3">
               <Link to="/login">
-                <Button variant="ghost" className="!rounded-button whitespace-nowrap text-gray-700 hover:bg-gray-100">
+                <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
                   Login
                 </Button>
               </Link>
-              <Link to="/signup">
-                <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-                  Cadastrar
-                </Button>
-              </Link>
+              {/* Botão Cadastrar removido conforme solicitado */}
             </div>
           )}
         </div>
       </header>
 
-      {/* Main content area (sidebar + main content) */}
-      <div className="flex flex-1 pt-16"> {/* Adicionado padding-top para compensar o header fixo */}
-        {isAppPath && ( // Show sidebar only on app paths
+      <div className="flex flex-1 pt-16">
+        {isAppPath && (
           <aside className={`bg-gray-900 text-white transition-all duration-300 ${
             sidebarCollapsed ? 'w-16' : 'w-64'
           } min-h-full`}>
             <nav className="p-4">
               <ul className="space-y-2">
-                {menuItems.map((item) => (
+                {finalMenuItems.map((item) => (
                   <li key={item.id}>
                     <Link
                       to={item.path}
@@ -95,12 +129,40 @@ const MainApplication: React.FC = () => {
                     </Link>
                   </li>
                 ))}
+                {!loadingClientCheck && isClient && (
+                  <li>
+                    <Link
+                      to="/meus-agendamentos"
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                        location.pathname === '/meus-agendamentos'
+                          ? 'bg-yellow-600 text-black'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <i className="fas fa-calendar-check text-lg"></i>
+                      {!sidebarCollapsed && (
+                        <span className="font-medium">Meus Agendamentos</span>
+                      )}
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
           </aside>
         )}
         <main className="flex-1 p-6">
-          <Outlet /> {/* Render nested routes here */}
+          {/* Aviso de Expiração */}
+          {isProprietarioOrCompanyAdmin && subscriptionStatus === 'expiring_soon' && endDate && (
+            <Alert className="mb-6 border-yellow-500 bg-yellow-50 text-yellow-800">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertTitle className="text-yellow-800">Aviso de Expiração!</AlertTitle>
+              <AlertDescription>
+                Sua assinatura expira em breve, no dia {format(parseISO(endDate), 'dd/MM/yyyy', { locale: ptBR })}. 
+                <Link to="/planos" className="font-semibold underline ml-1">Renove agora</Link> para evitar a interrupção dos serviços.
+              </AlertDescription>
+            </Alert>
+          )}
+          <Outlet />
         </main>
       </div>
     </div>

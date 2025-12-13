@@ -13,8 +13,10 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { useIsProprietario } from '@/hooks/useIsProprietario'; // Import the new hook
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
+import { useIsClient } from '@/hooks/useIsClient';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -25,8 +27,10 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const user = session?.user;
   const userEmail = user?.email || 'Usuário';
   const userName = user?.user_metadata?.first_name || userEmail;
-  const { isAdmin, loadingAdminCheck } = useIsAdmin();
-  const { isProprietario, loadingProprietarioCheck } = useIsProprietario(); // Use the new hook
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
+  const { isClient, loadingClientCheck } = useIsClient();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -37,6 +41,12 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
       // showSuccess('Logout realizado com sucesso!'); // O SessionContextProvider já exibe este toast
     }
   };
+
+  const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
+  const isAnyAdminRole = isGlobalAdmin || isProprietarioOrCompanyAdmin;
+  
+  // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin/GlobalAdmin)
+  const isPureClient = isClient && !isAnyAdminRole;
 
   return (
     <DropdownMenu>
@@ -58,20 +68,44 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-user mr-2"></i>
           Meu Perfil
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/register-company')}>
-          <i className="fas fa-building mr-2"></i>
-          Cadast. Empresa
-        </DropdownMenuItem>
-        {!loadingProprietarioCheck && isProprietario && ( // Conditionally render if user is Proprietário
+        
+        {/* Link para Dashboard Admin Global (Apenas Admin Global) */}
+        {!loadingGlobalAdminCheck && isGlobalAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>
+            <i className="fas fa-user-shield mr-2"></i> {/* Ícone para Admin Global */}
+            Dashboard Admin Global
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Dashboard (Proprietário/Admin da Empresa) */}
+        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && isProprietarioOrCompanyAdmin && (
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <i className="fas fa-chart-line mr-2"></i>
             Dashboard
           </DropdownMenuItem>
         )}
-        {!loadingAdminCheck && isAdmin && ( // Conditionally render if user is admin
-          <DropdownMenuItem onClick={() => navigate('/settings')}>
+
+        {/* Link para Meus Agendamentos (Apenas Cliente Puro) */}
+        {!loadingClientCheck && isPureClient && (
+          <DropdownMenuItem onClick={() => navigate('/meus-agendamentos')}>
+            <i className="fas fa-calendar-check mr-2"></i>
+            Meus Agendamentos
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Cadastro de Empresa (Visível se NÃO for Proprietário/Admin da Empresa E NÃO for Admin Global) */}
+        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && !loadingGlobalAdminCheck && !isAnyAdminRole && (
+          <DropdownMenuItem onClick={() => navigate('/register-company')}>
+            <i className="fas fa-building mr-2"></i>
+            Cadast. Empresa
+          </DropdownMenuItem>
+        )}
+
+        {/* Link para Configurações da Empresa (AGORA APENAS PARA ADMIN GLOBAL) */}
+        {!loadingGlobalAdminCheck && isGlobalAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>
             <i className="fas fa-cog mr-2"></i>
-            Configurações Admin
+            Configurações Globais
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

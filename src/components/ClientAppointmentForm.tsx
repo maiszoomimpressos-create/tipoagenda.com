@@ -14,30 +14,22 @@ import * as z from 'zod';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
-import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Calendar } from "@/components/ui/calendar"; // Importar Calendar
-import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse, startOfDay } from 'date-fns'; // Importar funções de data
-import { ptBR } from 'date-fns/locale'; // Importar locale para o calendário
-import { getAvailableTimeSlots } from '@/utils/appointment-scheduling'; // Importar utilitário de agendamento
+import { Calendar } from "@/components/ui/calendar";
+import { format, addMinutes, startOfDay, isBefore } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
+import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 // Zod schema for new appointment registration
-const newAppointmentSchema = z.object({
-  clientId: z.string().min(1, "Cliente é obrigatório."),
-  clientNickname: z.string().optional(), // Novo campo de apelido
+const clientAppointmentSchema = z.object({
   collaboratorId: z.string().min(1, "Colaborador é obrigatório."),
   serviceIds: z.array(z.string()).min(1, "Selecione pelo menos um serviço."),
   appointmentDate: z.string().min(1, "Data é obrigatória."),
   appointmentTime: z.string().min(1, "Horário é obrigatório."),
-  // paymentMethod: z.string().min(1, "Forma de pagamento é obrigatória."), // REMOVIDO
   observations: z.string().max(500, "Máximo de 500 caracteres.").optional(),
 });
 
-type NewAppointmentFormValues = z.infer<typeof newAppointmentSchema>;
-
-interface Client {
-  id: string;
-  name: string;
-}
+type ClientAppointmentFormValues = z.infer<typeof clientAppointmentSchema>;
 
 interface Collaborator {
   id: string;
@@ -52,15 +44,15 @@ interface Service {
   duration_minutes: number;
 }
 
-const NovoAgendamentoPage: React.FC = () => {
+const ClientAppointmentForm: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
-  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
-  const [loading, setLoading] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false); // For form submission
+  const [clientContext, setClientContext] = useState<{ clientId: string; clientName: string } | null>(null);
+  const [targetCompanyId, setTargetCompanyIdState] = useState<string | null>(null); // State to hold the company ID for this form
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // For initial data fetch
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [totalDurationMinutes, setTotalDurationMinutes] = useState(0);
@@ -72,84 +64,145 @@ const NovoAgendamentoPage: React.FC = () => {
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewAppointmentFormValues>({
-    resolver: zodResolver(newAppointmentSchema),
+  } = useForm<ClientAppointmentFormValues>({
+    resolver: zodResolver(clientAppointmentSchema),
     defaultValues: {
-      clientId: '',
-      clientNickname: '', // Default value for new field
       collaboratorId: '',
       serviceIds: [],
       appointmentDate: '',
       appointmentTime: '',
-      // paymentMethod: 'dinheiro', // REMOVIDO
       observations: '',
     },
   });
 
-  const selectedClientId = watch('clientId');
-  const selectedClientNickname = watch('clientNickname'); // Watch new field
   const selectedCollaboratorId = watch('collaboratorId');
   const selectedServiceIds = watch('serviceIds');
   const selectedAppointmentTime = watch('appointmentTime');
-  // const selectedPaymentMethod = watch('paymentMethod'); // REMOVIDO
+
+  const createClientProfileIfMissing = useCallback(async (userId: string) => {
+    let clientId: string = '';
+    let clientName: string = '';
+
+    // 1. Try to fetch the client profile from 'clients' table
+    const { data: existingClient, error: checkClientError } = await supabase
+      .from('clients')
+      .select('id, name')
+      .eq('client_auth_id', userId)
+      .single();
+
+    if (checkClientError && checkClientError.code !== 'PGRST116') { // Not 'No rows found' error
+      throw checkClientError;
+    }
+
+    if (existingClient) {
+      clientId = existingClient.id;
+      clientName = existingClient.name;
+    } else {
+      // 2. If client record was not found, create it
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, phone_number')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) throw profileError;
+
+      const name = `${profileData.first_name || 'Novo'} ${profileData.last_name || 'Cliente'}`;
+      const phone = session?.user.user_metadata.phone_number || profileData.phone_number || '00000000000';
+      const email = session?.user.email || 'unknown@example.com';
+
+      const { data: newClient, error: insertError } = await supabase
+        .from('clients')
+        .insert({
+          client_auth_id: userId,
+          user_id: userId, // Self-registered client
+          name: name,
+          phone: phone,
+          email: email,
+          birth_date: '1900-01-01',
+          zip_code: '00000000',
+          state: 'XX',
+          city: 'N/A',
+          address: 'N/A',
+          number: '0',
+          neighborhood: 'N/A',
+          company_id: null, // Clients are not tied to a single company in 'clients' table
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+      clientId = newClient.id;
+      clientName = name;
+    }
+
+    return { clientId, clientName };
+
+  }, [session?.user.email, session?.user.user_metadata.phone_number]);
+
 
   const fetchInitialData = useCallback(async () => {
-    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+    if (sessionLoading || !session?.user) {
       return;
     }
 
     setLoadingData(true);
     try {
-      // Fetch Clients: Inclui clientes associados à empresa primária OU clientes que não têm company_id (auto-registrados)
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
-        .select('id, name')
-        .or(`company_id.eq.${primaryCompanyId},company_id.is.null`)
-        .order('name', { ascending: true });
+      // 1. Get the client's profile data (or create it if missing)
+      const clientData = await createClientProfileIfMissing(session.user.id);
+      setClientContext({ 
+        clientId: clientData.clientId, 
+        clientName: clientData.clientName 
+      });
 
-      if (clientsError) throw clientsError;
-      setClients(clientsData);
+      // 2. Determine the target company ID from storage (if user clicked from Landing Page)
+      const storedCompanyId = getTargetCompanyId();
+      console.log('ClientAppointmentForm: Target Company ID from storage:', storedCompanyId); // LOG ADDED
+      
+      if (!storedCompanyId) {
+        throw new Error('Nenhuma empresa selecionada. Por favor, selecione uma empresa na página inicial.');
+      }
+      setTargetCompanyIdState(storedCompanyId);
 
-      // Fetch Collaborators
+      // 3. Fetch Collaborators for the selected company
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
         .select('id, first_name, last_name')
-        .eq('company_id', primaryCompanyId)
+        .eq('company_id', storedCompanyId)
+        .eq('status', 'Ativo')
         .order('first_name', { ascending: true });
 
       if (collaboratorsError) throw collaboratorsError;
       setCollaborators(collaboratorsData);
+      console.log('ClientAppointmentForm: Fetched collaborators count:', collaboratorsData.length); // LOG ADDED
 
-      // Fetch Services
+      // 4. Fetch Services for the selected company
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('id, name, price, duration_minutes')
-        .eq('company_id', primaryCompanyId)
-        .eq('status', 'Ativo') // Only active services
+        .eq('company_id', storedCompanyId)
+        .eq('status', 'Ativo')
         .order('name', { ascending: true });
 
       if (servicesError) throw servicesError;
       setServices(servicesData);
+      console.log('ClientAppointmentForm: Fetched services count:', servicesData.length); // LOG ADDED
+
+      // 5. Clear the target ID from storage once the context is established
+      clearTargetCompanyId();
 
     } catch (error: any) {
-      console.error('Erro ao carregar dados iniciais:', error);
+      console.error('Erro ao carregar dados iniciais para agendamento do cliente:', error);
       showError('Erro ao carregar dados: ' + error.message);
+      navigate('/meus-agendamentos'); // Redirect to list if setup fails
     } finally {
       setLoadingData(false);
     }
-  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId]);
+  }, [session, sessionLoading, navigate, createClientProfileIfMissing]);
 
   useEffect(() => {
-    if (!session && !sessionLoading) {
-      showError('Você precisa estar logado para criar agendamentos.');
-      navigate('/login');
-    }
-    if (!primaryCompanyId && !loadingPrimaryCompany && session) {
-      showError('Você precisa ter uma empresa primária cadastrada para criar agendamentos.');
-      navigate('/register-company');
-    }
     fetchInitialData();
-  }, [session, sessionLoading, primaryCompanyId, loadingPrimaryCompany, navigate, fetchInitialData]);
+  }, [fetchInitialData]);
 
   // Effect to calculate total duration and price when services change
   useEffect(() => {
@@ -163,13 +216,13 @@ const NovoAgendamentoPage: React.FC = () => {
   // Effect to fetch available time slots
   useEffect(() => {
     const fetchSlots = async () => {
-      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && primaryCompanyId) {
+      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && targetCompanyId) {
         setLoading(true);
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           const slots = await getAvailableTimeSlots(
             supabase,
-            primaryCompanyId,
+            targetCompanyId,
             selectedCollaboratorId,
             selectedDate,
             totalDurationMinutes
@@ -188,7 +241,7 @@ const NovoAgendamentoPage: React.FC = () => {
       }
     };
     fetchSlots();
-  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, primaryCompanyId, setValue]);
+  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, targetCompanyId, setValue]);
 
 
   const handleServiceChange = (serviceId: string, checked: boolean) => {
@@ -201,91 +254,60 @@ const NovoAgendamentoPage: React.FC = () => {
     setValue('serviceIds', currentServices, { shouldValidate: true });
   };
 
-  const onSubmit = async (data: NewAppointmentFormValues) => {
+  const onSubmit = async (data: ClientAppointmentFormValues) => {
     setLoading(true);
-    if (!session?.user || !primaryCompanyId) {
-      showError('Erro de autenticação ou empresa primária não encontrada.');
+    if (!session?.user || !clientContext?.clientId || !targetCompanyId) {
+      showError('Erro de autenticação ou dados do cliente/empresa faltando.');
       setLoading(false);
       return;
     }
 
     try {
-      // Extract only the start time from the selected slot (e.g., "09:00" from "09:00 às 09:30")
       const startTimeForDb = data.appointmentTime.split(' ')[0];
+      
+      // Extract only the first name from the full client name
+      const clientFirstName = clientContext.clientName.split(' ')[0];
 
-      // 1. Create the main appointment entry
-      const { data: appointmentData, error: appointmentError } = await supabase
-        .from('appointments')
-        .insert({
-          company_id: primaryCompanyId,
-          client_id: data.clientId,
-          client_nickname: data.clientNickname, // Save the new nickname field
-          collaborator_id: data.collaboratorId,
-          appointment_date: data.appointmentDate,
-          appointment_time: startTimeForDb, // Use only the start time
-          total_duration_minutes: totalDurationMinutes,
-          total_price: totalPriceCalculated,
-          // payment_method: data.paymentMethod, // REMOVIDO
+      const response = await supabase.functions.invoke('book-appointment', {
+        body: JSON.stringify({
+          clientId: clientContext.clientId,
+          clientNickname: clientFirstName, // <-- Usando apenas o primeiro nome
+          collaboratorId: data.collaboratorId,
+          serviceIds: data.serviceIds,
+          appointmentDate: data.appointmentDate,
+          appointmentTime: startTimeForDb,
+          totalDurationMinutes: totalDurationMinutes,
+          totalPriceCalculated: totalPriceCalculated,
           observations: data.observations,
-          created_by_user_id: session.user.id,
-          status: 'pendente', // Default status
-        })
-        .select()
-        .single();
+          companyId: targetCompanyId, // Use the company ID determined in fetchInitialData
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
 
-      if (appointmentError) throw appointmentError;
-
-      // 2. Link services to the appointment in appointment_services table
-      const appointmentServicesToInsert = data.serviceIds.map(serviceId => ({
-        appointment_id: appointmentData.id,
-        service_id: serviceId,
-      }));
-
-      const { error: servicesLinkError } = await supabase
-        .from('appointment_services')
-        .insert(appointmentServicesToInsert);
-
-      if (servicesLinkError) throw servicesLinkError;
-
-      // 3. If the client was previously unassociated (company_id is null), associate them now.
-      // We use the admin client for this update to bypass RLS if necessary, although the user should have update permission on clients they created.
-      const selectedClient = clients.find(c => c.id === data.clientId);
-      if (selectedClient) {
-        const { data: clientDetails, error: clientDetailsError } = await supabase
-          .from('clients')
-          .select('company_id')
-          .eq('id', data.clientId)
-          .single();
-
-        if (clientDetailsError) throw clientDetailsError;
-
-        if (clientDetails.company_id === null) {
-          const { error: updateClientError } = await supabase
-            .from('clients')
-            .update({ company_id: primaryCompanyId })
-            .eq('id', data.clientId);
-          
-          if (updateClientError) {
-            console.warn('Falha ao associar cliente auto-registrado à empresa:', updateClientError.message);
-            // Continue, mas loga o erro
-          } else {
-            console.log('Cliente auto-registrado associado à empresa primária com sucesso.');
-          }
+      if (response.error) {
+        let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
+        if (response.error.context && response.error.context.data && response.error.context.data.error) {
+          edgeFunctionErrorMessage = response.error.context.data.error;
+        } else if (response.error.message) {
+          edgeFunctionErrorMessage = response.error.message;
         }
+        throw new Error(edgeFunctionErrorMessage);
       }
 
-
       showSuccess('Agendamento criado com sucesso!');
-      navigate('/agendamentos'); // Redirect to appointments list
+      navigate('/meus-agendamentos'); // Redirect to client's appointments list
     } catch (error: any) {
       console.error('Erro ao criar agendamento:', error);
-      showError('Erro ao criar agendamento: ' + error.message);
+      showError('Erro ao criar agendamento: ' + (error.message || 'Erro desconhecido.'));
     } finally {
       setLoading(false);
     }
   };
 
-  if (sessionLoading || loadingPrimaryCompany || loadingData) {
+  if (sessionLoading || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando dados para agendamento...</p>
@@ -293,18 +315,19 @@ const NovoAgendamentoPage: React.FC = () => {
     );
   }
 
-  if (!session?.user || !primaryCompanyId) {
+  if (!session?.user || !clientContext || !targetCompanyId) {
+    // If clientContext or targetCompanyId is null here, it means fetchInitialData failed to find the client profile or company association.
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">
-          Você precisa estar logado e ter uma empresa primária para criar agendamentos.
+          Não foi possível carregar seu perfil de cliente ou empresa associada. Por favor, tente novamente ou entre em contato com o suporte.
         </p>
         <Button
           className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
-          onClick={() => navigate('/register-company')}
+          onClick={() => navigate('/meus-agendamentos')} // Navigate back to client's list
         >
-          <i className="fas fa-building mr-2"></i>
-          Cadastrar Empresa
+          <i className="fas fa-sign-in-alt mr-2"></i>
+          Voltar para Meus Agendamentos
         </Button>
       </div>
     );
@@ -316,7 +339,7 @@ const NovoAgendamentoPage: React.FC = () => {
         <Button
           variant="ghost"
           className="!rounded-button cursor-pointer"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/meus-agendamentos')} // Navigate back to client's list
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
@@ -327,43 +350,6 @@ const NovoAgendamentoPage: React.FC = () => {
         <Card className="border-gray-200">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="clientId" className="block text-sm font-medium text-gray-700 mb-2">
-                    Cliente *
-                  </Label>
-                  <Select onValueChange={(value) => setValue('clientId', value, { shouldValidate: true })} value={selectedClientId}>
-                    <SelectTrigger id="clientId" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                      <SelectValue placeholder="Selecione o cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.length === 0 ? (
-                        <SelectItem value="no-clients" disabled>Nenhum cliente disponível.</SelectItem>
-                      ) : (
-                        clients.map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {errors.clientId && <p className="text-red-500 text-xs mt-1">{errors.clientId.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="clientNickname" className="block text-sm font-medium text-gray-700 mb-2">
-                    Apelido (Opcional)
-                  </Label>
-                  <Input
-                    id="clientNickname"
-                    type="text"
-                    placeholder="Apelido do cliente"
-                    {...register('clientNickname')}
-                    className="mt-1 border-gray-300 text-sm"
-                  />
-                  {errors.clientNickname && <p className="text-red-500 text-xs mt-1">{errors.clientNickname.message}</p>}
-                </div>
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="collaboratorId" className="block text-sm font-medium text-gray-700 mb-2">
@@ -481,7 +467,7 @@ const NovoAgendamentoPage: React.FC = () => {
                   type="button"
                   variant="outline"
                   className="!rounded-button whitespace-nowrap cursor-pointer flex-1"
-                  onClick={() => navigate(-1)}
+                  onClick={() => navigate('/meus-agendamentos')} // Navigate back to client's list
                   disabled={loading}
                 >
                   Cancelar
@@ -502,4 +488,4 @@ const NovoAgendamentoPage: React.FC = () => {
   );
 };
 
-export default NovoAgendamentoPage;
+export default ClientAppointmentForm;

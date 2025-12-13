@@ -164,7 +164,7 @@ const SegmentManagementPage: React.FC = () => {
         <Button
           variant="ghost"
           className="!rounded-button cursor-pointer"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/admin-dashboard')} // Navigate back to admin dashboard
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
