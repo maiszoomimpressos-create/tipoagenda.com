@@ -7,6 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { Users, Building, DollarSign, FileText, Tags, LogOut, Key } from 'lucide-react'; // Importando ícones Lucide
+import RecentAuditLogs from '@/components/RecentAuditLogs'; // Importar novo componente
 
 // Componente auxiliar para padronizar os cards de gerenciamento
 interface ManagementCardProps {
@@ -100,7 +101,7 @@ const AdminDashboard: React.FC = () => {
             icon={<Users className="h-6 w-6 text-blue-600" />}
             buttonText="Acessar Gerenciamento de Usuários"
             buttonColor="bg-blue-600 hover:bg-blue-700"
-            onClick={() => { /* Implementar navegação para Gerenciamento de Usuários */ }}
+            onClick={() => navigate('/admin-dashboard/users')}
           />
 
           <ManagementCard
@@ -109,7 +110,7 @@ const AdminDashboard: React.FC = () => {
             icon={<Building className="h-6 w-6 text-green-600" />}
             buttonText="Acessar Gerenciamento de Empresas"
             buttonColor="bg-green-600 hover:bg-green-700"
-            onClick={() => { /* Implementar navegação para Gerenciamento de Empresas */ }}
+            onClick={() => navigate('/admin-dashboard/companies')}
           />
 
           <ManagementCard
@@ -152,6 +153,9 @@ const AdminDashboard: React.FC = () => {
             onClick={() => navigate('/admin-dashboard/api-keys')}
           />
         </div>
+        
+        {/* Logs de Auditoria Recentes */}
+        <RecentAuditLogs />
       </div>
     </div>
   );
