@@ -109,7 +109,7 @@ const AdminDashboard: React.FC = () => {
             icon={<Building className="h-6 w-6 text-green-600" />}
             buttonText="Acessar Gerenciamento de Empresas"
             buttonColor="bg-green-600 hover:bg-green-700"
-            onClick={() => navigate('/admin-dashboard/companies')}
+            onClick={() => { /* Implementar navegação para Gerenciamento de Empresas */ }}
           />
 
           <ManagementCard
