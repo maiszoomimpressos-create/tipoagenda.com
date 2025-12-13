@@ -14,6 +14,8 @@ import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus'; // Import
 import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage'; // Importar página de expiração
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Zap } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -44,8 +46,8 @@ const MainApplication: React.FC = () => {
 
   const finalMenuItems = [...menuItems];
 
-  // Se o usuário é Proprietário/Admin e a assinatura expirou, bloqueia o acesso a todas as rotas de gerenciamento
-  if (isProprietarioOrCompanyAdmin && subscriptionStatus === 'expired') {
+  // Se o usuário é Proprietário/Admin e a assinatura expirou ou não existe, bloqueia o acesso a todas as rotas de gerenciamento
+  if (isProprietarioOrCompanyAdmin && (subscriptionStatus === 'expired' || subscriptionStatus === 'no_subscription')) {
     // Permite apenas acesso a rotas públicas, perfil, e a página de planos
     if (!['/planos', '/profile'].includes(location.pathname)) {
       return <SubscriptionExpiredPage endDate={endDate} />;
