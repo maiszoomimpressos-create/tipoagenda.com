@@ -7,6 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { Users, Building, DollarSign, FileText, Tags, LogOut, Key } from 'lucide-react'; // Importando ícones Lucide
+import RecentAuditLogs from '@/components/RecentAuditLogs'; // Importar novo componente
 
 // Componente auxiliar para padronizar os cards de gerenciamento
 interface ManagementCardProps {
@@ -152,6 +153,9 @@ const AdminDashboard: React.FC = () => {
             onClick={() => navigate('/admin-dashboard/api-keys')}
           />
         </div>
+        
+        {/* Logs de Auditoria Recentes */}
+        <RecentAuditLogs />
       </div>
     </div>
   );
