@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +15,8 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false); // Novo estado para rastrear o carregamento inicial
+  // Usamos useRef para rastrear se o usuário já estava logado, evitando toasts repetidos em revalidações.
+  const isUserLoggedInRef = useRef(false); 
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,14 +24,20 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       async (event, currentSession) => {
         console.log('SessionContextProvider - Auth event:', event, 'Session:', currentSession);
         
-        const previousSession = session; // Captura a sessão anterior antes de atualizar o estado
-
+        const wasLoggedIn = isUserLoggedInRef.current;
+        
         setSession(currentSession);
         setLoading(false);
 
+        if (currentSession) {
+          isUserLoggedInRef.current = true;
+        } else {
+          isUserLoggedInRef.current = false;
+        }
+
         if (event === 'SIGNED_IN' && currentSession) {
           // Só mostra o toast de sucesso se for um login fresco (não uma revalidação de token)
-          if (!previousSession) {
+          if (!wasLoggedIn) {
             showSuccess('Login realizado com sucesso!');
           }
           
@@ -54,8 +61,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           showSuccess('Verifique seu e-mail para redefinir a senha.');
         } else if (event === 'USER_UPDATED') {
           showSuccess('Seu perfil foi atualizado!');
-        } else if (event === 'INITIAL_SESSION') {
-          // No toast or navigation needed for initial session
         }
       }
     );
@@ -64,13 +69,15 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       console.log('SessionContextProvider - Initial getSession:', initialSession);
       setSession(initialSession);
       setLoading(false);
-      setInitialLoadComplete(true); // Marca o carregamento inicial como completo
+      if (initialSession) {
+        isUserLoggedInRef.current = true;
+      }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate, session]); // Adicionado 'session' como dependência para que 'previousSession' seja capturado corretamente
+  }, [navigate]); // Dependências corrigidas: apenas 'navigate'
 
   return (
     <SessionContext.Provider value={{ session, loading }}>
