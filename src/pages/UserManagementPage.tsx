@@ -30,11 +30,7 @@ const UserManagementPage: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch all users from auth.users (requires service role, but we use RLS on type_user)
-      // Since we cannot directly query auth.users from the client, we rely on fetching profiles and type_user
-      // and then joining the data.
-
-      // 1. Fetch all user types and join with profiles (which links to auth.users)
+      // Fetch all user types and join with profiles (which links to auth.users)
       const { data: userTypeData, error } = await supabase
         .from('type_user')
         .select(`
@@ -161,7 +157,7 @@ const UserManagementPage: React.FC = () => {
                             variant="outline"
                             size="sm"
                             className="!rounded-button whitespace-nowrap"
-                            onClick={() => showError('Funcionalidade de edição de usuário em desenvolvimento.')}
+                            onClick={() => navigate(`/admin-dashboard/users/details/${user.id}`)}
                           >
                             Detalhes
                           </Button>
