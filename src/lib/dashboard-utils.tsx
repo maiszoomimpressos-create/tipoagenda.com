@@ -10,6 +10,7 @@ export const getStatusColor = (status: string) => {
     confirmado: 'bg-green-500',
     pendente: 'bg-yellow-500',
     cancelado: 'bg-red-500',
+    concluido: 'bg-blue-500', // Adicionado status concluido
     vip: 'bg-yellow-500 text-black',
     regular: 'bg-blue-500',
     novo: 'bg-green-500',
@@ -92,36 +93,12 @@ export const menuItems = [
   { id: 'planos', label: 'Planos', icon: 'fas fa-gem', path: '/planos' } // Novo item de menu
 ];
 
+// Removendo mockData e estoque, pois serão substituídos por dados reais
 export const mockData = {
-  kpis: [
-    { title: 'Faturamento do Mês', value: 'R$ 45.280', change: '+12%', icon: 'fas fa-money-bill-wave' },
-    { title: 'Agendamentos Hoje', value: '28', change: '+5', icon: 'fas fa-calendar-check' },
-    { title: 'Barbeiro Mais Ativo', value: 'João Silva', change: '85 cortes', icon: 'fas fa-crown' },
-    { title: 'Estoque Crítico', value: '3 itens', change: 'Atenção', icon: 'fas fa-exclamation-triangle' }
-  ],
-  agendamentos: [
-    { id: 1, cliente: 'Carlos Santos', servico: 'Corte + Barba', horario: '09:00', barbeiro: 'João Silva', valor: 'R$ 45', status: 'confirmado' },
-    { id: 2, cliente: 'Pedro Lima', servico: 'Corte Tradicional', horario: '10:30', barbeiro: 'Maria Costa', valor: 'R$ 30', status: 'pendente' },
-    { id: 3, cliente: 'Rafael Oliveira', servico: 'Barba + Bigode', horario: '14:00', barbeiro: 'João Silva', valor: 'R$ 25', status: 'confirmado' },
-    { id: 4, cliente: 'Lucas Ferreira', servico: 'Corte Moderno', horario: '16:30', barbeiro: 'Ana Souza', valor: 'R$ 40', status: 'cancelado' }
-  ],
-  clientes: [
-    { id: 1, nome: 'Carlos Santos', telefone: '(11) 99999-9999', visitas: 15, pontos: 450, status: 'vip' },
-    { id: 2, nome: 'Pedro Lima', telefone: '(11) 88888-8888', visitas: 8, pontos: 240, status: 'regular' },
-    { id: 3, nome: 'Rafael Oliveira', telefone: '(11) 77777-7777', visitas: 22, pontos: 660, status: 'vip' },
-    { id: 4, nome: 'Lucas Ferreira', telefone: '(11) 66666-6666', visitas: 3, pontos: 90, status: 'novo' }
-  ],
-  colaboradores: [
-    { id: 1, nome: 'João Silva', funcao: 'Barbeiro Sênior', comissao: 'R$ 2.850', cortes: 85, rating: 4.9 },
-    { id: 2, nome: 'Maria Costa', funcao: 'Barbeira', comissao: 'R$ 2.240', cortes: 68, rating: 4.8 },
-    { id: 3, nome: 'Ana Souza', funcao: 'Barbeira Junior', comissao: 'R$ 1.680', cortes: 42, rating: 4.7 }
-  ]
+  kpis: [],
+  agendamentos: [],
+  clientes: [],
+  colaboradores: []
 };
 
-export const estoque = [
-  { id: 1, produto: 'Cera Modeladora', quantidade: 12, minimo: 5, fornecedor: 'HairPro', preco: 'R$ 35,00' },
-  { id: 2, produto: 'Shampoo Antiqueda', quantidade: 3, minimo: 5, fornecedor: 'BelezaTotal', preco: 'R$ 50,00' },
-  { id: 3, produto: 'Óleo para Barba', quantidade: 20, minimo: 10, fornecedor: 'BarberEssentials', preco: 'R$ 40,00' },
-  { id: 4, produto: 'Loção Pós-Barba', quantidade: 8, minimo: 5, fornecedor: 'HairPro', preco: 'R$ 30,00' },
-  { id: 5, produto: 'Gel Fixador', quantidade: 4, minimo: 5, fornecedor: 'BelezaTotal', preco: 'R$ 25,00' },
-];
+export const estoque = [];
