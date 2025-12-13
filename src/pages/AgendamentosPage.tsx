@@ -13,7 +13,7 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit } from 'lucide-react';
-import AppointmentStatusModal from '@/components/AppointmentStatusModal'; // Importar o novo modal
+import CheckoutModal from '@/components/CheckoutModal'; // Importar o novo modal
 
 interface Appointment {
   id: string;
@@ -46,9 +46,9 @@ const AgendamentosPage: React.FC = () => {
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
 
-  // Estados para o modal de status
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [appointmentToEditStatus, setAppointmentToEditStatus] = useState<{ id: string; status: string } | null>(null);
+  // Estados para o modal de checkout
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [appointmentToCheckout, setAppointmentToCheckout] = useState<{ id: string; status: string } | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -171,12 +171,12 @@ const AgendamentosPage: React.FC = () => {
     fetchAppointments();
   }, [fetchAppointments]);
 
-  const handleOpenStatusModal = (id: string, status: string) => {
-    setAppointmentToEditStatus({ id, status });
-    setIsStatusModalOpen(true);
+  const handleOpenCheckoutModal = (id: string, status: string) => {
+    setAppointmentToCheckout({ id, status });
+    setIsCheckoutModalOpen(true);
   };
 
-  const handleStatusUpdated = () => {
+  const handleCheckoutComplete = () => {
     fetchAppointments(); // Re-fetch appointments to update the list
   };
 
@@ -287,10 +287,10 @@ const AgendamentosPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="!rounded-button whitespace-nowrap"
+                        className="!rounded-button whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenStatusModal(agendamento.id, agendamento.status);
+                          handleOpenCheckoutModal(agendamento.id, agendamento.status);
                         }}
                         disabled={isFinalizedOrCanceled}
                       >
@@ -320,13 +320,13 @@ const AgendamentosPage: React.FC = () => {
         )}
       </div>
 
-      {appointmentToEditStatus && (
-        <AppointmentStatusModal
-          isOpen={isStatusModalOpen}
-          onClose={() => setIsStatusModalOpen(false)}
-          appointmentId={appointmentToEditStatus.id}
-          currentStatus={appointmentToEditStatus.status}
-          onStatusUpdated={handleStatusUpdated}
+      {appointmentToCheckout && primaryCompanyId && (
+        <CheckoutModal
+          isOpen={isCheckoutModalOpen}
+          onClose={() => setIsCheckoutModalOpen(false)}
+          appointmentId={appointmentToCheckout.id}
+          companyId={primaryCompanyId}
+          onCheckoutComplete={handleCheckoutComplete}
         />
       )}
     </div>
