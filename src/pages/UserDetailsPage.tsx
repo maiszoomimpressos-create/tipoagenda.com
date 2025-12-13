@@ -50,7 +50,7 @@ const UserDetailsPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // 1. Fetch Auth User Data and User Type
+      // 1. Fetch User Type and Auth Data
       const { data: userTypeData, error: typeError } = await supabase
         .from('type_user')
         .select(`
@@ -76,7 +76,10 @@ const UserDetailsPage: React.FC = () => {
         .eq('id', userId)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') throw profileError;
+      if (profileError && profileError.code !== 'PGRST116') {
+        // If profile is missing, it's not a critical error, just log it
+        console.warn('Profile data missing for user:', userId, profileError);
+      }
 
       // 3. Fetch User Companies/Roles using RPC
       const { data: companyContext, error: companyError } = await supabase

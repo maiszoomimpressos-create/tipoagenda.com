@@ -30,7 +30,7 @@ const UserManagementPage: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch all user types and auth data
+      // 1. Fetch all user types and auth data (using the working join syntax)
       const { data: userTypeData, error: typeError } = await supabase
         .from('type_user')
         .select(`
@@ -43,7 +43,7 @@ const UserManagementPage: React.FC = () => {
 
       if (typeError) throw typeError;
 
-      // 2. Fetch all profiles
+      // 2. Fetch all profiles separately
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, first_name, last_name');
@@ -62,6 +62,7 @@ const UserManagementPage: React.FC = () => {
           email: authUser?.email || 'N/A',
           created_at: authUser?.created_at || 'N/A',
           user_metadata: {
+            // Prioritize profile data, fallback to auth metadata
             first_name: profile.first_name || authUser?.raw_user_meta_data?.first_name,
             last_name: profile.last_name || authUser?.raw_user_meta_data?.last_name,
           },
