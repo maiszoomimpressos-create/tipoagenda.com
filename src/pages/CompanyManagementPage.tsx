@@ -21,7 +21,7 @@ interface Company {
   profiles: { first_name: string; last_name: string } | null;
 }
 
-const CompanyManagementPage: React.FC = () => {
+export default function CompanyManagementPage() {
   const navigate = useNavigate();
   const { session } = useSession();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -256,6 +256,4 @@ const CompanyManagementPage: React.FC = () => {
       </div>
     </div>
   );
-};
-
-export default CompanyManagementPage;
+}
