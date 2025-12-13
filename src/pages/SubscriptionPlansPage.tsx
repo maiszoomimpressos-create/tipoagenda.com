@@ -57,7 +57,8 @@ const SubscriptionPlansPage: React.FC = () => {
         throw plansError;
       }
       console.log('SubscriptionPlansPage: Fetched plans count:', plansData.length);
-      setAvailablePlans(plansData as Plan[]);
+      // Garantindo que não haja nulos no array, embora o Supabase geralmente não retorne
+      setAvailablePlans(plansData.filter(p => p !== null) as Plan[]);
 
       // 2. Fetch current active subscription for the primary company
       const { data: subData, error: subError } = await supabase
@@ -222,7 +223,7 @@ const SubscriptionPlansPage: React.FC = () => {
               <p className="text-2xl font-bold text-yellow-600">{currentSubscription.subscription_plans?.name || 'Plano Desconhecido'}</p>
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
                 <p className="flex items-center gap-2"><Clock className="h-4 w-4" /> Início: {format(parseISO(currentSubscription.start_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
-                <p className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> Preço: R$ {currentSubscription.subscription_plans.price.toFixed(2).replace('.', ',')} / {currentSubscription.subscription_plans.duration_months} {currentSubscription.subscription_plans.duration_months > 1 ? 'meses' : 'mês'}</p>
+                <p className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> Preço: R$ {currentSubscription.subscription_plans?.price?.toFixed(2).replace('.', ',') || '0,00'} / {currentSubscription.subscription_plans?.duration_months} {currentSubscription.subscription_plans?.duration_months && currentSubscription.subscription_plans.duration_months > 1 ? 'meses' : 'mês'}</p>
                 {currentSubscription.end_date && (
                     <p className="flex items-center gap-2"><X className="h-4 w-4 text-red-500" /> Expira em: {format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
                 )}
@@ -245,7 +246,7 @@ const SubscriptionPlansPage: React.FC = () => {
       <h2 className="text-2xl font-bold text-gray-900 pt-4">Escolha o Melhor Plano</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {availablePlans.map((plan) => {
-          // Adicionando verificação de nulidade para 'plan' por segurança, embora não devesse ser nulo
+          // Adicionando verificação de nulidade para 'plan' por segurança
           if (!plan) return null; 
           
           const isCurrentPlan = currentSubscription?.plan_id === plan.id;
