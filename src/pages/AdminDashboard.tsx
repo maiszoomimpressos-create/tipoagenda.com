@@ -100,7 +100,7 @@ const AdminDashboard: React.FC = () => {
             icon={<Users className="h-6 w-6 text-blue-600" />}
             buttonText="Acessar Gerenciamento de Usuários"
             buttonColor="bg-blue-600 hover:bg-blue-700"
-            onClick={() => { /* Implementar navegação para Gerenciamento de Usuários */ }}
+            onClick={() => { showError('Funcionalidade de Gerenciamento de Usuários em desenvolvimento.'); }}
           />
 
           <ManagementCard
@@ -109,7 +109,7 @@ const AdminDashboard: React.FC = () => {
             icon={<Building className="h-6 w-6 text-green-600" />}
             buttonText="Acessar Gerenciamento de Empresas"
             buttonColor="bg-green-600 hover:bg-green-700"
-            onClick={() => { /* Implementar navegação para Gerenciamento de Empresas */ }}
+            onClick={() => navigate('/admin-dashboard/companies')}
           />
 
           <ManagementCard
