@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +8,8 @@ import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
+import { useActivePlans } from '@/hooks/useActivePlans'; // Importar novo hook
+import { Check } from 'lucide-react';
 
 interface Company {
   id: string;
@@ -24,6 +25,8 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { plans, loading: loadingPlans } = useActivePlans(); // Usar novo hook
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -127,6 +130,10 @@ const LandingPage: React.FC = () => {
     }
   };
 
+  const handleProfessionalSignup = () => {
+    navigate('/register-company');
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -195,6 +202,55 @@ const LandingPage: React.FC = () => {
               <div className="text-gray-200">Satisfação</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Pricing Section (New) */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Planos Para Profissionais</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Escolha o plano ideal para gerenciar seu negócio e crescer sem limites.
+            </p>
+          </div>
+
+          {loadingPlans ? (
+            <p className="text-center text-gray-600">Carregando planos...</p>
+          ) : plans.length === 0 ? (
+            <p className="text-center text-gray-600">Nenhum plano ativo disponível no momento.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              {plans.map((plan) => (
+                <Card key={plan.id} className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-3xl font-bold text-gray-900">{plan.name}</CardTitle>
+                    <p className="text-5xl font-extrabold text-yellow-600 mt-4">
+                      R$ {plan.price.toFixed(2).replace('.', ',')}
+                    </p>
+                    <p className="text-base text-gray-500">/{plan.duration_months} {plan.duration_months > 1 ? 'meses' : 'mês'}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <p className="text-center text-gray-600">{plan.description}</p>
+                    <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
+                      {plan.features?.map((feature, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-green-500" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      className="!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base bg-yellow-600 hover:bg-yellow-700 text-black"
+                      onClick={handleProfessionalSignup} // Redireciona para o cadastro de empresa
+                    >
+                      Começar Agora
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -332,7 +388,7 @@ const LandingPage: React.FC = () => {
               <i className="fas fa-user-plus mr-2"></i>
               Cadastrar-se Grátis
             </Button>
-            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" onClick={() => navigate('/register-company')}>
+            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" onClick={handleProfessionalSignup}>
               <i className="fas fa-store mr-2"></i>
               Sou Profissional
             </Button>
