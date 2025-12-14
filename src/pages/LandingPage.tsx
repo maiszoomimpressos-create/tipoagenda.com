@@ -10,6 +10,7 @@ import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans'; // Importar novo hook
 import { Check } from 'lucide-react';
+import { Input } from '@/components/ui/input'; // Importação corrigida
 
 interface Company {
   id: string;
