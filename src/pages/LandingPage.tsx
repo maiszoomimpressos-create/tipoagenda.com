@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin, Phone, ArrowUpRight, MessageSquare, PhoneCall } from 'lucide-react'; // Importando ícones Lucide
+import { Check, Zap, Search, MapPin, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 interface Company {
@@ -143,6 +143,12 @@ const LandingPage: React.FC = () => {
 
   const handleProfessionalSignup = () => {
     navigate('/register-company');
+  };
+  
+  const handleContactUs = () => {
+    // Ação de contato: pode ser um link mailto, um modal de formulário, ou um link para WhatsApp.
+    // Usaremos um link mailto simples por enquanto.
+    window.location.href = 'mailto:suporte@tipoagenda.com.br';
   };
 
   // Determine the most expensive plan for visual highlight
@@ -415,88 +421,38 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* NOVO: Seção de Contato (Substitui a CTA anterior) */}
+      {/* CTA Section (Restored Original) */}
       <section className="py-20 bg-gray-900 text-white">
         <div className="container mx-auto px-6 text-center">
-          <h2 className="text-4xl font-bold mb-12">
-            Vamos conversar sobre o seu negócio?
+          <h2 className="text-4xl font-bold mb-4">
+            Pronto Para Começar?
           </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-4xl mx-auto">
-            {/* Opção 1: Ligue Gratuitamente */}
-            <div className="space-y-4">
-              <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
-              <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
-              <a 
-                href="tel:+5511999999999" // Placeholder phone number
-                className="text-gray-400 hover:text-white transition-colors text-sm block"
-              >
-                (11) 99999-9999
-              </a>
-            </div>
-
-            {/* Opção 2: Converse por WhatsApp */}
-            <div className="space-y-4">
-              <MessageSquare className="h-12 w-12 mx-auto text-green-500" />
-              <h3 className="text-xl font-semibold">Converse por WhatsApp</h3>
-              <a 
-                href="https://wa.me/5511999999999" // Placeholder WhatsApp link
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-white transition-colors text-sm block"
-              >
-                Iniciar Conversa
-              </a>
-            </div>
-
-            {/* Opção 3: Nós ligamos para você */}
-            <div className="space-y-4">
-              <PhoneCall className="h-12 w-12 mx-auto text-blue-500 transform rotate-180" />
-              <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
-              <Button 
-                variant="outline" 
-                className="!rounded-button whitespace-nowrap text-sm px-6 py-2 border-white text-white hover:bg-white hover:text-gray-900" 
-                onClick={() => showError('Funcionalidade de Retorno de Chamada em desenvolvimento.')}
-              >
-                Solicitar Contato
-              </Button>
-            </div>
+          <p className="text-xl mb-8 text-gray-300 max-w-2xl mx-auto">
+            Junte-se a milhares de usuários que já descobriram a forma mais fácil de agendar serviços
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black" onClick={() => navigate('/signup')}>
+              <i className="fas fa-user-plus mr-2"></i>
+              Cadastrar-se Grátis
+            </Button>
+            <Button 
+              className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black" 
+              onClick={handleProfessionalSignup}
+            >
+              <i className="fas fa-store mr-2"></i>
+              Sou Profissional
+            </Button>
+            <Button 
+              variant="outline" 
+              className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" 
+              onClick={handleContactUs}
+            >
+              <Phone className="h-5 w-5 mr-2" />
+              Fale Conosco
+            </Button>
           </div>
         </div>
       </section>
-      
-      {/* NOVO: Rodapé (Footer) */}
-      <footer className="bg-gray-900 border-t border-gray-800 py-8">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            {/* Logo (Usando um placeholder simples para CISS) */}
-            <div className="text-3xl font-extrabold text-white mb-4 md:mb-0">
-              CISS
-            </div>
-            
-            {/* Copyright */}
-            <p className="text-sm text-gray-500 mb-4 md:mb-0">
-              Copyright ©2025 | by Marketing CISS.
-            </p>
-            
-            {/* Social Media Icons */}
-            <div className="flex space-x-4 text-gray-500">
-              <a href="#" className="hover:text-white transition-colors">
-                <i className="fab fa-facebook-f text-lg"></i>
-              </a>
-              <a href="#" className="hover:text-white transition-colors">
-                <i className="fab fa-instagram text-lg"></i>
-              </a>
-              <a href="#" className="hover:text-white transition-colors">
-                <i className="fab fa-youtube text-lg"></i>
-              </a>
-              <a href="#" className="hover:text-white transition-colors">
-                <i className="fab fa-linkedin-in text-lg"></i>
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
       
       {/* Company Selection Modal */}
       {session && isClient && !loadingClientCheck && (
