@@ -208,7 +208,7 @@ const CompanyDetailsPage: React.FC = () => {
       <div className="text-xs space-y-1 mt-2 p-2 bg-gray-100 rounded dark:bg-gray-700">
         {changes.map((change, index) => (
           <div key={index} className="flex justify-between">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">{change.field}:</span>
+            <span className="font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[40%]">{change.field}:</span>
             <span className="text-gray-600 dark:text-gray-400 truncate max-w-[40%]">{change.old !== undefined ? String(change.old) : 'N/A'}</span>
             <ArrowLeft className="h-3 w-3 text-gray-400 rotate-180" />
             <span className="text-gray-900 dark:text-white font-medium truncate max-w-[40%]">{change.new !== undefined ? String(change.new) : 'N/A'}</span>
@@ -363,7 +363,7 @@ const CompanyDetailsPage: React.FC = () => {
                           </span>
                         </div>
                         <p className="text-xs text-gray-700 mt-1">
-                          Usuário: {log.user_id.substring(0, 8)}...
+                          Usuário: {log.user_id ? `${log.user_id.substring(0, 8)}...` : 'Sistema'}
                         </p>
                         {renderLogDetails(log)}
                       </div>

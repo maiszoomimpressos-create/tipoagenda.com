@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +8,10 @@ import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
+import { useActivePlans } from '@/hooks/useActivePlans';
+import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall } from 'lucide-react'; // Importando ícones Lucide
+import { Input } from '@/components/ui/input';
+import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 
 interface Company {
   id: string;
@@ -18,17 +21,23 @@ interface Company {
   // Adicionando campos para simular dados de serviço na listagem
   min_price: number;
   avg_rating: number;
+  city: string; // Adicionado para filtragem
+  state: string; // Adicionado para filtragem
 }
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { plans, loading: loadingPlans } = useActivePlans();
+  
   const [searchTerm, setSearchTerm] = useState('');
+  const [locationTerm, setLocationTerm] = useState(''); // Novo estado para localização
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -53,6 +62,8 @@ const LandingPage: React.FC = () => {
           name,
           segment_type,
           image_url,
+          city,
+          state,
           services(price, duration_minutes)
         `)
         .eq('ativo', true)
@@ -72,6 +83,8 @@ const LandingPage: React.FC = () => {
           image_url: company.image_url,
           min_price: minPrice,
           avg_rating: parseFloat(avgRating),
+          city: company.city || '',
+          state: company.state || '',
         };
       });
 
@@ -93,19 +106,24 @@ const LandingPage: React.FC = () => {
     if (!sessionLoading && session && isClient && !loadingClientCheck) {
       const targetCompanyId = getTargetCompanyId();
       
-      // If the user is a client, is logged in, and there is NO target company ID set in storage, 
-      // it means they logged in directly via /login or /signup and need to select a company.
       if (!targetCompanyId) {
         setIsSelectionModalOpen(true);
       }
-      // Note: If targetCompanyId IS set, the SessionContextProvider already redirected them to /agendar.
     }
   }, [session, sessionLoading, isClient, loadingClientCheck]);
 
 
   const filteredCompanies = companies.filter(company => {
-    const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
+    const searchLower = searchTerm.toLowerCase();
+    const locationLower = locationTerm.toLowerCase();
+
+    const matchesSearch = company.name.toLowerCase().includes(searchLower);
+    
+    const matchesLocation = !locationLower || 
+      company.city.toLowerCase().includes(locationLower) || 
+      company.state.toLowerCase().includes(locationLower);
+
+    return matchesSearch && matchesLocation;
   });
 
   const getImageUrl = (company: Company) => {
@@ -119,13 +137,18 @@ const LandingPage: React.FC = () => {
     setTargetCompanyId(companyId);
     
     if (session && isClient) {
-      // If already logged in as a client, redirect directly to booking page
       navigate('/agendar');
     } else {
-      // If not logged in, redirect to login (SessionContextProvider handles redirection to /agendar after login)
       navigate('/login');
     }
   };
+
+  const handleProfessionalSignup = () => {
+    navigate('/register-company');
+  };
+  
+  // Determine the most expensive plan for visual highlight
+  const highestPricedPlan = plans.reduce((max, plan) => (plan.price > max.price ? plan : max), plans[0] || { price: -1 });
 
   return (
     <div className="min-h-screen bg-white">
@@ -151,7 +174,7 @@ const LandingPage: React.FC = () => {
             <div className="bg-white rounded-2xl p-6 shadow-2xl">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
-                  <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <Input
                     type="text"
                     placeholder="Que serviço você procura?"
@@ -161,15 +184,20 @@ const LandingPage: React.FC = () => {
                   />
                 </div>
                 <div className="relative">
-                  <i className="fas fa-map-marker-alt absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                  <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <Input
                     type="text"
-                    placeholder="Sua localização"
+                    placeholder="Sua localização (Cidade/Estado)"
+                    value={locationTerm}
+                    onChange={(e) => setLocationTerm(e.target.value)}
                     className="pl-12 h-14 text-lg border-gray-200 text-gray-800"
                   />
                 </div>
-                <Button className="!rounded-button whitespace-nowrap h-14 text-lg font-semibold bg-yellow-600 hover:bg-yellow-700 text-black">
-                  <i className="fas fa-search mr-2"></i>
+                <Button 
+                  className="!rounded-button whitespace-nowrap h-14 text-lg font-semibold bg-yellow-600 hover:bg-yellow-700 text-black"
+                  onClick={fetchCompanies} // Re-fetch companies to apply filters
+                >
+                  <Search className="h-5 w-5 mr-2" />
                   Buscar Serviços
                 </Button>
               </div>
@@ -195,6 +223,77 @@ const LandingPage: React.FC = () => {
               <div className="text-gray-200">Satisfação</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Pricing Section (New) */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Planos Para Profissionais</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Escolha o plano ideal para gerenciar seu negócio e crescer sem limites.
+            </p>
+          </div>
+
+          {loadingPlans ? (
+            <p className="text-center text-gray-600">Carregando planos...</p>
+          ) : plans.length === 0 ? (
+            <p className="text-center text-gray-600">Nenhum plano ativo disponível no momento.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              {plans.map((plan) => {
+                // Verifica se este é o plano mais caro para destaque
+                const isFeatured = plan.id === highestPricedPlan.id;
+                const cardClasses = isFeatured 
+                  ? 'border-4 border-yellow-600 shadow-2xl scale-105' 
+                  : 'border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg';
+                
+                const monthlyPrice = plan.duration_months > 1 ? (plan.price / plan.duration_months) : plan.price;
+
+                return (
+                  <Card key={plan.id} className={cardClasses}>
+                    {isFeatured && (
+                      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-600 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                        <Zap className="h-3 w-3" /> MAIS POPULAR
+                      </div>
+                      )}
+                    <CardHeader className="text-center pt-8">
+                      <CardTitle className="text-3xl font-bold text-gray-900">{plan.name}</CardTitle>
+                      <p className="text-5xl font-extrabold text-yellow-600 mt-4">
+                        R$ {plan.price.toFixed(2).replace('.', ',')}
+                      </p>
+                      <p className="text-base text-gray-500">
+                        {plan.duration_months > 1 ? `Pagamento Único / ${plan.duration_months} meses` : '/ Mês'}
+                      </p>
+                      {plan.duration_months > 1 && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          (R$ {monthlyPrice.toFixed(2).replace('.', ',')} por mês)
+                        </p>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <p className="text-center text-gray-600">{plan.description}</p>
+                      <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
+                        {plan.features?.map((feature, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        className="!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base bg-yellow-600 hover:bg-yellow-700 text-black"
+                        onClick={handleProfessionalSignup} // Redireciona para o cadastro de empresa
+                      >
+                        Começar Agora
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -318,27 +417,86 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Seção de Contato (Agora com Cards) */}
       <section className="py-20 bg-gray-900 text-white">
         <div className="container mx-auto px-6 text-center">
-          <h2 className="text-4xl font-bold mb-4">
-            Pronto Para Começar?
+          <h2 className="text-4xl font-bold mb-12">
+            Vamos conversar sobre o seu negócio?
           </h2>
-          <p className="text-xl mb-8 text-gray-300 max-w-2xl mx-auto">
-            Junte-se a milhares de usuários que já descobriram a forma mais fácil de agendar serviços
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black" onClick={() => navigate('/signup')}>
-              <i className="fas fa-user-plus mr-2"></i>
-              Cadastrar-se Grátis
-            </Button>
-            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" onClick={() => navigate('/register-company')}>
-              <i className="fas fa-store mr-2"></i>
-              Sou Profissional
-            </Button>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            
+            {/* Card 1: Ligue Gratuitamente */}
+            <Card className="bg-gray-800 border-gray-700 text-white">
+              <CardContent className="p-6 space-y-4">
+                <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
+                <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
+                <a 
+                  href="tel:+5546988212387" 
+                  className="text-gray-400 hover:text-white transition-colors text-sm block"
+                >
+                  +55 46 98821-2387
+                </a>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: Converse por WhatsApp */}
+            <Card className="bg-gray-800 border-gray-700 text-white">
+              <CardContent className="p-6 space-y-4">
+                <MessageSquare className="h-12 w-12 mx-auto text-green-500" />
+                <h3 className="text-xl font-semibold">Converse por WhatsApp</h3>
+                <a 
+                  href="https://wa.me/5546988212387" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-white transition-colors text-sm block"
+                >
+                  Iniciar Conversa
+                </a>
+              </CardContent>
+            </Card>
+
+            {/* Card 3: Nós ligamos para você */}
+            <Card className="bg-gray-800 border-gray-700 text-white">
+              <CardContent className="p-6 space-y-4">
+                <PhoneCall className="h-12 w-12 mx-auto text-blue-500" />
+                <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
+                <Button 
+                  className="!rounded-button whitespace-nowrap text-sm px-6 py-2 bg-white text-gray-900 hover:bg-gray-200" 
+                  onClick={() => setIsContactModalOpen(true)} // Abre o modal
+                >
+                  Solicitar Contato
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
+      
+      {/* Rodapé com Ícones de Redes Sociais */}
+      <footer className="bg-gray-900 border-t border-gray-800 py-6">
+        <div className="container mx-auto px-6 flex flex-col items-center justify-center">
+          <div className="flex space-x-6 mb-4">
+            {/* Ícone do Instagram */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-instagram text-2xl"></i>
+            </div>
+            {/* Ícone do Facebook */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-facebook-f text-2xl"></i>
+            </div>
+            {/* Ícone do Twitter */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-twitter text-2xl"></i>
+            </div>
+            {/* Ícone do LinkedIn */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-linkedin-in text-2xl"></i>
+            </div>
+          </div>
+          <p className="text-sm text-gray-500">© {new Date().getFullYear()} TipoAgenda. Todos os direitos reservados.</p>
+        </div>
+      </footer>
       
       {/* Company Selection Modal */}
       {session && isClient && !loadingClientCheck && (
@@ -347,6 +505,12 @@ const LandingPage: React.FC = () => {
           onClose={() => setIsSelectionModalOpen(false)} 
         />
       )}
+
+      {/* Contact Request Modal */}
+      <ContactRequestModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+      />
     </div>
   );
 };
