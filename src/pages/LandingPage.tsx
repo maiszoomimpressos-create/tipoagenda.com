@@ -8,9 +8,9 @@ import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
-import { useActivePlans } from '@/hooks/useActivePlans'; // Importar novo hook
-import { Check, Zap } from 'lucide-react';
-import { Input } from '@/components/ui/input'; // Importação corrigida
+import { useActivePlans } from '@/hooks/useActivePlans';
+import { Check, Zap, Search, MapPin } from 'lucide-react'; // Importando MapPin e Search
+import { Input } from '@/components/ui/input';
 
 interface Company {
   id: string;
@@ -20,15 +20,18 @@ interface Company {
   // Adicionando campos para simular dados de serviço na listagem
   min_price: number;
   avg_rating: number;
+  city: string; // Adicionado para filtragem
+  state: string; // Adicionado para filtragem
 }
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
-  const { plans, loading: loadingPlans } = useActivePlans(); // Usar novo hook
+  const { plans, loading: loadingPlans } = useActivePlans();
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [locationTerm, setLocationTerm] = useState(''); // Novo estado para localização
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,8 @@ const LandingPage: React.FC = () => {
           name,
           segment_type,
           image_url,
+          city,
+          state,
           services(price, duration_minutes)
         `)
         .eq('ativo', true)
@@ -76,6 +81,8 @@ const LandingPage: React.FC = () => {
           image_url: company.image_url,
           min_price: minPrice,
           avg_rating: parseFloat(avgRating),
+          city: company.city || '',
+          state: company.state || '',
         };
       });
 
@@ -97,19 +104,24 @@ const LandingPage: React.FC = () => {
     if (!sessionLoading && session && isClient && !loadingClientCheck) {
       const targetCompanyId = getTargetCompanyId();
       
-      // If the user is a client, is logged in, and there is NO target company ID set in storage, 
-      // it means they logged in directly via /login or /signup and need to select a company.
       if (!targetCompanyId) {
         setIsSelectionModalOpen(true);
       }
-      // Note: If targetCompanyId IS set, the SessionContextProvider already redirected them to /agendar.
     }
   }, [session, sessionLoading, isClient, loadingClientCheck]);
 
 
   const filteredCompanies = companies.filter(company => {
-    const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
+    const searchLower = searchTerm.toLowerCase();
+    const locationLower = locationTerm.toLowerCase();
+
+    const matchesSearch = company.name.toLowerCase().includes(searchLower);
+    
+    const matchesLocation = !locationLower || 
+      company.city.toLowerCase().includes(locationLower) || 
+      company.state.toLowerCase().includes(locationLower);
+
+    return matchesSearch && matchesLocation;
   });
 
   const getImageUrl = (company: Company) => {
@@ -123,10 +135,8 @@ const LandingPage: React.FC = () => {
     setTargetCompanyId(companyId);
     
     if (session && isClient) {
-      // If already logged in as a client, redirect directly to booking page
       navigate('/agendar');
     } else {
-      // If not logged in, redirect to login (SessionContextProvider handles redirection to /agendar after login)
       navigate('/login');
     }
   };
@@ -162,7 +172,7 @@ const LandingPage: React.FC = () => {
             <div className="bg-white rounded-2xl p-6 shadow-2xl">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
-                  <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <Input
                     type="text"
                     placeholder="Que serviço você procura?"
@@ -172,15 +182,20 @@ const LandingPage: React.FC = () => {
                   />
                 </div>
                 <div className="relative">
-                  <i className="fas fa-map-marker-alt absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                  <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <Input
                     type="text"
-                    placeholder="Sua localização"
+                    placeholder="Sua localização (Cidade/Estado)"
+                    value={locationTerm}
+                    onChange={(e) => setLocationTerm(e.target.value)}
                     className="pl-12 h-14 text-lg border-gray-200 text-gray-800"
                   />
                 </div>
-                <Button className="!rounded-button whitespace-nowrap h-14 text-lg font-semibold bg-yellow-600 hover:bg-yellow-700 text-black">
-                  <i className="fas fa-search mr-2"></i>
+                <Button 
+                  className="!rounded-button whitespace-nowrap h-14 text-lg font-semibold bg-yellow-600 hover:bg-yellow-700 text-black"
+                  onClick={fetchCompanies} // Re-fetch companies to apply filters
+                >
+                  <Search className="h-5 w-5 mr-2" />
                   Buscar Serviços
                 </Button>
               </div>
