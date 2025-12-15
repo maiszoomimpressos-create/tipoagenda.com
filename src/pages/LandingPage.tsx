@@ -430,10 +430,10 @@ const LandingPage: React.FC = () => {
                 <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
                 <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
                 <a 
-                  href="tel:+5511999999999" 
+                  href="tel:+5546988212387" 
                   className="text-gray-400 hover:text-white transition-colors text-sm block"
                 >
-                  (11) 99999-9999
+                  +55 46 98821-2387
                 </a>
               </CardContent>
             </Card>
@@ -444,7 +444,7 @@ const LandingPage: React.FC = () => {
                 <MessageSquare className="h-12 w-12 mx-auto text-green-500" />
                 <h3 className="text-xl font-semibold">Converse por WhatsApp</h3>
                 <a 
-                  href="https://wa.me/5511999999999" 
+                  href="https://wa.me/5546988212387" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white transition-colors text-sm block"
@@ -460,6 +460,7 @@ const LandingPage: React.FC = () => {
                 <PhoneCall className="h-12 w-12 mx-auto text-blue-500" />
                 <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
                 <Button 
+                  variant="default" 
                   className="!rounded-button whitespace-nowrap text-sm px-6 py-2 bg-white text-gray-900 hover:bg-gray-200" 
                   onClick={() => showError('Funcionalidade de Retorno de Chamada em desenvolvimento.')}
                 >
