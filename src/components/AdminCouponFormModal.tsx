@@ -234,7 +234,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
               {...register('discount_value')}
               className="col-span-3"
             />
-            {errors.discount_value && <p className="col-span-4 text-red-500 text-xs text-right">{errors.discount_value.message}</p>}
+            {errors.discount_value && <p className="col-span-4 text-red-500 text-xs mt-1">{errors.discount_value.message}</p>}
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
@@ -248,7 +248,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
               {...register('max_uses')}
               className="col-span-3"
             />
-            {errors.max_uses && <p className="col-span-4 text-red-500 text-xs text-right">{errors.max_uses.message}</p>}
+            {errors.max_uses && <p className="col-span-4 text-red-500 text-xs mt-1">{errors.max_uses.message}</p>}
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
@@ -261,7 +261,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
               {...register('valid_until')}
               className="col-span-3"
             />
-            {errors.valid_until && <p className="col-span-4 text-red-500 text-xs text-right">{errors.valid_until.message}</p>}
+            {errors.valid_until && <p className="col-span-4 text-red-500 text-xs mt-1">{errors.valid_until.message}</p>}
           </div>
           
           <div className="grid grid-cols-4 items-center gap-4">
@@ -274,7 +274,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="inactive">Inativo</label>
+                <SelectItem value="inactive">Inativo</SelectItem>
                 <SelectItem value="expired">Expirado</SelectItem>
               </SelectContent>
             </Select>
