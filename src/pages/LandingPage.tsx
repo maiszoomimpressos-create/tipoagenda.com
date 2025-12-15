@@ -226,7 +226,8 @@ const LandingPage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               {plans.map((plan) => {
-                const isFeatured = plan.id === highestPricedPlan.id && plans.length > 1;
+                // Verifica se este é o plano mais caro para destaque
+                const isFeatured = plan.id === highestPricedPlan.id;
                 const cardClasses = isFeatured 
                   ? 'border-4 border-yellow-600 shadow-2xl scale-105' 
                   : 'border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg';
