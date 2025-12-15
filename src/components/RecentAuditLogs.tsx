@@ -158,7 +158,7 @@ const RecentAuditLogs: React.FC = () => {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-xs text-gray-500 dark:text-gray-400">{dateFormatted}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Por: {log.user_id.substring(0, 8)}...</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Por: {log.user_id ? `${log.user_id.substring(0, 8)}...` : 'Sistema'}</p>
                       </div>
                     </div>
                     {/* Detalhes da Alteração */}
