@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin } from 'lucide-react'; // Importando MapPin e Search
+import { Check, Zap, Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 interface Company {
@@ -429,7 +429,10 @@ const LandingPage: React.FC = () => {
               <i className="fas fa-user-plus mr-2"></i>
               Cadastrar-se Grátis
             </Button>
-            <Button variant="outline" className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" onClick={handleProfessionalSignup}>
+            <Button 
+              className="!rounded-button whitespace-nowrap text-lg px-8 py-4 bg-yellow-600 hover:bg-yellow-700 text-black" 
+              onClick={handleProfessionalSignup}
+            >
               <i className="fas fa-store mr-2"></i>
               Sou Profissional
             </Button>
