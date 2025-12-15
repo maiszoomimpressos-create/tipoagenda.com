@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key } from 'lucide-react'; // Importando ícones Lucide
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck } from 'lucide-react'; // Importando MailCheck
 import RecentAuditLogs from '@/components/RecentAuditLogs'; // Importar novo componente
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -145,12 +145,12 @@ const AdminDashboard: React.FC = () => {
           />
           
           <ManagementCard
-            title="Chaves de Pagamento"
-            description="Configure as chaves de API e tokens secretos para o processamento de pagamentos."
-            icon={<Key className="h-6 w-6 text-orange-600" />}
-            buttonText="Instruções de Segurança"
+            title="Solicitações de Contato"
+            description="Visualize e gerencie as solicitações de contato enviadas por visitantes da Landing Page."
+            icon={<MailCheck className="h-6 w-6 text-orange-600" />}
+            buttonText="Ver Solicitações"
             buttonColor="bg-orange-600 hover:bg-orange-700"
-            onClick={() => navigate('/admin-dashboard/api-keys')}
+            onClick={() => navigate('/admin-dashboard/contact-requests')}
           />
         </div>
         
