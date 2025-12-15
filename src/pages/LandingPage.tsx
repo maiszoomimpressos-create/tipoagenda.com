@@ -145,12 +145,6 @@ const LandingPage: React.FC = () => {
     navigate('/register-company');
   };
   
-  const handleContactUs = () => {
-    // Ação de contato: pode ser um link mailto, um modal de formulário, ou um link para WhatsApp.
-    // Usaremos um link mailto simples por enquanto.
-    window.location.href = 'mailto:suporte@tipoagenda.com.br';
-  };
-
   // Determine the most expensive plan for visual highlight
   const highestPricedPlan = plans.reduce((max, plan) => (plan.price > max.price ? plan : max), plans[0] || { price: -1 });
 
@@ -431,7 +425,7 @@ const LandingPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-4xl mx-auto">
             {/* Opção 1: Ligue Gratuitamente (Roxo) */}
             <div className="space-y-4">
-              <ArrowUpRight className="h-12 w-12 mx-auto text-purple-500 transform rotate-90" /> {/* Usando ArrowUpRight rotacionado para simular o ícone */}
+              <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
               <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
               <a 
                 href="tel:+5511999999999" // Placeholder phone number
@@ -460,8 +454,8 @@ const LandingPage: React.FC = () => {
               <PhoneCall className="h-12 w-12 mx-auto text-blue-500 transform rotate-180" />
               <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
               <Button 
-                variant="outline" 
-                className="!rounded-button whitespace-nowrap text-sm px-6 py-2 border-white text-white hover:bg-white hover:text-gray-900" 
+                variant="default" // Alterado para default para usar o estilo primário (fundo)
+                className="!rounded-button whitespace-nowrap text-sm px-6 py-2 bg-white text-gray-900 hover:bg-gray-200" // Estilo corrigido
                 onClick={() => showError('Funcionalidade de Retorno de Chamada em desenvolvimento.')}
               >
                 Solicitar Contato
