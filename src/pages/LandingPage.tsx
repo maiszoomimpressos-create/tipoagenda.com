@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin } from 'lucide-react';
+import { Check, Zap, Search, MapPin, Phone } from 'lucide-react'; // Importando Phone
 import { Input } from '@/components/ui/input';
 
 interface Company {
@@ -143,6 +143,12 @@ const LandingPage: React.FC = () => {
 
   const handleProfessionalSignup = () => {
     navigate('/register-company');
+  };
+  
+  const handleContactUs = () => {
+    // Ação de contato: pode ser um link mailto, um modal de formulário, ou um link para WhatsApp.
+    // Usaremos um link mailto simples por enquanto.
+    window.location.href = 'mailto:suporte@tipoagenda.com.br';
   };
 
   // Determine the most expensive plan for visual highlight
@@ -435,6 +441,14 @@ const LandingPage: React.FC = () => {
             >
               <i className="fas fa-store mr-2"></i>
               Sou Profissional
+            </Button>
+            <Button 
+              variant="outline" 
+              className="!rounded-button whitespace-nowrap text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-gray-900" 
+              onClick={handleContactUs}
+            >
+              <Phone className="h-5 w-5 mr-2" />
+              Fale Conosco
             </Button>
           </div>
         </div>
