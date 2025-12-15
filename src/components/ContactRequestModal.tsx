@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
-import { formatPhoneNumberInput } from '@/pages/NovoClientePage'; // Reusing phone formatting utility
+import { formatPhoneNumberInput } from '@/utils/validation'; // Corrected import path
 
 // Zod schema for contact request
 const contactRequestSchema = z.object({
@@ -61,7 +61,7 @@ const ContactRequestModal: React.FC<ContactRequestModalProps> = ({
   const phoneNumberValue = watch('phone_number');
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Reusing the formatting logic from NovoClientePage
+    // Reusing the formatting logic from validation utils
     const formattedValue = formatPhoneNumberInput(e.target.value);
     setValue('phone_number', formattedValue, { shouldValidate: true });
   };
