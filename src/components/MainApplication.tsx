@@ -10,12 +10,15 @@ import { useIsClient } from '@/hooks/useIsClient';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus'; // Importar novo hook
-import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage'; // Importar página de expiração
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Zap } from 'lucide-react';
+import { AlertTriangle, Zap, Menu, Bell } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useNotifications } from '@/hooks/useNotifications'; // Importar novo hook
+import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import NotificationList from './NotificationList'; // Importar novo componente
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -27,6 +30,9 @@ const MainApplication: React.FC = () => {
   
   // Novo: Status da Assinatura
   const { status: subscriptionStatus, endDate, loading: loadingSubscription } = useSubscriptionStatus();
+  
+  // Novo: Notificações (apenas para Proprietário/Admin)
+  const { notifications, unreadCount, loading: loadingNotifications, markAllAsRead } = useNotifications();
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -88,10 +94,27 @@ const MainApplication: React.FC = () => {
 
           {session ? (
             <div className="flex items-center gap-4">
-              <Button variant="ghost" className="!rounded-button cursor-pointer relative">
-                <i className="fas fa-bell text-gray-600"></i>
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
-              </Button>
+              {/* Ícone de Notificações (Sininho) */}
+              {isProprietarioOrCompanyAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="!rounded-button cursor-pointer relative">
+                      <Bell className="h-5 w-5 text-gray-600" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <NotificationList 
+                    notifications={notifications} 
+                    unreadCount={unreadCount} 
+                    loading={loadingNotifications} 
+                    markAllAsRead={markAllAsRead} 
+                  />
+                </DropdownMenu>
+              )}
               <UserDropdownMenu session={session} />
             </div>
           ) : (
