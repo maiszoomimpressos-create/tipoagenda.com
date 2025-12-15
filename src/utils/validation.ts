@@ -66,3 +66,34 @@ export const formatZipCodeInput = (value: string) => {
     return `${cleaned.substring(0, 5)}-${cleaned.substring(5)}`;
   }
 };
+
+export const formatPhoneNumberInput = (value: string) => {
+  if (!value) return '';
+  let cleaned = value.replace(/\D/g, '');
+  if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
+
+  if (cleaned.length <= 2) {
+    return `(${cleaned}`;
+  } else if (cleaned.length <= 7) {
+    return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
+  } else if (cleaned.length <= 11) {
+    return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
+  }
+  return cleaned;
+};
+
+export const formatCpfInput = (value: string) => {
+  if (!value) return '';
+  let cleaned = value.replace(/\D/g, ''); // Remove non-digits
+  if (cleaned.length > 11) cleaned = cleaned.substring(0, 11); // Limit to 11 digits
+
+  if (cleaned.length <= 3) {
+    return cleaned;
+  } else if (cleaned.length <= 6) {
+    return `${cleaned.substring(0, 3)}.${cleaned.substring(3)}`;
+  } else if (cleaned.length <= 9) {
+    return `${cleaned.substring(0, 3)}.${cleaned.substring(3, 6)}.${cleaned.substring(6)}`;
+  } else {
+    return `${cleaned.substring(0, 3)}.${cleaned.substring(3, 6)}.${cleaned.substring(6, 9)}-${cleaned.substring(9)}`;
+  }
+};

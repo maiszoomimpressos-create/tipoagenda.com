@@ -11,7 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { formatZipCodeInput } from '@/utils/validation';
+import { formatZipCodeInput, formatPhoneNumberInput } from '@/utils/validation';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 
@@ -99,21 +99,6 @@ const NovoClientePage: React.FC = () => {
   const telefoneValue = watch('telefone');
   const zipCodeValue = watch('zip_code');
   const stateValue = watch('state');
-
-  const formatPhoneNumberInput = (value: string) => {
-    if (!value) return '';
-    let cleaned = value.replace(/\D/g, '');
-    if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
-
-    if (cleaned.length <= 2) {
-      return `(${cleaned}`;
-    } else if (cleaned.length <= 7) {
-      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2)}`;
-    } else if (cleaned.length <= 11) {
-      return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
-    }
-    return cleaned;
-  };
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatPhoneNumberInput(e.target.value);
