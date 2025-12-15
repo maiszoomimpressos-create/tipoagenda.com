@@ -15,6 +15,20 @@ interface Notification {
   appointment_id: string;
 }
 
+// Helper function to safely parse date strings
+const safeParseDate = (dateString: string | null | undefined): Date => {
+    if (dateString) {
+        try {
+            return parseISO(dateString);
+        } catch (e) {
+            console.error("Failed to parse date:", dateString, e);
+        }
+    }
+    // Fallback to current date if parsing fails or string is null/undefined
+    return new Date(); 
+};
+
+
 export function useNotifications() {
   const { session } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
@@ -40,6 +54,7 @@ export function useNotifications() {
           appointment_date,
           appointment_time,
           status,
+          created_at,
           client_nickname,
           clients(name),
           collaborators(first_name)
@@ -59,6 +74,7 @@ export function useNotifications() {
           appointment_date,
           appointment_time,
           status,
+          created_at,
           client_nickname,
           clients(name),
           collaborators(first_name)
@@ -74,25 +90,31 @@ export function useNotifications() {
 
       // Process Pending Notifications
       pendingApps.forEach(app => {
+        // Ensure required date fields are present
+        if (!app.appointment_date || !app.created_at) return; 
+        
         const clientName = app.client_nickname || app.clients?.name || 'Cliente';
         const collabName = app.collaborators?.first_name || 'Colaborador';
-        const dateFormatted = format(parseISO(app.appointment_date), 'dd/MM/yyyy', { locale: ptBR });
+        const dateFormatted = format(safeParseDate(app.appointment_date), 'dd/MM/yyyy', { locale: ptBR });
         
         allNotifications.push({
           id: `pending-${app.id}`,
           type: 'PENDING_APPOINTMENT',
           message: `Novo agendamento de ${clientName} com ${collabName} em ${dateFormatted} às ${app.appointment_time.substring(0, 5)}.`,
           date: app.created_at,
-          is_read: false, // Simplificação: consideramos novo se estiver na lista
+          is_read: false,
           appointment_id: app.id,
         });
       });
 
       // Process Cancelled Notifications
       cancelledApps.forEach(app => {
+        // Ensure required date fields are present
+        if (!app.appointment_date || !app.created_at) return; 
+
         const clientName = app.client_nickname || app.clients?.name || 'Cliente';
         const collabName = app.collaborators?.first_name || 'Colaborador';
-        const dateFormatted = format(parseISO(app.appointment_date), 'dd/MM/yyyy', { locale: ptBR });
+        const dateFormatted = format(safeParseDate(app.appointment_date), 'dd/MM/yyyy', { locale: ptBR });
 
         allNotifications.push({
           id: `cancelled-${app.id}`,
@@ -105,10 +127,10 @@ export function useNotifications() {
       });
       
       // Sort by date (most recent first)
-      allNotifications.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      allNotifications.sort((a, b) => safeParseDate(b.date).getTime() - safeParseDate(a.date).getTime());
 
       setNotifications(allNotifications);
-      setUnreadCount(allNotifications.length); // For simplicity, count all fetched as unread
+      setUnreadCount(allNotifications.length);
 
     } catch (error: any) {
       console.error('Error fetching notifications:', error);
