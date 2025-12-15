@@ -1,0 +1,304 @@
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from '@/integrations/supabase/client';
+import { showSuccess, showError } from '@/utils/toast';
+import { useSession } from '@/components/SessionContextProvider';
+
+// Helper function for numeric preprocessing
+const numericPreprocess = (val: unknown) => {
+  if (typeof val === 'string') {
+    return val.replace(',', '.');
+  }
+  return val;
+};
+
+// Zod schema for admin coupon
+const adminCouponSchema = z.object({
+  code: z.string().min(3, "O código deve ter pelo menos 3 caracteres."),
+  discount_type: z.enum(['percentual', 'fixed'], {
+    errorMap: () => ({ message: "Tipo de desconto é obrigatório." })
+  }),
+  discount_value: z.preprocess(
+    numericPreprocess,
+    z.string()
+      .regex(/^\d+(\.\d{1,2})?$/, "Valor inválido. Use formato 0.00 ou 0,00")
+      .transform(Number)
+      .refine(val => !isNaN(val) && val > 0, "Valor deve ser um número positivo.")
+  ),
+  valid_until: z.string().optional(),
+  max_uses: z.preprocess(
+    (val) => (val === '' ? 1 : Number(val)),
+    z.number().int().min(1, "Uso mínimo é 1.")
+  ),
+  status: z.enum(['active', 'inactive', 'expired'], {
+    errorMap: () => ({ message: "O status é obrigatório." })
+  }),
+});
+
+type AdminCouponFormValues = z.infer<typeof adminCouponSchema>;
+
+interface AdminCoupon {
+  id: string;
+  code: string;
+  discount_type: 'percentual' | 'fixed';
+  discount_value: number;
+  valid_until: string | null;
+  max_uses: number;
+  current_uses: number;
+  status: 'active' | 'inactive' | 'expired';
+}
+
+interface AdminCouponFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  editingCoupon: AdminCoupon | null;
+  onCouponSaved: () => void;
+}
+
+const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
+  isOpen,
+  onClose,
+  editingCoupon,
+  onCouponSaved,
+}) => {
+  const { session } = useSession();
+  const [loading, setLoading] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<AdminCouponFormValues>({
+    resolver: zodResolver(adminCouponSchema),
+    defaultValues: {
+      code: '',
+      discount_type: 'percentual',
+      discount_value: '0.00' as any,
+      valid_until: '',
+      max_uses: 1,
+      status: 'active',
+    },
+  });
+
+  const discountTypeValue = watch('discount_type');
+  const statusValue = watch('status');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (editingCoupon) {
+        // Load data for editing
+        reset({
+          code: editingCoupon.code,
+          discount_type: editingCoupon.discount_type,
+          discount_value: editingCoupon.discount_value.toFixed(2).replace('.', ','),
+          valid_until: editingCoupon.valid_until || '',
+          max_uses: editingCoupon.max_uses,
+          status: editingCoupon.status,
+        });
+      } else {
+        // Reset to default values for new coupon
+        reset({
+          code: '',
+          discount_type: 'percentual',
+          discount_value: '0.00' as any,
+          valid_until: '',
+          max_uses: 1,
+          status: 'active',
+        });
+      }
+    }
+  }, [editingCoupon, reset, isOpen]);
+
+  const onSubmit = async (data: AdminCouponFormValues) => {
+    setLoading(true);
+    if (!session?.user) {
+      showError('Erro de autenticação.');
+      setLoading(false);
+      return;
+    }
+
+    const payload = {
+      code: data.code,
+      discount_type: data.discount_type,
+      discount_value: data.discount_value,
+      valid_until: data.valid_until || null,
+      max_uses: data.max_uses,
+      status: data.status,
+      created_by_user_id: session.user.id,
+    };
+
+    try {
+      let error;
+      if (editingCoupon) {
+        // Update existing coupon
+        const { error: updateError } = await supabase
+          .from('admin_coupons')
+          .update(payload)
+          .eq('id', editingCoupon.id);
+        error = updateError;
+      } else {
+        // Insert new coupon
+        const { error: insertError } = await supabase
+          .from('admin_coupons')
+          .insert(payload);
+        error = insertError;
+      }
+
+      if (error) {
+        // Check for unique constraint violation on 'code'
+        if (error.code === '23505' && error.message.includes('admin_coupons_code_key')) {
+          showError('O código do cupom já existe. Por favor, escolha outro.');
+        } else {
+          throw error;
+        }
+      } else {
+        showSuccess('Cupom ' + (editingCoupon ? 'atualizado' : 'criado') + ' com sucesso!');
+        onCouponSaved();
+        onClose();
+      }
+    } catch (error: any) {
+      console.error('Erro ao salvar cupom:', error);
+      showError('Erro ao salvar cupom: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const modalTitle = editingCoupon ? 'Editar Cupom Administrativo' : 'Novo Cupom Administrativo';
+  const buttonText = editingCoupon ? 'Salvar Alterações' : 'Criar Cupom';
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader>
+          <DialogTitle>{modalTitle}</DialogTitle>
+          <DialogDescription>
+            Crie cupons de desconto para uso exclusivo de Proprietários de Empresas.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="code" className="text-right">
+              Código *
+            </Label>
+            <Input
+              id="code"
+              {...register('code')}
+              className="col-span-3 uppercase"
+              maxLength={20}
+            />
+            {errors.code && <p className="col-span-4 text-red-500 text-xs text-right">{errors.code.message}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="discount_type" className="text-right">
+              Tipo *
+            </Label>
+            <Select onValueChange={(value) => setValue('discount_type', value as 'percentual' | 'fixed', { shouldValidate: true })} value={discountTypeValue}>
+              <SelectTrigger id="discount_type" className="col-span-3">
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentual">Percentual (%)</SelectItem>
+                <SelectItem value="fixed">Valor Fixo (R$)</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.discount_type && <p className="col-span-4 text-red-500 text-xs text-right">{errors.discount_type.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="discount_value" className="text-right">
+              Valor *
+            </Label>
+            <Input
+              id="discount_value"
+              type="text"
+              placeholder="0.00"
+              {...register('discount_value')}
+              className="col-span-3"
+            />
+            {errors.discount_value && <p className="col-span-4 text-red-500 text-xs text-right">{errors.discount_value.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="max_uses" className="text-right">
+              Usos Máximos *
+            </Label>
+            <Input
+              id="max_uses"
+              type="number"
+              min="1"
+              {...register('max_uses')}
+              className="col-span-3"
+            />
+            {errors.max_uses && <p className="col-span-4 text-red-500 text-xs text-right">{errors.max_uses.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="valid_until" className="text-right">
+              Válido Até
+            </Label>
+            <Input
+              id="valid_until"
+              type="date"
+              {...register('valid_until')}
+              className="col-span-3"
+            />
+            {errors.valid_until && <p className="col-span-4 text-red-500 text-xs text-right">{errors.valid_until.message}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="status" className="text-right">
+              Status *
+            </Label>
+            <Select onValueChange={(value) => setValue('status', value as 'active' | 'inactive' | 'expired', { shouldValidate: true })} value={statusValue}>
+              <SelectTrigger id="status" className="col-span-3">
+                <SelectValue placeholder="Selecione o status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Ativo</SelectItem>
+                <SelectItem value="inactive">Inativo</label>
+                <SelectItem value="expired">Expirado</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.status && <p className="col-span-4 text-red-500 text-xs text-right">{errors.status.message}</p>}
+          </div>
+          
+          <DialogFooter className="flex justify-between items-center mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="!rounded-button whitespace-nowrap"
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading} className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
+              {loading ? 'Salvando...' : buttonText}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default AdminCouponFormModal;

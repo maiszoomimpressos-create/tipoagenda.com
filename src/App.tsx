@@ -46,6 +46,7 @@ import CompanyDetailsPage from "./pages/CompanyDetailsPage"; // Import new page
 import UserManagementPage from "./pages/UserManagementPage"; // Import new page
 import UserDetailsPage from "./pages/UserDetailsPage"; // Import new page
 import ContactRequestsPage from "./pages/ContactRequestsPage"; // Importar nova página
+import AdminCouponManagementPage from "./pages/AdminCouponManagementPage"; // Importar nova página
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -145,6 +146,8 @@ const App = () => (
             <Route path="/admin-dashboard/users/details/:userId" element={<GlobalAdminProtectedRoute><UserDetailsPage /></GlobalAdminProtectedRoute>} />
             {/* Rota de solicitações de contato */}
             <Route path="/admin-dashboard/contact-requests" element={<GlobalAdminProtectedRoute><ContactRequestsPage /></GlobalAdminProtectedRoute>} />
+            {/* Rota de gerenciamento de cupons administrativos */}
+            <Route path="/admin-dashboard/admin-coupons" element={<GlobalAdminProtectedRoute><AdminCouponManagementPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
