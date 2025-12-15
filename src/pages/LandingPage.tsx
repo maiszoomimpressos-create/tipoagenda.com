@@ -473,6 +473,31 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
       
+      {/* Rodapé com Ícones de Redes Sociais */}
+      <footer className="bg-gray-900 border-t border-gray-800 py-6">
+        <div className="container mx-auto px-6 flex flex-col items-center justify-center">
+          <div className="flex space-x-6 mb-4">
+            {/* Ícone do Instagram */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-instagram text-2xl"></i>
+            </div>
+            {/* Ícone do Facebook */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-facebook-f text-2xl"></i>
+            </div>
+            {/* Ícone do Twitter */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-twitter text-2xl"></i>
+            </div>
+            {/* Ícone do LinkedIn */}
+            <div className="text-gray-500 hover:text-white transition-colors cursor-default">
+              <i className="fab fa-linkedin-in text-2xl"></i>
+            </div>
+          </div>
+          <p className="text-sm text-gray-500">© {new Date().getFullYear()} TipoAgenda. Todos os direitos reservados.</p>
+        </div>
+      </footer>
+      
       {/* Company Selection Modal */}
       {session && isClient && !loadingClientCheck && (
         <CompanySelectionModal 
