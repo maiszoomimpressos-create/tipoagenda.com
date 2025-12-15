@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin, Phone, ArrowUpRight, MessageSquare, PhoneCall } from 'lucide-react'; // Importando ícones Lucide
+import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall } from 'lucide-react'; // Importando ícones Lucide
 import { Input } from '@/components/ui/input';
 
 interface Company {
@@ -415,52 +415,58 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Seção de Contato (Substitui a CTA) */}
+      {/* Seção de Contato (Agora com Cards) */}
       <section className="py-20 bg-gray-900 text-white">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-4xl font-bold mb-12">
             Vamos conversar sobre o seu negócio?
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-4xl mx-auto">
-            {/* Opção 1: Ligue Gratuitamente (Roxo) */}
-            <div className="space-y-4">
-              <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
-              <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
-              <a 
-                href="tel:+5511999999999" // Placeholder phone number
-                className="text-gray-400 hover:text-white transition-colors text-sm block"
-              >
-                (11) 99999-9999
-              </a>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            
+            {/* Card 1: Ligue Gratuitamente */}
+            <Card className="bg-gray-800 border-gray-700 text-white">
+              <CardContent className="p-6 space-y-4">
+                <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
+                <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
+                <a 
+                  href="tel:+5511999999999" 
+                  className="text-gray-400 hover:text-white transition-colors text-sm block"
+                >
+                  (11) 99999-9999
+                </a>
+              </CardContent>
+            </Card>
 
-            {/* Opção 2: Converse por WhatsApp (Verde) */}
-            <div className="space-y-4">
-              <MessageSquare className="h-12 w-12 mx-auto text-green-500" />
-              <h3 className="text-xl font-semibold">Converse por WhatsApp</h3>
-              <a 
-                href="https://wa.me/5511999999999" // Placeholder WhatsApp link
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-white transition-colors text-sm block"
-              >
-                Iniciar Conversa
-              </a>
-            </div>
+            {/* Card 2: Converse por WhatsApp */}
+            <Card className="bg-gray-800 border-gray-700 text-white">
+              <CardContent className="p-6 space-y-4">
+                <MessageSquare className="h-12 w-12 mx-auto text-green-500" />
+                <h3 className="text-xl font-semibold">Converse por WhatsApp</h3>
+                <a 
+                  href="https://wa.me/5511999999999" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-white transition-colors text-sm block"
+                >
+                  Iniciar Conversa
+                </a>
+              </CardContent>
+            </Card>
 
-            {/* Opção 3: Nós ligamos para você (Azul) */}
-            <div className="space-y-4">
-              <PhoneCall className="h-12 w-12 mx-auto text-blue-500 transform rotate-180" />
-              <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
-              <Button 
-                variant="default" // Alterado para default para usar o estilo primário (fundo)
-                className="!rounded-button whitespace-nowrap text-sm px-6 py-2 bg-white text-gray-900 hover:bg-gray-200" // Estilo corrigido
-                onClick={() => showError('Funcionalidade de Retorno de Chamada em desenvolvimento.')}
-              >
-                Solicitar Contato
-              </Button>
-            </div>
+            {/* Card 3: Nós ligamos para você */}
+            <Card className="bg-gray-800 border-gray-700 text-white">
+              <CardContent className="p-6 space-y-4">
+                <PhoneCall className="h-12 w-12 mx-auto text-blue-500" />
+                <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
+                <Button 
+                  className="!rounded-button whitespace-nowrap text-sm px-6 py-2 bg-white text-gray-900 hover:bg-gray-200" 
+                  onClick={() => showError('Funcionalidade de Retorno de Chamada em desenvolvimento.')}
+                >
+                  Solicitar Contato
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
