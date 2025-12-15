@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans'; // Importar novo hook
-import { Check } from 'lucide-react';
+import { Check, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input'; // Importação corrigida
 
 interface Company {
@@ -135,6 +135,9 @@ const LandingPage: React.FC = () => {
     navigate('/register-company');
   };
 
+  // Determine the most expensive plan for visual highlight
+  const highestPricedPlan = plans.reduce((max, plan) => (plan.price > max.price ? plan : max), plans[0] || { price: -1 });
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -222,34 +225,55 @@ const LandingPage: React.FC = () => {
             <p className="text-center text-gray-600">Nenhum plano ativo disponível no momento.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {plans.map((plan) => (
-                <Card key={plan.id} className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
-                  <CardHeader className="text-center">
-                    <CardTitle className="text-3xl font-bold text-gray-900">{plan.name}</CardTitle>
-                    <p className="text-5xl font-extrabold text-yellow-600 mt-4">
-                      R$ {plan.price.toFixed(2).replace('.', ',')}
-                    </p>
-                    <p className="text-base text-gray-500">/{plan.duration_months} {plan.duration_months > 1 ? 'meses' : 'mês'}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <p className="text-center text-gray-600">{plan.description}</p>
-                    <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
-                      {plan.features?.map((feature, index) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-500" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                    <Button
-                      className="!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base bg-yellow-600 hover:bg-yellow-700 text-black"
-                      onClick={handleProfessionalSignup} // Redireciona para o cadastro de empresa
-                    >
-                      Começar Agora
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+              {plans.map((plan) => {
+                const isFeatured = plan.id === highestPricedPlan.id && plans.length > 1;
+                const cardClasses = isFeatured 
+                  ? 'border-4 border-yellow-600 shadow-2xl scale-105' 
+                  : 'border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg';
+                
+                const monthlyPrice = plan.duration_months > 1 ? (plan.price / plan.duration_months) : plan.price;
+
+                return (
+                  <Card key={plan.id} className={cardClasses}>
+                    {isFeatured && (
+                      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-600 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                        <Zap className="h-3 w-3" /> MAIS POPULAR
+                      </div>
+                    )}
+                    <CardHeader className="text-center pt-8">
+                      <CardTitle className="text-3xl font-bold text-gray-900">{plan.name}</CardTitle>
+                      <p className="text-5xl font-extrabold text-yellow-600 mt-4">
+                        R$ {plan.price.toFixed(2).replace('.', ',')}
+                      </p>
+                      <p className="text-base text-gray-500">
+                        {plan.duration_months > 1 ? `Pagamento Único / ${plan.duration_months} meses` : '/ Mês'}
+                      </p>
+                      {plan.duration_months > 1 && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          (R$ {monthlyPrice.toFixed(2).replace('.', ',')} por mês)
+                        </p>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <p className="text-center text-gray-600">{plan.description}</p>
+                      <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
+                        {plan.features?.map((feature, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        className="!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base bg-yellow-600 hover:bg-yellow-700 text-black"
+                        onClick={handleProfessionalSignup} // Redireciona para o cadastro de empresa
+                      >
+                        Começar Agora
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
