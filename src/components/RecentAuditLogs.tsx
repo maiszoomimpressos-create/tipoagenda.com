@@ -43,6 +43,7 @@ const renderLogDetails = (log: AuditLog) => {
     // Iterar sobre os novos dados para encontrar as diferenças
     for (const key in log.new_data) {
       // Ignorar colunas de metadados que mudam frequentemente
+      // Removendo 'current_uses' da lista de ignorados se for relevante para a tabela
       if (key === 'updated_at' || key === 'logged_at' || key === 'created_at') continue;
 
       const oldValue = log.old_data[key];

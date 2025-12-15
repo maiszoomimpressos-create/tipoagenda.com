@@ -151,7 +151,8 @@ const AdminCouponManagementPage: React.FC = () => {
     
     if (log.operation === 'UPDATE' && log.old_data && log.new_data) {
       for (const key in log.new_data) {
-        if (key === 'updated_at' || key === 'logged_at' || key === 'created_at' || key === 'current_uses') continue;
+        // REMOVIDO 'current_uses' da lista de ignorados para que as alterações de uso sejam registradas.
+        if (key === 'updated_at' || key === 'logged_at' || key === 'created_at') continue;
 
         const oldValue = log.old_data[key];
         const newValue = log.new_data[key];
