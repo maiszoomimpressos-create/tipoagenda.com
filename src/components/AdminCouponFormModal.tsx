@@ -28,7 +28,9 @@ const numericPreprocess = (val: unknown) => {
 
 // Zod schema for admin coupon
 const adminCouponSchema = z.object({
-  code: z.string().min(3, "O código deve ter pelo menos 3 caracteres."),
+  code: z.string()
+    .min(3, "O código deve ter pelo menos 3 caracteres.")
+    .transform((val) => val.toUpperCase()), // Transform to uppercase
   discount_type: z.enum(['percentual', 'fixed'], {
     errorMap: () => ({ message: "Tipo de desconto é obrigatório." })
   }),
@@ -99,6 +101,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
 
   const discountTypeValue = watch('discount_type');
   const statusValue = watch('status');
+  const codeValue = watch('code'); // Watch code value for input display
 
   useEffect(() => {
     if (isOpen) {
@@ -126,6 +129,11 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
     }
   }, [editingCoupon, reset, isOpen]);
 
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Update value in form state, Zod will handle the uppercase transformation on submit
+    setValue('code', e.target.value, { shouldValidate: true });
+  };
+
   const onSubmit = async (data: AdminCouponFormValues) => {
     setLoading(true);
     if (!session?.user) {
@@ -134,6 +142,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
       return;
     }
 
+    // Note: data.code is already uppercase due to Zod transform
     const payload = {
       code: data.code,
       discount_type: data.discount_type,
@@ -200,7 +209,9 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
             </Label>
             <Input
               id="code"
-              {...register('code')}
+              // Use value and onChange to control the input, but let Zod handle the final uppercase transformation
+              value={codeValue}
+              onChange={handleCodeChange}
               className="col-span-3 uppercase"
               maxLength={20}
             />
