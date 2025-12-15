@@ -11,6 +11,7 @@ import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
 import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall } from 'lucide-react'; // Importando ícones Lucide
 import { Input } from '@/components/ui/input';
+import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 
 interface Company {
   id: string;
@@ -36,6 +37,7 @@ const LandingPage: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -255,7 +257,7 @@ const LandingPage: React.FC = () => {
                       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-600 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
                         <Zap className="h-3 w-3" /> MAIS POPULAR
                       </div>
-                    )}
+                      )}
                     <CardHeader className="text-center pt-8">
                       <CardTitle className="text-3xl font-bold text-gray-900">{plan.name}</CardTitle>
                       <p className="text-5xl font-extrabold text-yellow-600 mt-4">
@@ -460,9 +462,8 @@ const LandingPage: React.FC = () => {
                 <PhoneCall className="h-12 w-12 mx-auto text-blue-500" />
                 <h3 className="text-xl font-semibold">Nós ligamos para você</h3>
                 <Button 
-                  variant="default" 
                   className="!rounded-button whitespace-nowrap text-sm px-6 py-2 bg-white text-gray-900 hover:bg-gray-200" 
-                  onClick={() => showError('Funcionalidade de Retorno de Chamada em desenvolvimento.')}
+                  onClick={() => setIsContactModalOpen(true)} // Abre o modal
                 >
                   Solicitar Contato
                 </Button>
@@ -479,6 +480,12 @@ const LandingPage: React.FC = () => {
           onClose={() => setIsSelectionModalOpen(false)} 
         />
       )}
+
+      {/* Contact Request Modal */}
+      <ContactRequestModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+      />
     </div>
   );
 };
