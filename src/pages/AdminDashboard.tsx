@@ -6,8 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck } from 'lucide-react'; // Importando Key e MailCheck
-import RecentAuditLogs from '@/components/RecentAuditLogs'; // Importar novo componente
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart } from 'lucide-react'; // Importando BarChart
+import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
 interface ManagementCardProps {
@@ -145,11 +145,29 @@ const AdminDashboard: React.FC = () => {
           />
           
           <ManagementCard
+            title="Cupons Administrativos"
+            description="Crie e gerencie cupons de desconto para Proprietários de Empresas."
+            icon={<Tag className="h-6 w-6 text-orange-600" />}
+            buttonText="Gerenciar Cupons"
+            buttonColor="bg-orange-600 hover:bg-orange-700"
+            onClick={() => navigate('/admin-dashboard/admin-coupons')}
+          />
+          
+          <ManagementCard
+            title="Relatório de Uso de Cupons"
+            description="Visualize quais empresas utilizaram cada cupom de desconto administrativo."
+            icon={<BarChart className="h-6 w-6 text-cyan-600" />}
+            buttonText="Ver Relatório de Uso"
+            buttonColor="bg-cyan-600 hover:bg-cyan-700"
+            onClick={() => navigate('/admin-dashboard/coupon-usage-report')}
+          />
+
+          <ManagementCard
             title="Solicitações de Contato"
             description="Visualize e gerencie as solicitações de contato enviadas por visitantes da Landing Page."
-            icon={<MailCheck className="h-6 w-6 text-orange-600" />}
+            icon={<MailCheck className="h-6 w-6 text-red-600" />}
             buttonText="Ver Solicitações"
-            buttonColor="bg-orange-600 hover:bg-orange-700"
+            buttonColor="bg-red-600 hover:bg-red-700"
             onClick={() => navigate('/admin-dashboard/contact-requests')}
           />
           
