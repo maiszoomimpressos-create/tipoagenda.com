@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-// Removendo a importação do SDK do Mercado Pago
-import { format, addMonths, parseISO } from 'https://esm.sh/date-fns@3.6.0';
+import { format, addMonths, parseISO, startOfDay } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,43 +60,28 @@ serve(async (req) => {
       return new Response(JSON.stringify({ received: true, message: `Payment status is ${payment.status}, not approved.` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // 2. Extract Metadata (companyId and planId)
+    // 2. Extract Metadata (companyId, planId, finalDurationMonths, couponId)
     const externalReference = payment.external_reference;
     if (!externalReference) {
         console.error('Missing external_reference in payment data.');
         return new Response(JSON.stringify({ error: 'Missing external reference' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
     
-    const [companyId, planId] = externalReference.split('_');
-
-    if (!companyId || !planId) {
+    const parts = externalReference.split('_');
+    if (parts.length < 4) {
         console.error('Invalid external_reference format:', externalReference);
         return new Response(JSON.stringify({ error: 'Invalid external reference format' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
+    
+    const [companyId, planId, finalDurationMonthsStr, couponId] = parts;
+    const finalDurationMonths = parseInt(finalDurationMonthsStr);
+    const hasCoupon = couponId !== 'none';
 
-    // 3. Fetch Plan Details to get duration
-    const { data: planData, error: planError } = await supabaseAdmin
-      .from('subscription_plans')
-      .select('duration_months')
-      .eq('id', planId)
-      .single();
-
-    if (planError || !planData) {
-      console.error('Plan not found or error fetching plan:', planError?.message);
-      return new Response(JSON.stringify({ error: 'Plan not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    const durationMonths = planData.duration_months;
+    // 3. Handle Subscription Activation/Extension
     const today = new Date();
     const startDate = format(today, 'yyyy-MM-dd');
     
-    let endDate: string | null = null;
-    if (durationMonths > 0) {
-        const calculatedEndDate = addMonths(today, durationMonths);
-        endDate = format(calculatedEndDate, 'yyyy-MM-dd');
-    }
-
-    // 4. Check for existing active subscription for this company
+    // Check for existing active subscription for this company
     const { data: existingSub, error: checkSubError } = await supabaseAdmin
         .from('company_subscriptions')
         .select('id, end_date')
@@ -107,25 +91,23 @@ serve(async (req) => {
         .limit(1)
         .single();
 
-    // 5. Insert or Update Subscription
-    let finalStartDate = startDate;
-    let finalEndDate = endDate;
-    let subscriptionId = null;
+    let finalEndDate: string;
+    let subscriptionId: string;
 
     if (existingSub) {
-        // If an active subscription exists, extend the end date from the current end date
-        const currentEndDate = parseISO(existingSub.end_date || startDate);
-        const newEndDate = addMonths(currentEndDate, durationMonths);
+        // Extend the end date from the current end date
+        const currentEndDate = startOfDay(parseISO(existingSub.end_date || startDate));
+        const baseDate = isPast(currentEndDate) ? today : currentEndDate;
+        const newEndDate = addMonths(baseDate, finalDurationMonths);
         finalEndDate = format(newEndDate, 'yyyy-MM-dd');
         subscriptionId = existingSub.id;
 
         const { error: updateError } = await supabaseAdmin
             .from('company_subscriptions')
             .update({ 
-                plan_id: planId, // Update to the new plan ID
+                plan_id: planId,
                 end_date: finalEndDate,
                 status: 'active',
-                // Note: start_date is not updated here, as we are extending the existing subscription
             })
             .eq('id', subscriptionId);
 
@@ -134,12 +116,15 @@ serve(async (req) => {
 
     } else {
         // No active subscription, create a new one
+        const calculatedEndDate = addMonths(today, finalDurationMonths);
+        finalEndDate = format(calculatedEndDate, 'yyyy-MM-dd');
+
         const { data: newSub, error: insertError } = await supabaseAdmin
             .from('company_subscriptions')
             .insert({
                 company_id: companyId,
                 plan_id: planId,
-                start_date: finalStartDate,
+                start_date: startDate,
                 end_date: finalEndDate,
                 status: 'active',
             })
@@ -149,6 +134,23 @@ serve(async (req) => {
         if (insertError) throw insertError;
         subscriptionId = newSub.id;
         console.log(`New subscription ${subscriptionId} created successfully, ending on ${finalEndDate}.`);
+    }
+    
+    // 4. Register Coupon Usage (if applicable)
+    if (hasCoupon) {
+        const { error: usageInsertError } = await supabaseAdmin
+            .from('coupon_usages')
+            .insert({ company_id: companyId, admin_coupon_id: couponId });
+        
+        if (usageInsertError) {
+            console.error('Failed to register coupon usage:', usageInsertError);
+            // Log the error but continue, as the subscription is the priority
+        } else {
+            console.log(`Coupon ${couponId} usage registered successfully.`);
+            
+            // 5. Increment coupon usage count (using RPC for security/simplicity)
+            await supabaseAdmin.rpc('increment_coupon_usage', { coupon_id: couponId });
+        }
     }
 
     // 6. Acknowledge success to Mercado Pago
