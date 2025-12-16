@@ -12,17 +12,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Zod schema for segment type
 const segmentTypeSchema = z.object({
   name: z.string().min(1, "O nome do segmento é obrigatório."),
+  area_de_atuacao_id: z.string().min(1, "A Área de Atuação é obrigatória."), // Novo campo
 });
 
 type SegmentTypeFormValues = z.infer<typeof segmentTypeSchema>;
 
+interface AreaDeAtuacao {
+  id: string;
+  name: string;
+}
+
 interface SegmentType {
   id: string;
   name: string;
+  area_de_atuacao_id: string | null;
+  area_de_atuacao: { name: string } | null;
   created_at: string;
 }
 
@@ -30,7 +39,9 @@ const SegmentManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { session } = useSession();
   const [segments, setSegments] = useState<SegmentType[]>([]);
+  const [areas, setAreas] = useState<AreaDeAtuacao[]>([]); // Novo estado para áreas
   const [loading, setLoading] = useState(true);
+  const [loadingAreas, setLoadingAreas] = useState(true);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingSegment, setEditingSegment] = useState<SegmentType | null>(null);
@@ -41,13 +52,33 @@ const SegmentManagementPage: React.FC = () => {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<SegmentTypeFormValues>({
     resolver: zodResolver(segmentTypeSchema),
     defaultValues: {
       name: '',
+      area_de_atuacao_id: '',
     },
   });
+
+  const areaDeAtuacaoIdValue = watch('area_de_atuacao_id');
+
+  const fetchAreas = useCallback(async () => {
+    setLoadingAreas(true);
+    const { data, error } = await supabase
+      .from('area_de_atuacao')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      showError('Erro ao carregar áreas de atuação: ' + error.message);
+      console.error('Error fetching areas:', error);
+    } else if (data) {
+      setAreas(data);
+    }
+    setLoadingAreas(false);
+  }, []);
 
   const fetchSegments = useCallback(async () => {
     if (!session?.user) {
@@ -58,32 +89,41 @@ const SegmentManagementPage: React.FC = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('segment_types')
-      .select('id, name, created_at')
-      .eq('user_id', session.user.id)
+      .select(`
+        id, 
+        name, 
+        created_at, 
+        area_de_atuacao_id,
+        area_de_atuacao(name)
+      `)
       .order('name', { ascending: true });
 
     if (error) {
       showError('Erro ao carregar segmentos: ' + error.message);
       console.error('Error fetching segments:', error);
     } else if (data) {
-      setSegments(data);
+      setSegments(data as SegmentType[]);
     }
     setLoading(false);
   }, [session]);
 
   useEffect(() => {
+    fetchAreas();
     fetchSegments();
-  }, [fetchSegments]);
+  }, [fetchAreas, fetchSegments]);
 
   const handleAddSegment = () => {
     setEditingSegment(null);
-    reset({ name: '' });
+    reset({ name: '', area_de_atuacao_id: '' });
     setIsFormModalOpen(true);
   };
 
   const handleEditSegment = (segment: SegmentType) => {
     setEditingSegment(segment);
-    reset({ name: segment.name });
+    reset({ 
+      name: segment.name, 
+      area_de_atuacao_id: segment.area_de_atuacao_id || '' 
+    });
     setIsFormModalOpen(true);
   };
 
@@ -123,11 +163,17 @@ const SegmentManagementPage: React.FC = () => {
     }
 
     let error;
+    const payload = {
+      name: data.name,
+      area_de_atuacao_id: data.area_de_atuacao_id,
+      user_id: session.user.id,
+    };
+
     if (editingSegment) {
       // Update existing segment
       const { error: updateError } = await supabase
         .from('segment_types')
-        .update({ name: data.name })
+        .update(payload)
         .eq('id', editingSegment.id)
         .eq('user_id', session.user.id);
       error = updateError;
@@ -135,7 +181,7 @@ const SegmentManagementPage: React.FC = () => {
       // Insert new segment
       const { error: insertError } = await supabase
         .from('segment_types')
-        .insert({ user_id: session.user.id, name: data.name });
+        .insert(payload);
       error = insertError;
     }
 
@@ -164,7 +210,7 @@ const SegmentManagementPage: React.FC = () => {
         <Button
           variant="ghost"
           className="!rounded-button cursor-pointer"
-          onClick={() => navigate('/admin-dashboard')} // Navigate back to admin dashboard
+          onClick={() => navigate('/admin-dashboard')}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
@@ -193,7 +239,10 @@ const SegmentManagementPage: React.FC = () => {
               <div className="space-y-3">
                 {segments.map((segment) => (
                   <div key={segment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium text-gray-900">{segment.name}</span>
+                    <div className="flex flex-col items-start">
+                        <span className="font-medium text-gray-900">{segment.name}</span>
+                        <span className="text-xs text-gray-600">Área: {segment.area_de_atuacao?.name || 'N/A'}</span>
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -226,13 +275,31 @@ const SegmentManagementPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>{editingSegment ? 'Editar Segmento' : 'Novo Segmento'}</DialogTitle>
             <DialogDescription>
-              {editingSegment ? 'Altere o nome do segmento.' : 'Adicione um novo tipo de segmento para suas empresas.'}
+              {editingSegment ? 'Altere o nome e a área de atuação do segmento.' : 'Adicione um novo tipo de segmento e associe-o a uma área de atuação.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="area_de_atuacao_id" className="text-right">
+                Área de Atuação *
+              </Label>
+              <Select onValueChange={(value) => setValue('area_de_atuacao_id', value, { shouldValidate: true })} value={areaDeAtuacaoIdValue}>
+                <SelectTrigger id="area_de_atuacao_id" className="col-span-3" disabled={loadingAreas}>
+                  <SelectValue placeholder={loadingAreas ? "Carregando áreas..." : "Selecione a área"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {areas.map((area) => (
+                    <SelectItem key={area.id} value={area.id}>
+                      {area.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.area_de_atuacao_id && <p className="col-span-4 text-red-500 text-xs text-right">{errors.area_de_atuacao_id.message}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
-                Nome
+                Nome *
               </Label>
               <Input
                 id="name"

@@ -70,6 +70,12 @@ const unifiedRegistrationSchema = z.object({
 
 type UnifiedRegistrationFormValues = z.infer<typeof unifiedRegistrationSchema>;
 
+interface SegmentOption {
+  id: string;
+  name: string;
+  area_name: string;
+}
+
 const UnifiedRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { session } = useSession();
@@ -78,7 +84,7 @@ const UnifiedRegistrationPage: React.FC = () => {
   const [latestContract, setLatestContract] = useState<{ id: string; contract_name: string; contract_content: string } | null>(null);
   const [pendingData, setPendingData] = useState<UnifiedRegistrationFormValues | null>(null);
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
-  const [segmentOptions, setSegmentOptions] = useState<{ value: string; label: string }[]>([]);
+  const [segmentOptions, setSegmentOptions] = useState<SegmentOption[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
 
   const {
@@ -141,18 +147,26 @@ const UnifiedRegistrationPage: React.FC = () => {
       setLatestContract(null);
     }
 
-    // Fetch segment types from the database (GLOBAL ACCESS)
+    // Fetch segment types and their associated area_de_atuacao name
     setLoadingSegments(true);
     const { data: segmentsData, error: segmentsError } = await supabase
       .from('segment_types')
-      .select('id, name')
+      .select(`
+        id, 
+        name,
+        area_de_atuacao(name)
+      `)
       .order('name', { ascending: true });
 
     if (segmentsError) {
       showError('Erro ao carregar tipos de segmento: ' + segmentsError.message);
       console.error('Error fetching segment types:', segmentsError);
     } else if (segmentsData) {
-      setSegmentOptions(segmentsData.map(segment => ({ value: segment.id, label: segment.name })));
+      setSegmentOptions(segmentsData.map(segment => ({ 
+        id: segment.id, 
+        name: segment.name,
+        area_name: (segment.area_de_atuacao as { name: string } | null)?.name || 'Geral'
+      })));
     }
     setLoadingSegments(false);
   }, []);
@@ -280,7 +294,7 @@ const UnifiedRegistrationPage: React.FC = () => {
     const cleanedData = {
       ...data,
       phoneNumber: data.phoneNumber.replace(/\D/g, ''),
-      // Placeholder values for required profile fields not collected on the form
+      // Placeholder values for missing fields
       cpf: '00000000000', 
       birthDate: '1900-01-01',
       gender: 'Outro',
@@ -477,8 +491,8 @@ const UnifiedRegistrationPage: React.FC = () => {
                         <SelectItem value="no-segments" disabled>Nenhum segmento disponível.</SelectItem>
                       ) : (
                         segmentOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.name} (Área: {option.area_name})
                           </SelectItem>
                         ))
                       )}
