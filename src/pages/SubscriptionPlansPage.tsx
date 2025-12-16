@@ -6,10 +6,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Check, X, DollarSign, Clock, Zap } from 'lucide-react';
+import { Check, X, DollarSign, Clock, Zap, Tag } from 'lucide-react';
 import { format, parseISO, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
+import { Input } from '@/components/ui/input'; // Importar Input
 
 interface Plan {
   id: string;
@@ -36,28 +37,25 @@ const SubscriptionPlansPage: React.FC = () => {
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [couponCode, setCouponCode] = useState(''); // Novo estado para o cupom
+  const [couponValidationMessage, setCouponValidationMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number } | null>(null);
 
   const fetchSubscriptionData = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
-      console.log('SubscriptionPlansPage: Waiting for session or primary company ID.');
       return;
     }
 
     setLoadingData(true);
     try {
-      // 1. Fetch available active plans (RLS handles filtering by 'active')
+      // 1. Fetch available active plans
       const { data: plansData, error: plansError } = await supabase
         .from('subscription_plans')
         .select('id, name, description, price, features, duration_months')
-        .eq('status', 'active') // Only fetch active plans for subscription
+        .eq('status', 'active')
         .order('price', { ascending: true });
 
-      if (plansError) {
-        console.error('SubscriptionPlansPage: Error fetching plans:', plansError);
-        throw plansError;
-      }
-      console.log('SubscriptionPlansPage: Fetched plans count:', plansData.length);
-      // Garantindo que não haja nulos no array, embora o Supabase geralmente não retorne
+      if (plansError) throw plansError;
       setAvailablePlans(plansData.filter(p => p !== null) as Plan[]);
 
       // 2. Fetch current active subscription for the primary company
@@ -77,8 +75,7 @@ const SubscriptionPlansPage: React.FC = () => {
         .limit(1)
         .single();
 
-      if (subError && subError.code !== 'PGRST116') { // PGRST116 is "No rows found"
-        console.error('SubscriptionPlansPage: Error fetching subscription:', subError);
+      if (subError && subError.code !== 'PGRST116') {
         throw subError;
       }
       
@@ -99,9 +96,7 @@ const SubscriptionPlansPage: React.FC = () => {
 
     if (status === 'success') {
       showSuccess('Pagamento aprovado! Sua assinatura será ativada em breve.');
-      // Clear URL parameters
       navigate('/planos', { replace: true });
-      // Re-fetch data to check for activation
       fetchSubscriptionData();
     } else if (status === 'failure') {
       showError('O pagamento falhou. Por favor, tente novamente.');
@@ -112,6 +107,69 @@ const SubscriptionPlansPage: React.FC = () => {
     }
   }, [navigate, fetchSubscriptionData]);
 
+  const handleValidateCoupon = async () => {
+    if (!couponCode || !primaryCompanyId || !session?.user) {
+      setCouponValidationMessage({ type: 'error', message: 'Insira um código de cupom.' });
+      return;
+    }
+
+    setLoadingData(true);
+    setCouponValidationMessage(null);
+    setValidatedCoupon(null);
+
+    try {
+      // 1. Check if coupon exists and is active
+      const { data: couponData, error: couponError } = await supabase
+        .from('admin_coupons')
+        .select('id, discount_type, discount_value, valid_until, max_uses, current_uses, status')
+        .eq('code', couponCode.toUpperCase())
+        .single();
+
+      if (couponError || !couponData) {
+        throw new Error('Cupom inválido ou não encontrado.');
+      }
+
+      if (couponData.status !== 'active') {
+        throw new Error('Cupom inativo.');
+      }
+
+      if (couponData.valid_until && isPast(parseISO(couponData.valid_until))) {
+        throw new Error('Cupom expirado.');
+      }
+
+      if (couponData.current_uses >= couponData.max_uses) {
+        throw new Error('Cupom atingiu o limite máximo de usos.');
+      }
+
+      // 2. Check if company already used this coupon (using the new table)
+      const { data: usageData, error: usageError } = await supabase
+        .from('coupon_usages')
+        .select('id')
+        .eq('company_id', primaryCompanyId)
+        .eq('admin_coupon_id', couponData.id)
+        .limit(1);
+
+      if (usageError) throw usageError;
+
+      if (usageData && usageData.length > 0) {
+        throw new Error('Esta empresa já utilizou este cupom.');
+      }
+
+      // Success!
+      setValidatedCoupon({
+        id: couponData.id,
+        discount_type: couponData.discount_type,
+        discount_value: couponData.discount_value,
+      });
+      setCouponValidationMessage({ type: 'success', message: `Cupom '${couponCode.toUpperCase()}' aplicado! Você receberá ${couponData.discount_type === 'percentual' ? `${couponData.discount_value}%` : `R$ ${couponData.discount_value.toFixed(2).replace('.', ',')}`} de desconto e 30 dias grátis.` });
+
+    } catch (error: any) {
+      setCouponValidationMessage({ type: 'error', message: error.message });
+      setValidatedCoupon(null);
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   const handleSubscribe = async (plan: Plan) => {
     if (!primaryCompanyId || !session?.user) {
@@ -126,14 +184,15 @@ const SubscriptionPlansPage: React.FC = () => {
 
     setLoadingData(true);
     try {
-        // 1. Call Edge Function to create Mercado Pago preference
-        const response = await supabase.functions.invoke('create-payment-preference', {
+        // Call the new Edge Function to handle coupon application and payment initiation
+        const response = await supabase.functions.invoke('apply-coupon-and-subscribe', {
             body: JSON.stringify({
                 planId: plan.id,
                 companyId: primaryCompanyId,
                 planName: plan.name,
                 planPrice: plan.price,
                 durationMonths: plan.duration_months,
+                coupon: validatedCoupon, // Pass validated coupon data
             }),
             headers: {
                 'Content-Type': 'application/json',
@@ -151,10 +210,18 @@ const SubscriptionPlansPage: React.FC = () => {
             throw new Error(edgeFunctionErrorMessage);
         }
 
-        const { initPoint } = response.data as { initPoint: string };
+        const { initPoint, subscriptionId } = response.data as { initPoint: string | null, subscriptionId: string | null };
 
-        // 2. Redirect user to Mercado Pago payment page
-        window.location.href = initPoint;
+        if (initPoint) {
+            // Redirect user to Mercado Pago payment page
+            window.location.href = initPoint;
+        } else if (subscriptionId) {
+            // Subscription was activated immediately (e.g., 100% discount or free trial applied)
+            showSuccess('Assinatura ativada com sucesso! Aproveite seu período de teste.');
+            fetchSubscriptionData();
+        } else {
+            throw new Error('Resposta de pagamento inválida.');
+        }
 
     } catch (error: any) {
         console.error('Erro ao iniciar pagamento:', error);
@@ -241,27 +308,88 @@ const SubscriptionPlansPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+      
+      {/* Seção de Cupom */}
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-xl text-gray-900 flex items-center gap-2">
+            <Tag className="h-6 w-6 text-blue-600" />
+            Aplicar Cupom de Desconto
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Insira o código do cupom"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              className="flex-1"
+              disabled={loadingData || !!currentSubscription}
+            />
+            <Button 
+              onClick={handleValidateCoupon} 
+              disabled={loadingData || !couponCode || !!currentSubscription}
+              className="!rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {loadingData ? 'Validando...' : 'Aplicar'}
+            </Button>
+          </div>
+          {couponValidationMessage && (
+            <p className={`text-sm ${couponValidationMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {couponValidationMessage.message}
+            </p>
+          )}
+          {validatedCoupon && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 flex justify-between items-center">
+              <span>Cupom {validatedCoupon.id.substring(0, 8)}... aplicado.</span>
+              <Button variant="ghost" size="sm" onClick={() => { setValidatedCoupon(null); setCouponCode(''); setCouponValidationMessage(null); }}>
+                <X className="h-4 w-4 text-green-800" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* Planos Disponíveis */}
       <h2 className="text-2xl font-bold text-gray-900 pt-4">Escolha o Melhor Plano</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {availablePlans.map((plan) => {
-          // Adicionando verificação de nulidade para 'plan' por segurança
           if (!plan) return null; 
           
           const isCurrentPlan = currentSubscription?.plan_id === plan.id;
-          const buttonDisabled = isCurrentPlan || loadingData;
+          const buttonDisabled = isCurrentPlan || loadingData || !!currentSubscription;
           const buttonText = isCurrentPlan ? 'Plano Atual' : 'Assinar Agora';
           const buttonClass = isCurrentPlan ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
+
+          // Calculate discounted price for display
+          let finalPrice = plan.price;
+          let discountApplied = false;
+          
+          if (validatedCoupon) {
+            if (validatedCoupon.discount_type === 'percentual') {
+              finalPrice = plan.price * (1 - validatedCoupon.discount_value / 100);
+            } else if (validatedCoupon.discount_type === 'fixed') {
+              finalPrice = Math.max(0, plan.price - validatedCoupon.discount_value);
+            }
+            discountApplied = finalPrice < plan.price;
+          }
 
           return (
             <Card key={plan.id} className={`border-2 ${isCurrentPlan ? 'border-yellow-600 shadow-xl' : 'border-gray-200'}`}>
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl font-bold text-gray-900">{plan.name}</CardTitle>
-                <p className="text-4xl font-extrabold text-yellow-600 mt-2">
-                  R$ {plan.price.toFixed(2).replace('.', ',')}
-                </p>
-                <p className="text-sm text-gray-500">/{plan.duration_months} {plan.duration_months > 1 ? 'meses' : 'mês'}</p>
+                <div className="mt-4">
+                  {discountApplied && (
+                    <p className="text-xl font-semibold text-gray-400 line-through">
+                      R$ {plan.price.toFixed(2).replace('.', ',')}
+                    </p>
+                  )}
+                  <p className="text-4xl font-extrabold text-yellow-600">
+                    R$ {finalPrice.toFixed(2).replace('.', ',')}
+                  </p>
+                  <p className="text-sm text-gray-500">/{plan.duration_months} {plan.duration_months && plan.duration_months > 1 ? 'meses' : 'mês'}</p>
+                </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <p className="text-center text-gray-600">{plan.description}</p>
