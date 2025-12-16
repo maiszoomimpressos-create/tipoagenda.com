@@ -36,7 +36,6 @@ const LandingPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
 
   const categories = [
@@ -101,17 +100,8 @@ const LandingPage: React.FC = () => {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  // Logic to open the selection modal if the user is a client and just logged in without a target company
-  useEffect(() => {
-    if (!sessionLoading && session && isClient && !loadingClientCheck) {
-      const targetCompanyId = getTargetCompanyId();
-      
-      if (!targetCompanyId) {
-        setIsSelectionModalOpen(true);
-      }
-    }
-  }, [session, sessionLoading, isClient, loadingClientCheck]);
-
+  // REMOVIDO: Lógica para abrir o modal de seleção de empresa automaticamente.
+  // Agora, o cliente deve clicar no card da empresa para agendar.
 
   const filteredCompanies = companies.filter(company => {
     const searchLower = searchTerm.toLowerCase();
@@ -144,6 +134,8 @@ const LandingPage: React.FC = () => {
   };
 
   const handleProfessionalSignup = () => {
+    // Esta função agora sempre redireciona para o cadastro de empresa,
+    // atendendo à sua solicitação para os botões de plano.
     navigate('/register-company');
   };
   
@@ -498,14 +490,7 @@ const LandingPage: React.FC = () => {
         </div>
       </footer>
       
-      {/* Company Selection Modal */}
-      {session && isClient && !loadingClientCheck && (
-        <CompanySelectionModal 
-          isOpen={isSelectionModalOpen} 
-          onClose={() => setIsSelectionModalOpen(false)} 
-        />
-      )}
-
+      {/* Company Selection Modal REMOVIDO */}
       {/* Contact Request Modal */}
       <ContactRequestModal
         isOpen={isContactModalOpen}
