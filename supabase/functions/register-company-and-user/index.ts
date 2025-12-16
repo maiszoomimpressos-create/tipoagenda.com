@@ -49,7 +49,11 @@ serve(async (req) => {
   try {
     const { 
         // User Data
-        firstName, lastName, email, password, phoneNumber, cpf, birthDate, gender,
+        firstName, lastName, email, password, phoneNumber, 
+        // Placeholder values for missing fields
+        cpf = '00000000000', 
+        birthDate = '1900-01-01', 
+        gender = 'Outro',
         // Company Data
         companyName, razaoSocial, cnpj, ie, companyEmail, companyPhoneNumber, segmentType,
         address, number, neighborhood, complement, zipCode, city, state, imageUrl
@@ -76,9 +80,9 @@ serve(async (req) => {
             first_name: firstName,
             last_name: lastName,
             phone_number: phoneNumber,
-            cpf: cpf,
-            birth_date: birthDate,
-            gender: gender,
+            cpf: cpf, // Placeholder
+            birth_date: birthDate, // Placeholder
+            gender: gender, // Placeholder
         },
     });
 
@@ -166,15 +170,6 @@ serve(async (req) => {
         throw new Error('Failed to generate login token.');
     }
     
-    // We need to manually construct the session object or use the token to get the session.
-    // Since we are using the admin client, we can't directly get the session.
-    // Instead, we return the user's ID and rely on the frontend to fetch the session after creation.
-    // A simpler approach is to use the `signInWithPassword` method on the client side after successful creation, but that exposes the password.
-    // Let's use the `signInWithIdToken` method if available, or simply return the user ID and let the frontend handle the login flow.
-    
-    // For simplicity and security, we will return the user's ID and let the frontend use the password they just provided to sign in.
-    // NOTE: Since we auto-confirmed the email, signInWithPassword should work immediately.
-
     // Returning a success message and the user's ID.
     return new Response(JSON.stringify({ 
         message: 'User and Company registered successfully.', 

@@ -25,7 +25,7 @@ const numericPreprocess = (val: unknown) => {
 
 // Zod schema for unified registration
 const unifiedRegistrationSchema = z.object({
-  // User Fields
+  // User Fields (Simplified)
   firstName: z.string().min(1, "Nome é obrigatório."),
   lastName: z.string().min(1, "Sobrenome é obrigatório."),
   email: z.string().email("E-mail inválido.").min(1, "E-mail é obrigatório."),
@@ -34,14 +34,7 @@ const unifiedRegistrationSchema = z.object({
   phoneNumber: z.string()
     .min(1, "Telefone é obrigatório.")
     .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
-  cpf: z.string()
-    .min(1, "CPF é obrigatório.")
-    .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Formato de CPF inválido (ex: XXX.XXX.XXX-XX)"),
-  birthDate: z.string().min(1, "Data de nascimento é obrigatória."),
-  gender: z.enum(['Masculino', 'Feminino', 'Outro'], {
-    errorMap: () => ({ message: "Gênero é obrigatório." })
-  }),
-
+  
   // Company Fields
   companyName: z.string().min(1, "Nome fantasia é obrigatório."),
   razaoSocial: z.string().min(1, "Razão social é obrigatória."),
@@ -105,9 +98,6 @@ const UnifiedRegistrationPage: React.FC = () => {
       password: '',
       confirmPassword: '',
       phoneNumber: '',
-      cpf: '',
-      birthDate: '',
-      gender: undefined,
       companyName: '',
       razaoSocial: '',
       cnpj: '',
@@ -122,6 +112,7 @@ const UnifiedRegistrationPage: React.FC = () => {
       zipCode: '',
       city: '',
       state: '',
+      // Removed default values for CPF, birthDate, gender
     },
   });
 
@@ -130,8 +121,6 @@ const UnifiedRegistrationPage: React.FC = () => {
   const zipCodeValue = watch('zipCode');
   const phoneNumberValue = watch('phoneNumber');
   const companyPhoneNumberValue = watch('companyPhoneNumber');
-  const cpfValue = watch('cpf');
-  const genderValue = watch('gender');
   const stateValue = watch('state');
 
   const fetchInitialData = useCallback(async () => {
@@ -179,11 +168,6 @@ const UnifiedRegistrationPage: React.FC = () => {
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phoneNumber' | 'companyPhoneNumber') => {
     const formattedValue = formatPhoneNumberInput(e.target.value);
     setValue(field, formattedValue, { shouldValidate: true });
-  };
-
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formattedValue = formatCpfInput(e.target.value);
-    setValue('cpf', formattedValue, { shouldValidate: true });
   };
 
   const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,7 +280,11 @@ const UnifiedRegistrationPage: React.FC = () => {
     const cleanedData = {
       ...data,
       phoneNumber: data.phoneNumber.replace(/\D/g, ''),
-      cpf: data.cpf.replace(/\D/g, ''),
+      // Placeholder values for required profile fields not collected on the form
+      cpf: '00000000000', 
+      birthDate: '1900-01-01',
+      gender: 'Outro',
+      // End Placeholder values
       cnpj: data.cnpj.replace(/\D/g, ''),
       companyPhoneNumber: data.companyPhoneNumber.replace(/\D/g, ''),
       zipCode: data.zipCode.replace(/\D/g, ''),
@@ -414,38 +402,6 @@ const UnifiedRegistrationPage: React.FC = () => {
                     className="mt-2 h-10"
                   />
                   {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="cpf">CPF *</Label>
-                  <Input
-                    id="cpf"
-                    type="text"
-                    placeholder="XXX.XXX.XXX-XX"
-                    value={cpfValue}
-                    onChange={handleCpfChange}
-                    maxLength={14}
-                    className="mt-2 h-10"
-                  />
-                  {errors.cpf && <p className="text-red-500 text-xs mt-1">{errors.cpf.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="birthDate">Data de Nascimento *</Label>
-                  <Input id="birthDate" type="date" {...register('birthDate')} className="mt-2 h-10" />
-                  {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="gender">Gênero *</Label>
-                  <Select onValueChange={(value) => setValue('gender', value as 'Masculino' | 'Feminino' | 'Outro', { shouldValidate: true })} value={genderValue}>
-                    <SelectTrigger id="gender" className="mt-2 h-10">
-                      <SelectValue placeholder="Selecione o gênero" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Masculino">Masculino</SelectItem>
-                      <SelectItem value="Feminino">Feminino</SelectItem>
-                      <SelectItem value="Outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender.message}</p>}
                 </div>
                 <div>
                   <Label htmlFor="password">Crie uma senha *</Label>
