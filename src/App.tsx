@@ -48,6 +48,7 @@ import UserDetailsPage from "./pages/UserDetailsPage"; // Import new page
 import ContactRequestsPage from "./pages/ContactRequestsPage"; // Importar nova página
 import AdminCouponManagementPage from "./pages/AdminCouponManagementPage"; // Importar nova página
 import CouponUsageReportPage from "./pages/CouponUsageReportPage"; // Importar nova página
+import UnifiedRegistrationPage from "./pages/UnifiedRegistrationPage"; // Importar nova página
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -127,6 +128,9 @@ const App = () => (
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
+            
+            {/* Rota de Cadastro Unificado (Nova) */}
+            <Route path="/register-professional" element={<UnifiedRegistrationPage />} />
 
             {/* Rota do Admin Global (sem layout MainApplication) */}
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
