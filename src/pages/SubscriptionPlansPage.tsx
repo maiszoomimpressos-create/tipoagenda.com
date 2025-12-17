@@ -7,10 +7,11 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Check, X, DollarSign, Clock, Zap, Tag } from 'lucide-react';
-import { format, parseISO, addMonths } from 'date-fns';
+import { format, parseISO, addMonths, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input'; // Importar Input
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar Dialog
 
 interface Plan {
   id: string;
@@ -40,6 +41,8 @@ const SubscriptionPlansPage: React.FC = () => {
   const [couponCode, setCouponCode] = useState(''); // Novo estado para o cupom
   const [couponValidationMessage, setCouponValidationMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number } | null>(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Novo estado para o modal de cancelamento
+  const [cancelling, setCancelling] = useState(false); // Novo estado para o loading do cancelamento
 
   const fetchSubscriptionData = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -70,7 +73,6 @@ const SubscriptionPlansPage: React.FC = () => {
           subscription_plans(id, name, description, price, features, duration_months)
         `)
         .eq('company_id', primaryCompanyId)
-        .eq('status', 'active')
         .order('start_date', { ascending: false })
         .limit(1)
         .single();
@@ -231,6 +233,31 @@ const SubscriptionPlansPage: React.FC = () => {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    if (!currentSubscription || !primaryCompanyId) return;
+
+    setCancelling(true);
+    try {
+      // Update the subscription status to 'canceled'
+      const { error } = await supabase
+        .from('company_subscriptions')
+        .update({ status: 'canceled' })
+        .eq('id', currentSubscription.id)
+        .eq('company_id', primaryCompanyId);
+
+      if (error) throw error;
+
+      showSuccess('Assinatura cancelada com sucesso! Você manterá o acesso até a data de expiração.');
+      fetchSubscriptionData(); // Re-fetch data to update UI
+      setIsCancelModalOpen(false);
+    } catch (error: any) {
+      console.error('Erro ao cancelar assinatura:', error);
+      showError('Erro ao cancelar assinatura: ' + error.message);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const getSubscriptionStatusBadge = (status: string) => {
     switch (status) {
       case 'active': return <Badge className="bg-green-500 text-white">Ativo</Badge>;
@@ -298,9 +325,10 @@ const SubscriptionPlansPage: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="!rounded-button whitespace-nowrap mt-4"
-                disabled={currentSubscription.status === 'canceled'}
+                disabled={currentSubscription.status === 'canceled' || loadingData}
+                onClick={() => setIsCancelModalOpen(true)} // Abre o modal de cancelamento
               >
-                Gerenciar / Cancelar Assinatura
+                {currentSubscription.status === 'canceled' ? 'Assinatura Cancelada' : 'Gerenciar / Cancelar Assinatura'}
               </Button>
             </>
           ) : (
@@ -413,6 +441,29 @@ const SubscriptionPlansPage: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Cancellation Confirmation Dialog */}
+      {currentSubscription && (
+        <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Cancelamento</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja cancelar sua assinatura do plano "{currentSubscription.subscription_plans?.name}"? 
+                Você manterá o acesso até a data de expiração, {format(parseISO(currentSubscription.end_date || new Date().toISOString()), 'dd/MM/yyyy', { locale: ptBR })}.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCancelModalOpen(false)} disabled={cancelling}>
+                Manter Assinatura
+              </Button>
+              <Button variant="destructive" onClick={handleCancelSubscription} disabled={cancelling}>
+                {cancelling ? 'Cancelando...' : 'Confirmar Cancelamento'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
