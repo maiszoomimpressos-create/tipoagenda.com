@@ -248,7 +248,11 @@ const SubscriptionPlansPage: React.FC = () => {
 
       if (error) throw error;
 
-      showSuccess(`Assinatura cancelada com sucesso! Você manterá o acesso até a data de expiração: ${format(parseISO(currentSubscription.end_date || new Date().toISOString()), 'dd/MM/yyyy', { locale: ptBR })}.`);
+      const expirationDateFormatted = currentSubscription.end_date 
+        ? format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR }) 
+        : 'N/A';
+
+      showSuccess(`Assinatura cancelada com sucesso! Você manterá o acesso até a data de expiração: ${expirationDateFormatted}.`);
       fetchSubscriptionData(); // Re-fetch data to update UI
       setIsCancelModalOpen(false);
     } catch (error: any) {
