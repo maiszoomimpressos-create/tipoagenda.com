@@ -48,6 +48,12 @@ const companySchema = z.object({
 
 type CompanyFormValues = z.infer<typeof companySchema>;
 
+interface SegmentOption {
+  id: string;
+  name: string;
+  area_name: string;
+}
+
 const CompanyRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { session } = useSession();
@@ -57,7 +63,7 @@ const CompanyRegistrationPage: React.FC = () => {
   const [latestContract, setLatestContract] = useState<{ id: string; contract_name: string; contract_content: string } | null>(null);
   const [pendingCompanyData, setPendingCompanyData] = useState<CompanyFormValues | null>(null);
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
-  const [segmentOptions, setSegmentOptions] = useState<{ value: string; label: string }[]>([]);
+  const [segmentOptions, setSegmentOptions] = useState<SegmentOption[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
   // isAddressFieldsDisabled was removed as it was unused
 
@@ -133,19 +139,26 @@ const CompanyRegistrationPage: React.FC = () => {
         setLatestContract(null); // Explicitly set to null if no contracts found
       }
 
-      // Fetch segment types from the database (GLOBAL ACCESS)
+      // Fetch segment types and their associated area_de_atuacao name
       setLoadingSegments(true);
       const { data: segmentsData, error: segmentsError } = await supabase
         .from('segment_types')
-        .select('id, name')
-        // Removed .eq('user_id', session.user.id) to allow global visibility
+        .select(`
+          id, 
+          name,
+          area_de_atuacao(name)
+        `)
         .order('name', { ascending: true });
 
       if (segmentsError) {
         showError('Erro ao carregar tipos de segmento: ' + segmentsError.message);
         console.error('Error fetching segment types:', segmentsError);
       } else if (segmentsData) {
-        setSegmentOptions(segmentsData.map(segment => ({ value: segment.id, label: segment.name })));
+        setSegmentOptions(segmentsData.map(segment => ({ 
+          id: segment.id, 
+          name: segment.name,
+          area_name: (segment.area_de_atuacao as { name: string } | null)?.name || 'Geral'
+        })));
       }
       setLoadingSegments(false);
     };
@@ -508,8 +521,8 @@ const CompanyRegistrationPage: React.FC = () => {
                     <SelectItem value="no-segments" disabled>Nenhum segmento disponível. Crie um nas configurações.</SelectItem>
                   ) : (
                     segmentOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name} (Área: {option.area_name})
                       </SelectItem>
                     ))
                   )}
