@@ -25,6 +25,8 @@ serve(async (req) => {
     auth: { persistSession: false },
   });
 
+  let paymentAttemptId: string | null = null; // Declare here to be accessible in catch block
+
   try {
     const body = await req.json();
     const { type, data } = body;
@@ -56,11 +58,7 @@ serve(async (req) => {
     console.log('Payment Status:', payment.status);
     console.log('External Reference:', payment.external_reference);
 
-    if (payment.status !== 'approved') {
-      return new Response(JSON.stringify({ received: true, message: `Payment status is ${payment.status}, not approved.` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    // 2. Extract Metadata (companyId, planId, finalDurationMonths, couponId)
+    // 2. Extract Metadata (companyId, planId, finalDurationMonths, couponId, paymentAttemptId)
     const externalReference = payment.external_reference;
     if (!externalReference) {
         console.error('Missing external_reference in payment data.');
@@ -68,16 +66,50 @@ serve(async (req) => {
     }
     
     const parts = externalReference.split('_');
-    if (parts.length < 4) {
+    // Updated check for parts length to include paymentAttemptId
+    if (parts.length < 5) { 
         console.error('Invalid external_reference format:', externalReference);
         return new Response(JSON.stringify({ error: 'Invalid external reference format' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
     
-    const [companyId, planId, finalDurationMonthsStr, couponId] = parts;
+    const [companyId, planId, finalDurationMonthsStr, couponId, extractedPaymentAttemptId] = parts;
     const finalDurationMonths = parseInt(finalDurationMonthsStr);
     const hasCoupon = couponId !== 'none';
+    paymentAttemptId = extractedPaymentAttemptId; // Assign to outer scope variable
 
-    // 3. Handle Subscription Activation/Extension
+    // --- NEW: Update payment attempt status based on Mercado Pago status ---
+    let newPaymentAttemptStatus: string;
+    switch (payment.status) {
+        case 'approved':
+            newPaymentAttemptStatus = 'approved';
+            break;
+        case 'pending':
+            newPaymentAttemptStatus = 'pending';
+            break;
+        case 'rejected':
+            newPaymentAttemptStatus = 'rejected';
+            break;
+        default:
+            newPaymentAttemptStatus = 'failed'; // Catch all other statuses as failed
+    }
+
+    const { error: paUpdateError } = await supabaseAdmin
+        .from('payment_attempts')
+        .update({ status: newPaymentAttemptStatus, payment_gateway_reference: payment.id }) // Update with actual payment ID
+        .eq('id', paymentAttemptId);
+
+    if (paUpdateError) {
+        console.error(`Error updating payment attempt ${paymentAttemptId} status to ${newPaymentAttemptStatus}:`, paUpdateError);
+        // Continue, as subscription is the main goal, but log the error
+    } else {
+        console.log(`Payment attempt ${paymentAttemptId} status updated to ${newPaymentAttemptStatus}.`);
+    }
+
+    if (payment.status !== 'approved') {
+      return new Response(JSON.stringify({ received: true, message: `Payment status is ${payment.status}, not approved.` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // 3. Handle Subscription Activation/Extension (only if approved)
     const today = new Date();
     const startDate = format(today, 'yyyy-MM-dd');
     
@@ -93,6 +125,8 @@ serve(async (req) => {
 
     let finalEndDate: string;
     let subscriptionId: string;
+
+    if (checkSubError && checkSubError.code !== 'PGRST116') throw checkSubError;
 
     if (existingSub) {
         // Extend the end date from the current end date
@@ -161,6 +195,10 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Edge Function Error (mercadopago-webhook):', error.message);
+    // --- NEW: If an error occurs after paymentAttemptId is known, mark it as failed ---
+    if (paymentAttemptId) {
+        await supabaseAdmin.from('payment_attempts').update({ status: 'failed' }).eq('id', paymentAttemptId);
+    }
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
