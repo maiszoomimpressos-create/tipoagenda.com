@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart } from 'lucide-react'; // Importando BarChart
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap } from 'lucide-react'; // Importando Zap
 import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -133,6 +133,16 @@ const AdminDashboard: React.FC = () => {
             buttonText="Gerenciar Contratos"
             buttonColor="bg-purple-600 hover:bg-purple-700"
             onClick={() => navigate('/admin-dashboard/contracts')}
+          />
+          
+          {/* NOVO CARD: Área de Atuação */}
+          <ManagementCard
+            title="Área de Atuação"
+            description="Defina as áreas de atuação (ex: Corte, Manicure) associadas aos segmentos."
+            icon={<Zap className="h-6 w-6 text-blue-600" />}
+            buttonText="Gerenciar Áreas"
+            buttonColor="bg-blue-600 hover:bg-blue-700"
+            onClick={() => navigate('/admin-dashboard/areas-de-atuacao')}
           />
 
           <ManagementCard
