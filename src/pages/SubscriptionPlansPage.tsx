@@ -54,12 +54,24 @@ const SubscriptionPlansPage: React.FC = () => {
       // 1. Fetch available active plans
       const { data: plansData, error: plansError } = await supabase
         .from('subscription_plans')
-        .select('id, name, description, price, features, duration_months')
-        .eq('status', 'active')
+        .select('id, name, description, price, features, duration_months, status') // Incluindo status na busca
         .order('price', { ascending: true });
 
       if (plansError) throw plansError;
-      setAvailablePlans(plansData.filter(p => p !== null) as Plan[]);
+      
+      // Filtrar apenas planos ativos para a lista de planos disponíveis para assinatura
+      const activePlans = plansData
+        .filter(p => p !== null && p.status === 'active')
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          features: p.features,
+          duration_months: p.duration_months,
+        })) as Plan[];
+        
+      setAvailablePlans(activePlans);
 
       // 2. Fetch current active subscription for the primary company
       // Fetch the most recent subscription regardless of status to show cancellation status
