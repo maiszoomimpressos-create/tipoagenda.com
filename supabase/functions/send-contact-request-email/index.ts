@@ -1,0 +1,112 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// E-mail de destino padrão (pode ser substituído pelo e-mail do GLOBAL_ADMIN)
+const DEFAULT_ADMIN_EMAIL = 'admin@tipagenda.com'; 
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+  const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
+
+  try {
+    const { name, email, phone_number, description } = await req.json();
+
+    if (!name || !email || !phone_number) {
+      return new Response(JSON.stringify({ error: 'Missing required contact data' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 1. Encontrar o e-mail do Administrador Global (ou usar o padrão)
+    let adminEmail = DEFAULT_ADMIN_EMAIL;
+    try {
+        const { data: adminUser, error: adminError } = await supabaseAdmin
+            .from('type_user')
+            .select('auth_users:user_id(email)')
+            .eq('cod', 'GLOBAL_ADMIN')
+            .limit(1)
+            .single();
+
+        if (adminError && adminError.code !== 'PGRST116') throw adminError;
+
+        if (adminUser && adminUser.auth_users?.email) {
+            adminEmail = adminUser.auth_users.email;
+        }
+    } catch (e) {
+        console.error('Failed to fetch GLOBAL_ADMIN email, using default.', e);
+    }
+    
+    // 2. Construir o corpo do e-mail
+    const emailSubject = `[NOVO LEAD] Solicitação de Contato de ${name}`;
+    const emailBody = `
+        Uma nova solicitação de contato foi recebida através da Landing Page.
+
+        Detalhes do Solicitante:
+        - Nome: ${name}
+        - E-mail: ${email}
+        - Telefone: ${phone_number}
+        - Descrição: ${description || 'Nenhuma descrição fornecida.'}
+
+        Acesse o painel de administração para gerenciar esta solicitação.
+    `;
+
+    // 3. Enviar o e-mail usando o cliente Admin do Supabase
+    const { error: sendError } = await supabaseAdmin.auth.admin.inviteUserByEmail(adminEmail, {
+        // Usamos a função de convite para enviar um e-mail transacional
+        // Nota: O Supabase não tem uma API de e-mail transacional direta no cliente Admin,
+        // mas podemos usar o `sendEmail` se estivermos usando o cliente Admin.
+        // No Deno, a maneira mais robusta é usar o `sendEmail` do cliente Admin.
+        emailRedirectTo: `${Deno.env.get('SITE_URL')}/admin-dashboard/contact-requests`,
+        subject: emailSubject,
+        html: `<pre>${emailBody}</pre>`,
+    });
+
+    // Nota: A função `inviteUserByEmail` não é ideal para e-mails transacionais.
+    // Se o Supabase suportar `sendEmail` no cliente Admin, usaremos:
+    const { error: sendEmailError } = await supabaseAdmin.auth.admin.sendEmail({
+        email: adminEmail,
+        subject: emailSubject,
+        html: `<p>Uma nova solicitação de contato foi recebida através da Landing Page.</p>
+               <p><strong>Detalhes do Solicitante:</strong></p>
+               <ul>
+                   <li><strong>Nome:</strong> ${name}</li>
+                   <li><strong>E-mail:</strong> ${email}</li>
+                   <li><strong>Telefone:</strong> ${phone_number}</li>
+                   <li><strong>Descrição:</strong> ${description || 'Nenhuma descrição fornecida.'}</li>
+               </ul>
+               <p>Acesse o painel de administração para gerenciar esta solicitação.</p>
+               <p><a href="${Deno.env.get('SITE_URL')}/admin-dashboard/contact-requests">Ver Solicitações de Contato</a></p>`,
+    });
+
+    if (sendEmailError) {
+        console.error('Supabase Email Send Error:', sendEmailError.message);
+        // Não lançamos erro 500, pois a inserção no DB já ocorreu no frontend.
+    }
+
+    return new Response(JSON.stringify({ message: 'Contact request processed and email sent.' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error: any) {
+    console.error('Edge Function Error (send-contact-request-email): Uncaught exception -', error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});

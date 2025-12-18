@@ -73,7 +73,8 @@ const ContactRequestModal: React.FC<ContactRequestModalProps> = ({
     const cleanedPhoneNumber = data.phone_number.replace(/\D/g, '');
 
     try {
-      const { error } = await supabase
+      // 1. Insert into contact_requests table
+      const { error: insertError } = await supabase
         .from('contact_requests')
         .insert({
           name: data.name,
@@ -83,8 +84,26 @@ const ContactRequestModal: React.FC<ContactRequestModalProps> = ({
           status: 'pending',
         });
 
-      if (error) {
-        throw error;
+      if (insertError) {
+        throw insertError;
+      }
+
+      // 2. Call Edge Function to notify administrator
+      const { error: edgeError } = await supabase.functions.invoke('send-contact-request-email', {
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          phone_number: cleanedPhoneNumber,
+          description: data.description,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (edgeError) {
+        console.warn('Aviso: Falha ao notificar administrador por e-mail (Edge Function):', edgeError);
+        // Não lançamos erro crítico aqui, pois a solicitação foi salva no DB.
       }
 
       showSuccess('Sua solicitação foi enviada! Entraremos em contato em breve.');
