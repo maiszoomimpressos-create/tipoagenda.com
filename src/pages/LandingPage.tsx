@@ -144,7 +144,8 @@ const LandingPage: React.FC = () => {
   };
 
   const handleProfessionalSignup = () => {
-    navigate('/register-company');
+    // Redireciona para a nova página de cadastro unificado
+    navigate('/register-professional');
   };
   
   // Determine the most expensive plan for visual highlight
@@ -284,7 +285,7 @@ const LandingPage: React.FC = () => {
                       </ul>
                       <Button
                         className="!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base bg-yellow-600 hover:bg-yellow-700 text-black"
-                        onClick={handleProfessionalSignup} // Redireciona para o cadastro de empresa
+                        onClick={handleProfessionalSignup} // Redireciona para o cadastro unificado
                       >
                         Começar Agora
                       </Button>
