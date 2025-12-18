@@ -55,6 +55,7 @@ const SubscriptionPlansPage: React.FC = () => {
       const { data: plansData, error: plansError } = await supabase
         .from('subscription_plans')
         .select('id, name, description, price, features, duration_months, status') // Incluindo status na busca
+        .eq('status', 'active')
         .order('price', { ascending: true });
 
       if (plansError) throw plansError;
@@ -192,6 +193,7 @@ const SubscriptionPlansPage: React.FC = () => {
         return;
     }
 
+    // Apenas bloqueia se houver uma assinatura ATIVA
     if (currentSubscription && currentSubscription.status === 'active') {
         showError('Você já possui uma assinatura ativa. Cancele a atual antes de mudar.');
         return;
@@ -418,9 +420,16 @@ const SubscriptionPlansPage: React.FC = () => {
           if (!plan) return null; 
           
           const isCurrentPlan = currentSubscription?.plan_id === plan.id;
-          const buttonDisabled = isCurrentPlan || loadingData || !!currentSubscription;
-          const buttonText = isCurrentPlan ? 'Plano Atual' : 'Assinar Agora';
-          const buttonClass = isCurrentPlan ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
+          
+          // Lógica de desabilitação corrigida:
+          // 1. Desabilita se estiver carregando dados.
+          // 2. Desabilita se for o plano atual E o status for 'active' (não pode assinar o mesmo plano ativo).
+          // 3. Permite se o status for 'canceled' ou 'expired' (re-assinatura).
+          const isCurrentAndActive = isCurrentPlan && currentSubscription?.status === 'active';
+          const buttonDisabled = loadingData || isCurrentAndActive;
+          
+          const buttonText = isCurrentPlan && currentSubscription?.status === 'active' ? 'Plano Atual' : 'Assinar Agora';
+          const buttonClass = isCurrentPlan && currentSubscription?.status === 'active' ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
 
           // Calculate discounted price for display
           let finalPrice = plan.price;
