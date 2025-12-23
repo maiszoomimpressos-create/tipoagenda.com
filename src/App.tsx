@@ -48,6 +48,9 @@ import UserDetailsPage from "./pages/UserDetailsPage"; // Import new page
 import ContactRequestsPage from "./pages/ContactRequestsPage"; // Importar nova página
 import AdminCouponManagementPage from "./pages/AdminCouponManagementPage"; // Importar nova página
 import CouponUsageReportPage from "./pages/CouponUsageReportPage"; // Importar nova página
+import UnifiedRegistrationPage from "./pages/UnifiedRegistrationPage"; // Importar nova página
+import AreaDeAtuacaoPage from "./pages/AreaDeAtuacaoPage"; // Importar nova página
+import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova página
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -127,6 +130,9 @@ const App = () => (
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
+            
+            {/* Rota de Cadastro Unificado (Nova) */}
+            <Route path="/register-professional" element={<UnifiedRegistrationPage />} />
 
             {/* Rota do Admin Global (sem layout MainApplication) */}
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
@@ -135,6 +141,7 @@ const App = () => (
             <Route path="/admin-dashboard/new-contract" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/edit-contract/:contractId" element={<GlobalAdminProtectedRoute><ContractRegistrationPage /></GlobalAdminProtectedRoute>} />
             <Route path="/admin-dashboard/segments" element={<GlobalAdminProtectedRoute><SegmentManagementPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/areas-de-atuacao" element={<GlobalAdminProtectedRoute><AreaDeAtuacaoPage /></GlobalAdminProtectedRoute>} /> {/* NOVA ROTA */}
             {/* Rotas de gerenciamento de planos */}
             <Route path="/admin-dashboard/plans" element={<GlobalAdminProtectedRoute><PlanManagementPage /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de chaves de API */}
@@ -151,6 +158,8 @@ const App = () => (
             <Route path="/admin-dashboard/admin-coupons" element={<GlobalAdminProtectedRoute><AdminCouponManagementPage /></GlobalAdminProtectedRoute>} />
             {/* Rota de relatório de uso de cupons */}
             <Route path="/admin-dashboard/coupon-usage-report" element={<GlobalAdminProtectedRoute><CouponUsageReportPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Relatório de Tentativas de Pagamento */}
+            <Route path="/admin-dashboard/payment-attempts" element={<GlobalAdminProtectedRoute><PaymentAttemptsPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}

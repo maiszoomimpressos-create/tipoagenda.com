@@ -165,6 +165,28 @@ serve(async (req) => {
             return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
+        // --- NEW: Register payment attempt as 'initiated' ---
+        const { data: paymentAttempt, error: paInsertError } = await supabaseAdmin
+            .from('payment_attempts')
+            .insert({
+                company_id: companyId,
+                plan_id: planId,
+                user_id: user.id,
+                status: 'initiated',
+                amount: finalPrice,
+                currency: 'BRL',
+            })
+            .select('id')
+            .single();
+
+        if (paInsertError) {
+            console.error('Error inserting payment attempt:', paInsertError);
+            throw new Error('Failed to register payment attempt: ' + paInsertError.message);
+        }
+        const paymentAttemptId = paymentAttempt.id;
+        console.log(`Payment attempt ${paymentAttemptId} initiated.`);
+
+
         const preferenceBody = {
             items: [
                 {
@@ -174,8 +196,8 @@ serve(async (req) => {
                     currency_id: 'BRL',
                 },
             ],
-            // Pass coupon ID and final duration in external reference for webhook processing
-            external_reference: `${companyId}_${planId}_${finalDurationMonths}_${couponId || 'none'}`,
+            // Pass coupon ID, final duration, AND payment_attempt_id in external reference for webhook processing
+            external_reference: `${companyId}_${planId}_${finalDurationMonths}_${couponId || 'none'}_${paymentAttemptId}`,
             back_urls: {
                 success: `${SITE_URL}/planos?status=success`,
                 failure: `${SITE_URL}/planos?status=failure`,
@@ -197,14 +219,20 @@ serve(async (req) => {
         if (!mpResponse.ok) {
             const errorData = await mpResponse.json();
             console.error('Mercado Pago API Error:', mpResponse.status, errorData);
+            // --- NEW: Update payment attempt status to 'failed' if Mercado Pago call fails ---
+            await supabaseAdmin.from('payment_attempts').update({ status: 'failed' }).eq('id', paymentAttemptId);
             throw new Error(`Mercado Pago API error: ${errorData.message || mpResponse.statusText}`);
         }
 
         const mpData = await mpResponse.json();
         
+        // --- NEW: Update payment attempt with Mercado Pago preference ID ---
+        await supabaseAdmin.from('payment_attempts').update({ payment_gateway_reference: mpData.id }).eq('id', paymentAttemptId);
+
         return new Response(JSON.stringify({ 
             preferenceId: mpData.id,
             initPoint: mpData.init_point,
+            paymentAttemptId: paymentAttemptId, // Return payment attempt ID to frontend for potential tracking
         }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
