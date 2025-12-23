@@ -56,8 +56,7 @@ const MainApplication: React.FC = () => {
   if (isProprietarioOrCompanyAdmin && (subscriptionStatus === 'expired' || subscriptionStatus === 'no_subscription')) {
     // Permite apenas acesso a rotas públicas, perfil, e a página de planos
     if (!['/planos', '/profile'].includes(location.pathname)) {
-      return <SubscriptionExpiredPage endDate={endDate} />;
-    }
+      return <SubscriptionExpiredPage endDate={endDate} />;n    }
   }
 
   // Se o usuário está carregando a sessão ou os status, exibe loading
@@ -137,23 +136,30 @@ const MainApplication: React.FC = () => {
           } min-h-full`}>
             <nav className="p-4">
               <ul className="space-y-2">
-                {finalMenuItems.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      to={item.path}
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
-                        location.pathname === item.path
-                          ? 'bg-yellow-600 text-black'
-                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                      }`}
-                    >
-                      <i className={`${item.icon} text-lg`}></i>
-                      {!sidebarCollapsed && (
-                        <span className="font-medium">{item.label}</span>
-                      )}
-                    </Link>
-                  </li>
-                ))}
+                {finalMenuItems
+                  .filter(item => {
+                    // Se o item não tiver 'roles' definido, é visível para todos (Proprietário/Admin)
+                    if (!item.roles) return true;
+                    // Se tiver 'roles', verifica se o usuário tem a role necessária
+                    return item.roles.includes('Proprietário') && isProprietario;
+                  })
+                  .map((item) => (
+                    <li key={item.id}>
+                      <Link
+                        to={item.path}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                          location.pathname === item.path
+                            ? 'bg-yellow-600 text-black'
+                            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        }`}
+                      >
+                        <i className={`${item.icon} text-lg`}></i>
+                        {!sidebarCollapsed && (
+                          <span className="font-medium">{item.label}</span>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
                 {!loadingClientCheck && isClient && (
                   <li>
                     <Link
