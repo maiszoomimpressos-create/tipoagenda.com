@@ -103,10 +103,13 @@ const CompanyRegistrationPage: React.FC = () => {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      if (!session?.user) {
-        setLoadingSegments(false);
-        return;
-      }
+      console.log('Fetching initial data. Session user:', session?.user);
+      // Removed the session check, segments should be public
+      // if (!session?.user) {
+      //   setLoadingSegments(false);
+      //   console.log('No session user, skipping segment fetch.');
+      //   return;
+      // }
 
       // Fetch Proprietário role ID
       const { data: roleData, error: roleError } = await supabase
@@ -120,6 +123,7 @@ const CompanyRegistrationPage: React.FC = () => {
         showError('Erro ao carregar ID do papel de Proprietário. Certifique-se de que o papel "Proprietário" existe na tabela role_types com ID 1.');
       } else if (roleData) {
         setProprietarioRoleId(roleData.id);
+        console.log('Proprietário role ID:', roleData.id);
       }
 
       // Fetch the latest contract (GLOBAL ACCESS - no user_id filter)
@@ -135,12 +139,15 @@ const CompanyRegistrationPage: React.FC = () => {
         showError('Erro ao carregar o contrato mais recente.');
       } else if (contractData) {
         setLatestContract(contractData);
+        console.log('Latest contract:', contractData);
       } else {
         setLatestContract(null); // Explicitly set to null if no contracts found
+        console.log('No latest contract found.');
       }
 
       // Fetch segment types and their associated area_de_atuacao name
       setLoadingSegments(true);
+      console.log('Fetching segment types...');
       const { data: segmentsData, error: segmentsError } = await supabase
         .from('segment_types')
         .select(`
@@ -154,11 +161,13 @@ const CompanyRegistrationPage: React.FC = () => {
         showError('Erro ao carregar tipos de segmento: ' + segmentsError.message);
         console.error('Error fetching segment types:', segmentsError);
       } else if (segmentsData) {
-        setSegmentOptions(segmentsData.map(segment => ({ 
+        const mappedSegments = segmentsData.map(segment => ({
           id: segment.id, 
           name: segment.name,
           area_name: (segment.area_de_atuacao as { name: string } | null)?.name || 'Geral'
-        })));
+        }));
+        setSegmentOptions(mappedSegments);
+        console.log('Fetched segment options:', mappedSegments);
       }
       setLoadingSegments(false);
     };

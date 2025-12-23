@@ -193,7 +193,6 @@ const SubscriptionPlansPage: React.FC = () => {
         return;
     }
 
-    // Apenas bloqueia se houver uma assinatura ATIVA
     if (currentSubscription && currentSubscription.status === 'active') {
         showError('Você já possui uma assinatura ativa. Cancele a atual antes de mudar.');
         return;
@@ -201,15 +200,73 @@ const SubscriptionPlansPage: React.FC = () => {
 
     setLoadingData(true);
     try {
-        // Call the new Edge Function to handle coupon application and payment initiation
+        let finalPrice = plan.price;
+        if (validatedCoupon) {
+            if (validatedCoupon.discount_type === 'percentual') {
+                finalPrice = plan.price * (1 - validatedCoupon.discount_value / 100);
+            } else if (validatedCoupon.discount_type === 'fixed') {
+                finalPrice = Math.max(0, plan.price - validatedCoupon.discount_value);
+            }
+        }
+
+        if (finalPrice === 0) {
+            // Case: 100% discount, no payment needed
+            console.log('Plano com 100% de desconto. Ativando assinatura diretamente...');
+
+            // Create subscription
+            const endDate = addMonths(new Date(), plan.duration_months);
+            const { data: newSubscription, error: subError } = await supabase
+                .from('company_subscriptions')
+                .insert({
+                    company_id: primaryCompanyId,
+                    plan_id: plan.id,
+                    start_date: new Date().toISOString(),
+                    end_date: endDate.toISOString(),
+                    status: 'active',
+                })
+                .select()
+                .single();
+
+            if (subError) throw subError;
+
+            // Register coupon usage if a coupon was used
+            if (validatedCoupon) {
+                const { error: usageError } = await supabase
+                    .from('coupon_usages')
+                    .insert({
+                        company_id: primaryCompanyId,
+                        admin_coupon_id: validatedCoupon.id,
+                        used_at: new Date().toISOString(),
+                    });
+                if (usageError) console.error('Error logging coupon usage:', usageError);
+
+                // Increment coupon current_uses
+                const { data: updatedCoupon, error: updateCouponError } = await supabase
+                    .rpc('increment_coupon_uses', { coupon_id: validatedCoupon.id });
+
+                if (updateCouponError) {
+                    console.error('Error incrementing coupon uses:', updateCouponError);
+                } else {
+                    console.log('Coupon uses incremented:', updatedCoupon);
+                }
+            }
+
+            showSuccess(`Assinatura do plano ${plan.name} ativada com sucesso (Grátis)!`);
+            fetchSubscriptionData();
+            setLoadingData(false);
+            return; // Exit function, no need to call Edge Function
+        }
+
+        // Case: Payment needed, call Edge Function
         const response = await supabase.functions.invoke('apply-coupon-and-subscribe', {
             body: JSON.stringify({
                 planId: plan.id,
                 companyId: primaryCompanyId,
                 planName: plan.name,
-                planPrice: plan.price,
+                planPrice: plan.price, // Original plan price
+                finalPrice: finalPrice, // Pass calculated final price to Edge Function
                 durationMonths: plan.duration_months,
-                coupon: validatedCoupon, // Pass validated coupon data
+                coupon: validatedCoupon,
             }),
             headers: {
                 'Content-Type': 'application/json',
@@ -230,10 +287,8 @@ const SubscriptionPlansPage: React.FC = () => {
         const { initPoint, subscriptionId } = response.data as { initPoint: string | null, subscriptionId: string | null };
 
         if (initPoint) {
-            // Redirect user to Mercado Pago payment page
             window.location.href = initPoint;
         } else if (subscriptionId) {
-            // Subscription was activated immediately (e.g., 100% discount or free trial applied)
             showSuccess('Assinatura ativada com sucesso! Aproveite seu período de teste.');
             fetchSubscriptionData();
         } else {
