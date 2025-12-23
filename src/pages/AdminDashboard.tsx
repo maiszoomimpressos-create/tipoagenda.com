@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap } from 'lucide-react'; // Importando Zap
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard } from 'lucide-react'; // Importando CreditCard
 import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -188,6 +188,16 @@ const AdminDashboard: React.FC = () => {
             buttonText="Configurar Chaves"
             buttonColor="bg-gray-600 hover:bg-gray-700"
             onClick={() => navigate('/admin-dashboard/api-keys')}
+          />
+
+          {/* NOVO CARD: Relatório de Tentativas de Pagamento */}
+          <ManagementCard
+            title="Tentativas de Pagamento"
+            description="Monitore as tentativas de pagamento de planos, incluindo status e referências."
+            icon={<CreditCard className="h-6 w-6 text-indigo-600" />}
+            buttonText="Ver Relatório de Pagamentos"
+            buttonColor="bg-indigo-600 hover:bg-indigo-700"
+            onClick={() => navigate('/admin-dashboard/payment-attempts')}
           />
         </div>
         

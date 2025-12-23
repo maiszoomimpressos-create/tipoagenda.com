@@ -6,11 +6,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Check, X, DollarSign, Clock, Zap, Tag } from 'lucide-react';
-import { format, parseISO, addMonths } from 'date-fns';
+import { Check, X, DollarSign, Clock, Zap, Tag, AlertTriangle } from 'lucide-react';
+import { format, parseISO, addMonths, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input'; // Importar Input
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar Dialog
 
 interface Plan {
   id: string;
@@ -40,6 +41,8 @@ const SubscriptionPlansPage: React.FC = () => {
   const [couponCode, setCouponCode] = useState(''); // Novo estado para o cupom
   const [couponValidationMessage, setCouponValidationMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number } | null>(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Novo estado para o modal de cancelamento
+  const [cancelling, setCancelling] = useState(false); // Novo estado para o loading do cancelamento
 
   const fetchSubscriptionData = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -51,14 +54,28 @@ const SubscriptionPlansPage: React.FC = () => {
       // 1. Fetch available active plans
       const { data: plansData, error: plansError } = await supabase
         .from('subscription_plans')
-        .select('id, name, description, price, features, duration_months')
+        .select('id, name, description, price, features, duration_months, status') // Incluindo status na busca
         .eq('status', 'active')
         .order('price', { ascending: true });
 
       if (plansError) throw plansError;
-      setAvailablePlans(plansData.filter(p => p !== null) as Plan[]);
+      
+      // Filtrar apenas planos ativos para a lista de planos disponíveis para assinatura
+      const activePlans = plansData
+        .filter(p => p !== null && p.status === 'active')
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          features: p.features,
+          duration_months: p.duration_months,
+        })) as Plan[];
+        
+      setAvailablePlans(activePlans);
 
       // 2. Fetch current active subscription for the primary company
+      // Fetch the most recent subscription regardless of status to show cancellation status
       const { data: subData, error: subError } = await supabase
         .from('company_subscriptions')
         .select(`
@@ -70,7 +87,6 @@ const SubscriptionPlansPage: React.FC = () => {
           subscription_plans(id, name, description, price, features, duration_months)
         `)
         .eq('company_id', primaryCompanyId)
-        .eq('status', 'active')
         .order('start_date', { ascending: false })
         .limit(1)
         .single();
@@ -177,7 +193,8 @@ const SubscriptionPlansPage: React.FC = () => {
         return;
     }
 
-    if (currentSubscription) {
+    // Apenas bloqueia se houver uma assinatura ATIVA
+    if (currentSubscription && currentSubscription.status === 'active') {
         showError('Você já possui uma assinatura ativa. Cancele a atual antes de mudar.');
         return;
     }
@@ -231,6 +248,35 @@ const SubscriptionPlansPage: React.FC = () => {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    if (!currentSubscription || !primaryCompanyId) return;
+
+    setCancelling(true);
+    try {
+      // Update the subscription status to 'canceled'
+      const { error } = await supabase
+        .from('company_subscriptions')
+        .update({ status: 'canceled' })
+        .eq('id', currentSubscription.id)
+        .eq('company_id', primaryCompanyId);
+
+      if (error) throw error;
+
+      const expirationDateFormatted = currentSubscription.end_date 
+        ? format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR }) 
+        : 'N/A';
+
+      showSuccess(`Assinatura cancelada com sucesso! Você manterá o acesso até a data de expiração: ${expirationDateFormatted}.`);
+      fetchSubscriptionData(); // Re-fetch data to update UI
+      setIsCancelModalOpen(false);
+    } catch (error: any) {
+      console.error('Erro ao cancelar assinatura:', error);
+      showError('Erro ao cancelar assinatura: ' + error.message);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const getSubscriptionStatusBadge = (status: string) => {
     switch (status) {
       case 'active': return <Badge className="bg-green-500 text-white">Ativo</Badge>;
@@ -270,16 +316,21 @@ const SubscriptionPlansPage: React.FC = () => {
       </div>
     );
   }
+  
+  const isCanceled = currentSubscription?.status === 'canceled';
+  const expirationDateFormatted = currentSubscription?.end_date 
+    ? format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR }) 
+    : 'N/A';
 
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold text-gray-900">Planos de Assinatura</h1>
 
       {/* Status da Assinatura Atual */}
-      <Card className="border-yellow-600 border-2 shadow-lg">
+      <Card className={`border-2 shadow-lg ${isCanceled ? 'border-red-600 bg-red-50' : 'border-yellow-600'}`}>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-xl text-gray-900 flex items-center gap-2">
-            <Zap className="h-6 w-6 text-yellow-600" />
+          <CardTitle className={`text-xl text-gray-900 flex items-center gap-2 ${isCanceled ? 'text-red-600' : 'text-yellow-600'}`}>
+            {isCanceled ? <AlertTriangle className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
             Sua Assinatura Atual
           </CardTitle>
           {currentSubscription && getSubscriptionStatusBadge(currentSubscription.status)}
@@ -287,20 +338,31 @@ const SubscriptionPlansPage: React.FC = () => {
         <CardContent className="space-y-3">
           {currentSubscription ? (
             <>
-              <p className="text-2xl font-bold text-yellow-600">{currentSubscription.subscription_plans?.name || 'Plano Desconhecido'}</p>
+              <p className="text-2xl font-bold text-gray-900">{currentSubscription.subscription_plans?.name || 'Plano Desconhecido'}</p>
+              
+              {isCanceled && (
+                <div className="p-3 bg-red-100 border border-red-300 rounded-lg flex items-center gap-3">
+                    <X className="h-5 w-5 text-red-600" />
+                    <p className="text-sm font-semibold text-red-800">
+                        Assinatura Cancelada. Você manterá o acesso até a data de expiração: <span className="font-bold">{expirationDateFormatted}</span>.
+                    </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
                 <p className="flex items-center gap-2"><Clock className="h-4 w-4" /> Início: {format(parseISO(currentSubscription.start_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
                 <p className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> Preço: R$ {currentSubscription.subscription_plans?.price?.toFixed(2).replace('.', ',') || '0,00'} / {currentSubscription.subscription_plans?.duration_months} {currentSubscription.subscription_plans?.duration_months && currentSubscription.subscription_plans.duration_months > 1 ? 'meses' : 'mês'}</p>
                 {currentSubscription.end_date && (
-                    <p className="flex items-center gap-2"><X className="h-4 w-4 text-red-500" /> Expira em: {format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                    <p className="flex items-center gap-2"><X className="h-4 w-4 text-red-500" /> Expira em: {expirationDateFormatted}</p>
                 )}
               </div>
               <Button 
                 variant="outline" 
                 className="!rounded-button whitespace-nowrap mt-4"
-                disabled={currentSubscription.status === 'canceled'}
+                disabled={isCanceled || loadingData}
+                onClick={() => setIsCancelModalOpen(true)} // Abre o modal de cancelamento
               >
-                Gerenciar / Cancelar Assinatura
+                {isCanceled ? 'Assinatura Cancelada' : 'Gerenciar / Cancelar Assinatura'}
               </Button>
             </>
           ) : (
@@ -358,9 +420,16 @@ const SubscriptionPlansPage: React.FC = () => {
           if (!plan) return null; 
           
           const isCurrentPlan = currentSubscription?.plan_id === plan.id;
-          const buttonDisabled = isCurrentPlan || loadingData || !!currentSubscription;
-          const buttonText = isCurrentPlan ? 'Plano Atual' : 'Assinar Agora';
-          const buttonClass = isCurrentPlan ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
+          
+          // Lógica de desabilitação corrigida:
+          // 1. Desabilita se estiver carregando dados.
+          // 2. Desabilita se for o plano atual E o status for 'active' (não pode assinar o mesmo plano ativo).
+          // 3. Permite se o status for 'canceled' ou 'expired' (re-assinatura).
+          const isCurrentAndActive = isCurrentPlan && currentSubscription?.status === 'active';
+          const buttonDisabled = loadingData || isCurrentAndActive;
+          
+          const buttonText = isCurrentPlan && currentSubscription?.status === 'active' ? 'Plano Atual' : 'Assinar Agora';
+          const buttonClass = isCurrentPlan && currentSubscription?.status === 'active' ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
 
           // Calculate discounted price for display
           let finalPrice = plan.price;
@@ -413,6 +482,29 @@ const SubscriptionPlansPage: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Cancellation Confirmation Dialog */}
+      {currentSubscription && (
+        <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Cancelamento</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja cancelar sua assinatura do plano "{currentSubscription.subscription_plans?.name}"? 
+                Você manterá o acesso até a data de expiração, {expirationDateFormatted}.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCancelModalOpen(false)} disabled={cancelling}>
+                Manter Assinatura
+              </Button>
+              <Button variant="destructive" onClick={handleCancelSubscription} disabled={cancelling}>
+                {cancelling ? 'Cancelando...' : 'Confirmar Cancelamento'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

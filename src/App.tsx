@@ -50,6 +50,7 @@ import AdminCouponManagementPage from "./pages/AdminCouponManagementPage"; // Im
 import CouponUsageReportPage from "./pages/CouponUsageReportPage"; // Importar nova página
 import UnifiedRegistrationPage from "./pages/UnifiedRegistrationPage"; // Importar nova página
 import AreaDeAtuacaoPage from "./pages/AreaDeAtuacaoPage"; // Importar nova página
+import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova página
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -157,6 +158,8 @@ const App = () => (
             <Route path="/admin-dashboard/admin-coupons" element={<GlobalAdminProtectedRoute><AdminCouponManagementPage /></GlobalAdminProtectedRoute>} />
             {/* Rota de relatório de uso de cupons */}
             <Route path="/admin-dashboard/coupon-usage-report" element={<GlobalAdminProtectedRoute><CouponUsageReportPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Relatório de Tentativas de Pagamento */}
+            <Route path="/admin-dashboard/payment-attempts" element={<GlobalAdminProtectedRoute><PaymentAttemptsPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
