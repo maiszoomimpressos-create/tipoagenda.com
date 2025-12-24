@@ -51,6 +51,8 @@ import CouponUsageReportPage from "./pages/CouponUsageReportPage"; // Importar n
 import UnifiedRegistrationPage from "./pages/UnifiedRegistrationPage"; // Importar nova página
 import AreaDeAtuacaoPage from "./pages/AreaDeAtuacaoPage"; // Importar nova página
 import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova página
+import ConfigPage from "./pages/ConfigPage"; // Importar nova página de configurações
+import GuestAppointmentPage from "./pages/GuestAppointmentPage"; // Importar nova página de agendamento para convidados
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -134,6 +136,9 @@ const App = () => (
             {/* Rota de Cadastro Unificado (Nova) */}
             <Route path="/register-professional" element={<UnifiedRegistrationPage />} />
 
+            {/* NOVA ROTA: Agendamento para Convidados */}
+            <Route path="/guest-appointment/:companyId" element={<GuestAppointmentPage />} />
+
             {/* Rota do Admin Global (sem layout MainApplication) */}
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />
             {/* Rotas de gerenciamento de contratos e segmentos, agora aninhadas sob /admin-dashboard */}
@@ -192,6 +197,7 @@ const App = () => (
               <Route path="relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
               <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
+              <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
 
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
