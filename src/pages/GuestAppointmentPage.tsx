@@ -10,6 +10,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { findOrCreateClient, createGuestAppointment } from '@/services/appointmentService';
+import { getAvailableTimeSlots } from '@/utils/appointment-scheduling'; // Importação adicionada
 import { showError, showSuccess } from '@/utils/toast';
 import { Loader2 } from 'lucide-react';
 
@@ -49,9 +50,13 @@ const GuestAppointmentPage: React.FC = () => {
   const [fetchingTimes, setFetchingTimes] = useState(false);
 
   const fetchServicesAndCollaborators = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId) {
+      console.log('fetchServicesAndCollaborators: companyId is null or undefined. Returning.'); // ADDED LOG
+      return;
+    }
 
     setLoading(true);
+    console.log('fetchServicesAndCollaborators: Starting fetch for companyId:', companyId); // ADDED LOG
     try {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
@@ -59,7 +64,11 @@ const GuestAppointmentPage: React.FC = () => {
         .eq('company_id', companyId)
         .eq('is_active', true);
 
-      if (servicesError) throw servicesError;
+      if (servicesError) {
+        console.error('fetchServicesAndCollaborators: Error fetching services:', servicesError); // ADDED LOG
+        throw servicesError;
+      }
+      console.log('fetchServicesAndCollaborators: Fetched servicesData:', servicesData); // ADDED LOG
       setServices(servicesData as Service[]);
 
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
@@ -68,7 +77,11 @@ const GuestAppointmentPage: React.FC = () => {
         .eq('company_id', companyId)
         .eq('is_active', true);
 
-      if (collaboratorsError) throw collaboratorsError;
+      if (collaboratorsError) {
+        console.error('fetchServicesAndCollaborators: Error fetching collaborators:', collaboratorsError); // ADDED LOG
+        throw collaboratorsError;
+      }
+      console.log('fetchServicesAndCollaborators: Fetched collaboratorsData:', collaboratorsData); // ADDED LOG
       setCollaborators(collaboratorsData as Collaborator[]);
 
     } catch (error: any) {
@@ -76,8 +89,9 @@ const GuestAppointmentPage: React.FC = () => {
       console.error(error);
     } finally {
       setLoading(false);
+      console.log('fetchServicesAndCollaborators: Finished loading. Services count:', services.length, 'Collaborators count:', collaborators.length); // ADDED LOG
     }
-  }, [companyId]);
+  }, [companyId, services.length, collaborators.length]); // Adicionado services.length e collaborators.length para re-executar se o array mudar.
 
   useEffect(() => {
     if (companyId) {
@@ -106,17 +120,15 @@ const GuestAppointmentPage: React.FC = () => {
         return;
       }
 
-      const { data: slots, error } = await supabase.rpc('get_available_time_slots', {
-        p_company_id: companyId,
-        p_service_id: selectedServiceId,
-        p_collaborator_id: selectedCollaboratorId === "any" ? null : selectedCollaboratorId,
-        p_date: formattedDate,
-        p_duration_minutes: service.duration_minutes,
-      });
+      const slots = await getAvailableTimeSlots(
+        supabase,
+        companyId,
+        selectedCollaboratorId === "any" ? null : selectedCollaboratorId!,
+        selectedDate,
+        service.duration_minutes,
+      );
 
-      if (error) throw error;
-
-      setAvailableTimes(slots || []);
+      setAvailableTimes(slots.map(s => ({ time: s, is_available: true }))); // Adaptar para o formato esperado pelo `availableTimes` (TimeSlot[])
     } catch (error: any) {
       showError('Erro ao buscar horários disponíveis: ' + error.message);
       console.error(error);
@@ -176,13 +188,14 @@ const GuestAppointmentPage: React.FC = () => {
         return;
       }
 
-      const clientId = await findOrCreateClient(companyId, guestName, guestPhone);
+      const { clientId, clientNickname } = await findOrCreateClient(companyId, guestName, guestPhone);
 
       const appointmentDateFormatted = format(selectedDate, 'yyyy-MM-dd');
 
       const newAppointmentId = await createGuestAppointment({
         company_id: companyId,
         client_id: clientId,
+        client_nickname: clientNickname, // Adicionado para gravar o nome do convidado
         service_id: selectedServiceId,
         collaborator_id: selectedCollaboratorId === "any" ? null : selectedCollaboratorId,
         appointment_date: appointmentDateFormatted,
