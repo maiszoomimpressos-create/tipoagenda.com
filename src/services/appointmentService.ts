@@ -12,40 +12,24 @@ interface GuestAppointmentData {
   total_duration_minutes: number;
 }
 
-export async function findOrCreateClient(companyId: string, name: string, phone: string): Promise<string> {
-  // 1. Tentar encontrar um cliente existente com o mesmo nome e telefone para a empresa
-  const { data: existingClient, error: fetchError } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('name', name)
-    .eq('phone', phone)
-    .single();
+export async function findOrCreateClient(companyId: string, name: string, phone: string): Promise<{ clientId: string; clientNickname: string }> { // Retorna um objeto com clientId e clientNickname
+  const response = await fetch(`${supabase.supabaseUrl}/functions/v1/get-default-guest-client`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabase.supabaseKey}`, // Use anon key for Edge Function call
+    },
+    body: JSON.stringify({ name }), // Apenas o nome é necessário
+  });
 
-  if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = No rows found
-    console.error('Error finding client:', fetchError);
-    throw new Error('Erro ao buscar cliente existente.');
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Error calling get-default-guest-client Edge Function:', errorData);
+    throw new Error('Failed to get default guest client: ' + errorData.error);
   }
 
-  if (existingClient) {
-    return existingClient.id;
-  }
-
-  // 2. Se não encontrou, criar um novo cliente
-  const { data: newClient, error: insertError } = await supabase
-    .from('clients')
-    .insert([
-      { company_id: companyId, name: name, phone: phone, created_at: new Date().toISOString() }
-    ])
-    .select('id')
-    .single();
-
-  if (insertError) {
-    console.error('Error creating new client:', insertError);
-    throw new Error('Erro ao criar novo cliente.');
-  }
-
-  return newClient.id;
+  const { clientId, clientNickname } = await response.json();
+  return { clientId, clientNickname };
 }
 
 export async function createGuestAppointment(appointmentData: GuestAppointmentData): Promise<string> {
