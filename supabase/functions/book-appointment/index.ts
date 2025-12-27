@@ -58,19 +58,26 @@ async function getAvailableTimeSlotsBackend(
     }).filter(Boolean) as Array<{ start: Date; end: Date }>;
   }
 
+  let isFullDayOff = false;
   if (exceptions && exceptions.length > 0) {
-    const exception = exceptions[0];
-    if (exception.is_day_off) {
-      effectiveWorkingIntervals = [];
-    } else if (exception.start_time && exception.end_time) {
-      if (typeof exception.start_time !== 'string' || typeof exception.end_time !== 'string') {
-        // Invalid exception times, skip
-      } else {
-        const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
-        const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
-        busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
+    for (const exception of exceptions) {
+      if (exception.is_day_off) {
+        isFullDayOff = true;
+        break; // If any exception is a full day off, no need to check others
+      } else if (exception.start_time && exception.end_time) {
+        if (typeof exception.start_time !== 'string' || typeof exception.end_time !== 'string') {
+          // Invalid exception times, skip
+        } else {
+          const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
+          const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
+          busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
+        }
       }
     }
+  }
+
+  if (isFullDayOff) {
+    effectiveWorkingIntervals = [];
   }
 
   if (effectiveWorkingIntervals.length === 0) {
@@ -107,6 +114,20 @@ async function getAvailableTimeSlotsBackend(
   }
 
   busyIntervals.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const mergedBusyIntervals = [];
+  if (busyIntervals.length > 0) {
+    let currentMerged = busyIntervals[0];
+    for (let i = 1; i < busyIntervals.length; i++) {
+      const next = busyIntervals[i];
+      if (isBefore(next.start, addMinutes(currentMerged.end, 1))) { // Check if next interval overlaps or is adjacent
+        currentMerged.end = isAfter(currentMerged.end, next.end) ? currentMerged.end : next.end;
+      } else {
+        mergedBusyIntervals.push(currentMerged);
+        currentMerged = next;
+      }
+    }
+    mergedBusyIntervals.push(currentMerged);
+  }
 
   for (const workingInterval of effectiveWorkingIntervals) {
     let currentTime = workingInterval.start;
@@ -125,7 +146,7 @@ async function getAvailableTimeSlotsBackend(
 
       let isSlotFree = true;
       
-      for (const busy of busyIntervals) {
+      for (const busy of mergedBusyIntervals) {
         if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
           isSlotFree = false;
           const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
