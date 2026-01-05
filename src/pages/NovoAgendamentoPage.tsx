@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -174,7 +173,16 @@ const NovoAgendamentoPage: React.FC = () => {
             selectedDate,
             totalDurationMinutes
           );
-          setAvailableTimeSlots(slots);
+          // `slots` vem como horários de início (HH:mm). Vamos montar "HH:mm às HH:mm".
+          const formattedSlots = slots.map((startTime) => {
+            const [hour, minute] = startTime.split(':').map(Number);
+            const startDateTime = new Date(selectedDate);
+            startDateTime.setHours(hour, minute, 0, 0);
+
+            const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
+            return `${format(startDateTime, 'HH:mm')} - ${format(endDateTime, 'HH:mm')}`;
+          });
+          setAvailableTimeSlots(formattedSlots);
         } catch (error: any) {
           console.error('Erro ao buscar horários disponíveis:', error);
           showError('Erro ao buscar horários disponíveis: ' + error.message);
@@ -190,16 +198,6 @@ const NovoAgendamentoPage: React.FC = () => {
     fetchSlots();
   }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, primaryCompanyId, setValue]);
 
-
-  const handleServiceChange = (serviceId: string, checked: boolean) => {
-    let currentServices = selectedServiceIds;
-    if (checked) {
-      currentServices = [...currentServices, serviceId];
-    } else {
-      currentServices = currentServices.filter((id) => id !== serviceId);
-    }
-    setValue('serviceIds', currentServices, { shouldValidate: true });
-  };
 
   const onSubmit = async (data: NewAppointmentFormValues) => {
     setLoading(true);
@@ -391,27 +389,34 @@ const NovoAgendamentoPage: React.FC = () => {
               
               <div>
                 <Label className="block text-sm font-medium text-gray-700 mb-2">
-                  Serviços *
+                  Serviço *
                 </Label>
-                <div className="space-y-2">
-                  {services.length === 0 ? (
-                    <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
-                  ) : (
-                    services.map((service) => (
-                      <div key={service.id} className="flex items-center">
-                        <Checkbox
-                          id={`service-${service.id}`}
-                          checked={selectedServiceIds.includes(service.id)}
-                          onCheckedChange={(checked) => handleServiceChange(service.id, !!checked)}
-                          className="mr-2"
-                        />
-                        <Label htmlFor={`service-${service.id}`} className="text-sm">
+                <Select
+                  onValueChange={(value) => {
+                    const serviceId = value;
+                    setValue('serviceIds', serviceId ? [serviceId] : [], { shouldValidate: true });
+                    setValue('appointmentTime', '');
+                  }}
+                  value={selectedServiceIds[0] || ''}
+                  disabled={services.length === 0}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <SelectValue placeholder="Selecione o serviço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.length === 0 ? (
+                      <SelectItem value="no-services" disabled>
+                        Nenhum serviço ativo disponível.
+                      </SelectItem>
+                    ) : (
+                      services.map((service) => (
+                        <SelectItem key={service.id} value={service.id}>
                           {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
-                        </Label>
-                      </div>
-                    ))
-                  )}
-                </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
                 {totalDurationMinutes > 0 && (
                   <p className="text-sm text-gray-600 mt-2">
@@ -443,22 +448,32 @@ const NovoAgendamentoPage: React.FC = () => {
                   <Label htmlFor="appointmentTime" className="block text-sm font-medium text-gray-700 mb-2">
                     Horário *
                   </Label>
-                  <Select onValueChange={(value) => setValue('appointmentTime', value, { shouldValidate: true })} value={selectedAppointmentTime}>
-                    <SelectTrigger id="appointmentTime" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled={!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0 || loading}>
-                      <SelectValue placeholder={loading ? "Buscando horários..." : "Selecione o horário"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTimeSlots.length === 0 ? (
-                        <SelectItem value="no-slots" disabled>Nenhum horário disponível.</SelectItem>
-                      ) : (
-                        availableTimeSlots.map((timeSlot) => (
-                          <SelectItem key={timeSlot} value={timeSlot}>
-                            {timeSlot}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <div className="grid grid-cols-3 gap-2">
+                    {loading ? (
+                      <p className="text-gray-500 col-span-3 text-center">Buscando horários...</p>
+                    ) : availableTimeSlots.length > 0 ? (
+                      availableTimeSlots.map((timeSlot) => (
+                        <Button
+                          key={timeSlot}
+                          type="button"
+                          variant={selectedAppointmentTime === timeSlot ? "default" : "outline"}
+                          className="text-sm"
+                          onClick={() => setValue('appointmentTime', timeSlot, { shouldValidate: true })}
+                          disabled={!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0}
+                        >
+                          {timeSlot}
+                        </Button>
+                      ))
+                    ) : selectedDate && selectedCollaboratorId && totalDurationMinutes > 0 ? (
+                      <p className="text-gray-500 col-span-3">
+                        Nenhum horário disponível para a data, colaborador e serviço selecionados.
+                      </p>
+                    ) : (
+                      <p className="text-gray-500 col-span-3">
+                        Selecione colaborador, serviço e data para ver os horários.
+                      </p>
+                    )}
+                  </div>
                   {errors.appointmentTime && <p className="text-red-500 text-xs mt-1">{errors.appointmentTime.message}</p>}
                 </div>
               </div>

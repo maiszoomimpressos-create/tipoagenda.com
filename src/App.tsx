@@ -53,6 +53,7 @@ import AreaDeAtuacaoPage from "./pages/AreaDeAtuacaoPage"; // Importar nova pág
 import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova página
 import ConfigPage from "./pages/ConfigPage"; // Importar nova página de configurações
 import GuestAppointmentPage from "./pages/GuestAppointmentPage"; // Importar nova página de agendamento para convidados
+import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmationPage";
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -136,8 +137,9 @@ const App = () => (
             {/* Rota de Cadastro Unificado (Nova) */}
             <Route path="/register-professional" element={<UnifiedRegistrationPage />} />
 
-            {/* NOVA ROTA: Agendamento para Convidados */}
+            {/* NOVAS ROTAS: Agendamento para Convidados */}
             <Route path="/guest-appointment/:companyId" element={<GuestAppointmentPage />} />
+            <Route path="/agendamento-confirmado/:appointmentId" element={<GuestAppointmentConfirmationPage />} />
 
             {/* Rota do Admin Global (sem layout MainApplication) */}
             <Route path="/admin-dashboard" element={<GlobalAdminProtectedRoute><AdminDashboard /></GlobalAdminProtectedRoute>} />

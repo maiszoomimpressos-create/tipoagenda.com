@@ -128,7 +128,20 @@ const GuestAppointmentPage: React.FC = () => {
         service.duration_minutes,
       );
 
-      setAvailableTimes(slots.map(s => ({ time: s, is_available: true }))); // Adaptar para o formato esperado pelo `availableTimes` (TimeSlot[])
+      const formattedSlots = slots.map((startTime) => {
+        // Converte o horário inicial (HH:mm) em um objeto Date baseado na data selecionada
+        const [hour, minute] = startTime.split(':').map(Number);
+        const startDateTime = new Date(selectedDate);
+        startDateTime.setHours(hour, minute, 0, 0);
+
+        // Calcula o horário final com base na duração do serviço
+        const endDateTime = addMinutes(startDateTime, service.duration_minutes);
+
+        const label = `${format(startDateTime, 'HH:mm')} - ${format(endDateTime, 'HH:mm')}`;
+        return { time: label, is_available: true };
+      });
+
+      setAvailableTimes(formattedSlots);
     } catch (error: any) {
       showError('Erro ao buscar horários disponíveis: ' + error.message);
       console.error(error);
@@ -191,19 +204,22 @@ const GuestAppointmentPage: React.FC = () => {
       const { clientId, clientNickname } = await findOrCreateClient(companyId, guestName, guestPhone);
 
       const appointmentDateFormatted = format(selectedDate, 'yyyy-MM-dd');
+      const startTimeForDb = selectedTime.split(' ')[0]; // "HH:MM" do intervalo "HH:MM às HH:MM"
 
-      const newAppointmentId = await createGuestAppointment({
-        company_id: companyId,
-        client_id: clientId,
-        client_nickname: clientNickname, // Adicionado para gravar o nome do convidado
-        service_id: selectedServiceId,
-        collaborator_id: selectedCollaboratorId === "any" ? null : selectedCollaboratorId,
-        appointment_date: appointmentDateFormatted,
-        appointment_time: selectedTime + ':00',
-        status: 'pendente',
-        total_price: service.price,
-        total_duration_minutes: service.duration_minutes,
-      });
+      const newAppointmentId = await createGuestAppointment(
+        {
+          company_id: companyId,
+          client_id: clientId,
+          client_nickname: clientNickname, // Grava o nome do convidado
+          collaborator_id: selectedCollaboratorId === "any" ? null : selectedCollaboratorId,
+          appointment_date: appointmentDateFormatted,
+          appointment_time: startTimeForDb,
+          status: 'pendente',
+          total_price: service.price,
+          total_duration_minutes: service.duration_minutes,
+        },
+        selectedServiceId,
+      );
 
       showSuccess('Agendamento realizado com sucesso como convidado!');
       navigate('/agendamento-confirmado/' + newAppointmentId);
@@ -339,7 +355,7 @@ const GuestAppointmentPage: React.FC = () => {
                       disabled={isSubmitting || !slot.is_available}
                       className={!slot.is_available ? "opacity-50 cursor-not-allowed" : ""}
                     >
-                      {slot.time.substring(0, 5)}
+                      {slot.time}
                     </Button>
                   ))
                 ) : selectedDate && selectedServiceId && selectedCollaboratorId ? (
