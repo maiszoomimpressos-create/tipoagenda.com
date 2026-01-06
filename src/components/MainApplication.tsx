@@ -16,8 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Zap, Menu, Bell } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useNotifications } from '@/hooks/useNotifications'; // Importar novo hook
-import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useNotifications } from '@/hooks/useNotifications';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import NotificationList from './NotificationList'; // Importar novo componente
 
 const MainApplication: React.FC = () => {
@@ -118,14 +118,22 @@ const MainApplication: React.FC = () => {
               <UserDropdownMenu session={session} />
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <Link to="/login">
-                <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-                  Login
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="!rounded-button">
+                  <Menu className="h-5 w-5" />
                 </Button>
-              </Link>
-              {/* Botão Cadastrar removido conforme solicitado */}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate('/login')}>
+                  Login
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/register-professional')}>
+                  Cadastro
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>

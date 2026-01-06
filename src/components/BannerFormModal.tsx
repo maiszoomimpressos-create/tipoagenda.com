@@ -8,7 +8,7 @@
  * 3. Valida os dados antes de submeter
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +73,7 @@ export const BannerFormModal: React.FC<BannerFormModalProps> = ({
   const [isEditMode, setIsEditMode] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadMethod, setUploadMethod] = useState<'upload' | 'url'>('upload');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -183,11 +184,15 @@ export const BannerFormModal: React.FC<BannerFormModalProps> = ({
       // Validar tamanho
       if (file.size > 5000000) {
         showError('Tamanho máximo da imagem é 5MB.');
+        // Limpar o input para permitir selecionar o mesmo arquivo novamente
+        if (e.target) e.target.value = ''; 
         return;
       }
       // Validar tipo
       if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
         showError('Apenas .jpg, .png, .webp e .gif são aceitos.');
+        // Limpar o input para permitir selecionar o mesmo arquivo novamente
+        if (e.target) e.target.value = '';
         return;
       }
       // Criar preview
@@ -199,6 +204,11 @@ export const BannerFormModal: React.FC<BannerFormModalProps> = ({
       setValue('image_file', [file]);
       setValue('image_url', '');
     }
+    // Limpar o valor do input se nenhum arquivo foi selecionado ou se o arquivo é inválido, 
+    // para que o onChange seja disparado novamente se o mesmo arquivo for selecionado.
+    // Note: Isso só é necessário se o arquivo for o mesmo E ele for válido. 
+    // Para simplificar, faremos isso sempre que nenhum arquivo válido for processado.
+    if (!file && e.target) e.target.value = '';
   };
 
   /**
@@ -361,9 +371,20 @@ export const BannerFormModal: React.FC<BannerFormModalProps> = ({
                       id="image_file"
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
+                      ref={fileInputRef} // Adicionar ref
                       onChange={handleImageFileChange}
+                      className="hidden" // Ocultar input nativo
                       disabled={loading || uploading}
                     />
+                    <Button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()} // Acionar clique no input oculto
+                      disabled={loading || uploading}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Selecionar Arquivo
+                    </Button>
                     <p className="text-xs text-muted-foreground mt-1">
                       Formatos aceitos: JPG, PNG, WEBP, GIF (máx. 5MB)
                     </p>

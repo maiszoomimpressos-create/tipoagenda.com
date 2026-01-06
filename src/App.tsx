@@ -34,7 +34,6 @@ import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage";
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage";
 import ProductFormPage from "./pages/ProductFormPage";
-import IndexPage from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import PlanManagementPage from "./pages/PlanManagementPage";
 import ContractManagementPage from "./pages/ContractManagementPage";
@@ -130,6 +129,8 @@ const App = () => (
       <BrowserRouter>
         <SessionContextProvider>
           <Routes>
+            <Route path="/" element={<LandingPage />} />
+
             {/* Rotas de autenticação (sem layout MainApplication) */}
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
@@ -174,7 +175,6 @@ const App = () => (
 
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
-              <Route index element={<IndexPage />} />
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               
