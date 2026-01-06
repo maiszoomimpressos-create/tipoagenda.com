@@ -3,15 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Adicionar Link
 import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall } from 'lucide-react'; // Importando ícones Lucide
+import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays } from 'lucide-react'; // Adicionar Menu e CalendarDays
 import { Input } from '@/components/ui/input';
 import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
 
 interface Company {
   id: string;
@@ -153,24 +154,78 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Header Customizado para Landing Page */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-3 cursor-pointer">
+            <div className="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center">
+              <CalendarDays className="text-white h-6 w-6" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900">TipoAgenda</h1>
+          </Link>
+
+          {/* Barra de Busca Centralizada */}
+          <div className="flex-1 max-w-md mx-auto relative hidden md:block">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Input
+              type="text"
+              placeholder="Buscar..."
+              className="pl-12 h-10 rounded-full border-gray-200 focus:border-yellow-600 focus:ring-1 focus:ring-yellow-600 pr-4"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Menu de Login/Cadastro */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="!rounded-button">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {session ? (
+                <>
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    Meu Perfil
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    supabase.auth.signOut();
+                    navigate('/'); // Redireciona para a landing page após logout
+                  }}>
+                    Sair
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={() => navigate('/login')}>
+                    Login
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/register-professional')}>
+                    Cadastro
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section 
-        className="relative min-h-screen flex items-center justify-center bg-cover bg-center"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(26, 26, 26, 0.8), rgba(45, 45, 45, 0.6)), url('https://readdy.ai/api/search-image?query=modern%20professional%20services%20appointment%20booking%20platform%20with%20diverse%20people%20using%20smartphones%20and%20tablets%20in%20clean%20minimalist%20environment%20with%20soft%20lighting%20and%20contemporary%20design%20elements&width=1440&height=1024&seq=hero-landing&orientation=landscape')`
-        }}
+        className="relative flex items-center justify-center bg-white pt-20 pb-10 min-h-[500px]" // Fundo branco e altura ajustada
       >
-        <div className="container mx-auto px-6 text-center text-white">
-          <h1 className="text-6xl font-bold mb-6 leading-tight">
-            Agende Seus <span className="text-yellow-400">Serviços Favoritos</span><br />
-            Em Um Só Lugar
+        <div className="container mx-auto px-6 text-center text-gray-900">
+          <h1 className="text-5xl font-bold mb-4 leading-tight text-gray-900">
+            Encontre o Serviço Ideal
           </h1>
-          <p className="text-xl mb-8 max-w-3xl mx-auto text-gray-200">
-            Conectamos você aos melhores profissionais da sua região. Beleza, saúde, fitness, consultoria e muito mais. 
-            Reserve seu horário em segundos e tenha uma experiência excepcional.
+          <p className="text-lg mb-6 max-w-3xl mx-auto text-gray-600">
+            Navegue pelas categorias ou use a busca para encontrar o que você precisa.
           </p>
 
-          {/* Search Bar */}
+          {/* Search Bar (novo design) */}
           <div className="max-w-4xl mx-auto mb-12">
             <div className="bg-white rounded-2xl p-6 shadow-2xl">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -202,26 +257,6 @@ const LandingPage: React.FC = () => {
                   Buscar Serviços
                 </Button>
               </div>
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-400 mb-2">15.000+</div>
-              <div className="text-gray-200">Profissionais</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-400 mb-2">50.000+</div>
-              <div className="text-gray-200">Agendamentos</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-400 mb-2">4.9</div>
-              <div className="text-gray-200">Avaliação Média</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-400 mb-2">95%</div>
-              <div className="text-gray-200">Satisfação</div>
             </div>
           </div>
         </div>
