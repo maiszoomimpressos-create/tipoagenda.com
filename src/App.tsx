@@ -54,6 +54,7 @@ import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova 
 import ConfigPage from "./pages/ConfigPage"; // Importar nova página de configurações
 import GuestAppointmentPage from "./pages/GuestAppointmentPage"; // Importar nova página de agendamento para convidados
 import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmationPage";
+import BannerManagementPage from "./pages/BannerManagementPage"; // Importar nova página de gerenciamento de banners
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -167,6 +168,8 @@ const App = () => (
             <Route path="/admin-dashboard/coupon-usage-report" element={<GlobalAdminProtectedRoute><CouponUsageReportPage /></GlobalAdminProtectedRoute>} />
             {/* NOVA ROTA: Relatório de Tentativas de Pagamento */}
             <Route path="/admin-dashboard/payment-attempts" element={<GlobalAdminProtectedRoute><PaymentAttemptsPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Gerenciamento de Banners Globais */}
+            <Route path="/admin-dashboard/global-banners" element={<GlobalAdminProtectedRoute><BannerManagementPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}

@@ -17,6 +17,7 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useIsClient } from '@/hooks/useIsClient';
+import { markExplicitLogout } from '@/utils/auth-state';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -33,6 +34,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const { isClient, loadingClientCheck } = useIsClient();
 
   const handleLogout = async () => {
+    markExplicitLogout(); // Marca que o logout foi explícito
     const { error } = await supabase.auth.signOut();
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
