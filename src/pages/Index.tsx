@@ -21,8 +21,8 @@ const IndexPage: React.FC = () => {
     console.log('IndexPage useEffect - sessionLoading:', sessionLoading, 'loadingRoles:', loadingRoles);
     console.log('IndexPage useEffect - isGlobalAdmin:', isGlobalAdmin, 'isProprietario:', isProprietario, 'isCompanyAdmin:', isCompanyAdmin, 'isClient:', isClient);
 
-    if (sessionLoading) {
-      console.log('IndexPage: Session still loading, returning.');
+    if (sessionLoading || loadingRoles) {
+      console.log('IndexPage: Session or Roles still loading, returning.');
       return;
     }
 
@@ -31,11 +31,7 @@ const IndexPage: React.FC = () => {
       return; 
     }
 
-    if (loadingRoles) {
-      console.log('IndexPage: Roles still loading, returning.');
-      return;
-    }
-
+    // Se chegou aqui, o usuário está logado e os papéis foram carregados.
     if (isGlobalAdmin) {
       console.log('IndexPage: User is GLOBAL_ADMIN, redirecting to /admin-dashboard');
       navigate('/admin-dashboard', { replace: true });
@@ -44,9 +40,7 @@ const IndexPage: React.FC = () => {
       navigate('/dashboard', { replace: true });
     } else if (isClient) {
       console.log('IndexPage: User is a pure client, rendering LandingPage (for company selection or /agendar if target set).');
-      // The LandingPage component handles the CompanySelectionModal logic.
-      // If a target company was set before login, SessionContextProvider would have redirected to /agendar.
-      // If not, LandingPage will show the company selection modal.
+      // If client, we let the component render the LandingPage, which handles the CompanySelectionModal.
     } else {
       console.log('IndexPage: Logged in but no specific role, redirecting to /register-company');
       navigate('/register-company', { replace: true });
@@ -61,8 +55,17 @@ const IndexPage: React.FC = () => {
     );
   }
 
-  // If not logged in, or if logged in as a pure client, render the LandingPage
-  return <LandingPage />;
+  // Se não estiver logado, ou se estiver logado como cliente puro, renderiza a LandingPage.
+  if (!session || isClient) {
+    return <LandingPage />;
+  }
+  
+  // Fallback para o caso de o useEffect ter terminado, mas o redirecionamento ainda não ter ocorrido
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-700">Redirecionando...</p>
+    </div>
+  );
 };
 
 export default IndexPage;

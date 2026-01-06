@@ -17,6 +17,7 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useIsClient } from '@/hooks/useIsClient';
+import { markExplicitLogout } from '@/utils/auth-state';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -33,13 +34,19 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const { isClient, loadingClientCheck } = useIsClient();
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      showError('Erro ao fazer logout: ' + error.message);
+    markExplicitLogout(); // Marca que o logout foi explícito
+    
+    if (session) {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        showError('Erro ao fazer logout: ' + error.message);
+      }
     } else {
-      // O redirecionamento para a Landing Page será tratado pelo SessionContextProvider
-      // showSuccess('Logout realizado com sucesso!'); // O SessionContextProvider já exibe este toast
+      // Se não houver sessão, apenas navega para a raiz e limpa o estado local
+      showSuccess('Logout realizado com sucesso!');
+      navigate('/', { replace: true });
     }
+    // O redirecionamento para a Landing Page será tratado pelo SessionContextProvider
   };
 
   const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;

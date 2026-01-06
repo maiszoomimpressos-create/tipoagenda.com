@@ -34,7 +34,6 @@ import EditAgendamentoPage from "./pages/EditAgendamentoPage";
 import ClientAppointmentPage from "./pages/ClientAppointmentPage";
 import ClientAppointmentsPage from "./pages/ClientAppointmentsPage";
 import ProductFormPage from "./pages/ProductFormPage";
-import IndexPage from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import PlanManagementPage from "./pages/PlanManagementPage";
 import ContractManagementPage from "./pages/ContractManagementPage";
@@ -54,6 +53,8 @@ import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova 
 import ConfigPage from "./pages/ConfigPage"; // Importar nova página de configurações
 import GuestAppointmentPage from "./pages/GuestAppointmentPage"; // Importar nova página de agendamento para convidados
 import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmationPage";
+import BannerManagementPage from "./pages/BannerManagementPage"; // Importar nova página de gerenciamento de banners
+import IndexPage from "./pages/Index"; // Importar IndexPage
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -129,6 +130,9 @@ const App = () => (
       <BrowserRouter>
         <SessionContextProvider>
           <Routes>
+            {/* Rota principal que lida com o redirecionamento de papel */}
+            <Route path="/" element={<IndexPage />} />
+
             {/* Rotas de autenticação (sem layout MainApplication) */}
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
@@ -167,11 +171,12 @@ const App = () => (
             <Route path="/admin-dashboard/coupon-usage-report" element={<GlobalAdminProtectedRoute><CouponUsageReportPage /></GlobalAdminProtectedRoute>} />
             {/* NOVA ROTA: Relatório de Tentativas de Pagamento */}
             <Route path="/admin-dashboard/payment-attempts" element={<GlobalAdminProtectedRoute><PaymentAttemptsPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Gerenciamento de Banners Globais */}
+            <Route path="/admin-dashboard/global-banners" element={<GlobalAdminProtectedRoute><BannerManagementPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
             <Route path="/" element={<MainApplication />}>
-              <Route index element={<IndexPage />} />
               <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               

@@ -16,8 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Zap, Menu, Bell } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useNotifications } from '@/hooks/useNotifications'; // Importar novo hook
-import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useNotifications } from '@/hooks/useNotifications';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import NotificationList from './NotificationList'; // Importar novo componente
 
 const MainApplication: React.FC = () => {
@@ -39,12 +39,14 @@ const MainApplication: React.FC = () => {
 
   const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
   
-  // Rotas que não devem ter sidebar, mesmo para Proprietários/Admins
-  const excludedPaths = ['/', '/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'];
+  // Rotas que NUNCA devem ter sidebar, mesmo para Proprietários/Admins (rotas de autenticação, admin global, ou cliente puro)
+  // Removido '/' da lista de exclusão, pois a rota '/' não está mais aninhada aqui.
+  const publicOrClientPaths = ['/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard', '/planos'];
   
   // Define se estamos em uma rota de aplicação que deve ter sidebar (para Proprietários/Admins)
+  // Se for gestor E a rota atual NÃO for uma rota pública/cliente.
   const isAppPath = isProprietarioOrCompanyAdmin && 
-    !excludedPaths.some(path => location.pathname.startsWith(path) && location.pathname.length === path.length);
+    !publicOrClientPaths.some(path => location.pathname.startsWith(path) && (location.pathname === path || location.pathname.startsWith(`${path}/`)));
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
@@ -118,14 +120,22 @@ const MainApplication: React.FC = () => {
               <UserDropdownMenu session={session} />
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <Link to="/login">
-                <Button className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-                  Login
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="!rounded-button">
+                  <Menu className="h-5 w-5" />
                 </Button>
-              </Link>
-              {/* Botão Cadastrar removido conforme solicitado */}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate('/login')}>
+                  Login
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/register-professional')}>
+                  Cadastro
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>
@@ -154,6 +164,24 @@ const MainApplication: React.FC = () => {
                     </Link>
                   </li>
                 ))}
+                {/* Adiciona o link de Configurações no menu lateral para gestores */}
+                {isProprietarioOrCompanyAdmin && (
+                  <li>
+                    <Link
+                      to="/config"
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                        location.pathname === '/config'
+                          ? 'bg-yellow-600 text-black'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <i className="fas fa-cog text-lg"></i>
+                      {!sidebarCollapsed && (
+                        <span className="font-medium">Configurações</span>
+                      )}
+                    </Link>
+                  </li>
+                )}
                 {!loadingClientCheck && isClient && (
                   <li>
                     <Link
