@@ -6,7 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard } from 'lucide-react'; // Importando CreditCard
+import { markExplicitLogout } from '@/utils/auth-state';
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon } from 'lucide-react'; // Importando CreditCard e ImageIcon
 import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -55,6 +56,7 @@ const AdminDashboard: React.FC = () => {
   }, [session, sessionLoading, isGlobalAdmin, loadingGlobalAdminCheck, navigate]);
 
   const handleLogout = async () => {
+    markExplicitLogout(); // Marca que o logout foi explícito
     const { error } = await supabase.auth.signOut();
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
@@ -188,6 +190,16 @@ const AdminDashboard: React.FC = () => {
             buttonText="Configurar Chaves"
             buttonColor="bg-gray-600 hover:bg-gray-700"
             onClick={() => navigate('/admin-dashboard/api-keys')}
+          />
+
+          {/* NOVO CARD: Gerenciamento de Banners Globais */}
+          <ManagementCard
+            title="Gerenciamento de Banners Globais"
+            description="Crie e edite banners que serão exibidos globalmente no sistema (máximo de 20 banners)."
+            icon={<ImageIcon className="h-6 w-6 text-orange-500" />}
+            buttonText="Gerenciar Banners Globais"
+            buttonColor="bg-orange-500 hover:bg-orange-600"
+            onClick={() => navigate('/admin-dashboard/global-banners')}
           />
 
           {/* NOVO CARD: Relatório de Tentativas de Pagamento */}
