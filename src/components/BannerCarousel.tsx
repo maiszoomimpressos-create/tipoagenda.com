@@ -63,7 +63,7 @@ const BannerCarousel: React.FC = () => {
   }
 
   return (
-    <section className="py-10 bg-gray-100">
+    <section className="bg-gray-100">
       <div className="container mx-auto px-6">
         <div className="embla relative">
           <div className="embla__viewport overflow-hidden rounded-xl shadow-lg" ref={emblaRef}>
