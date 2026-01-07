@@ -35,9 +35,19 @@ export function useIsGlobalAdmin() {
           throw error;
         }
 
-        const userIsGlobalAdmin = data?.cod === 'GLOBAL_ADMIN';
+        const cod = (data?.cod || '').toUpperCase();
+        const metadataRole = (session.user.user_metadata?.role || '').toUpperCase();
+
+        // Aceita variações comuns para admin global
+        const userIsGlobalAdmin = [
+          'GLOBAL_ADMIN',
+          'ADMIN_GLOBAL',
+          'ADMINISTRADOR_GLOBAL',
+          'SUPER_ADMIN',
+        ].includes(cod) || metadataRole === 'GLOBAL_ADMIN';
+
         setIsGlobalAdmin(userIsGlobalAdmin);
-        console.log(`useIsGlobalAdmin: User ${session.user.id} (email: ${session.user.email}) is GLOBAL_ADMIN: ${userIsGlobalAdmin}, fetched cod: ${data?.cod}`);
+        console.log(`useIsGlobalAdmin: user=${session.user.id}, email=${session.user.email}, cod=${data?.cod}, metadataRole=${session.user.user_metadata?.role}, isGlobalAdmin=${userIsGlobalAdmin}`);
 
       } catch (error: any) {
         console.error('Error checking global admin status:', error);

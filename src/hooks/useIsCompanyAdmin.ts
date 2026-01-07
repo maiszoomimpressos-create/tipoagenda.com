@@ -33,8 +33,17 @@ export function useIsCompanyAdmin() {
           throw error;
         }
 
-        // Check if any of the user's roles is 'Admin' (company-level admin)
-        const userIsCompanyAdmin = data.some(role => role.role_type_description === 'Admin');
+        // Considera variações de descrição para gestor/admin de empresa
+        const userIsCompanyAdmin = data.some(role => {
+          const desc = (role.role_type_description || '').toLowerCase();
+          return [
+            'admin',
+            'administrador',
+            'gestor',
+            'gestor de evento',
+            'manager',
+          ].includes(desc);
+        });
         setIsCompanyAdmin(userIsCompanyAdmin);
         console.log(`useIsCompanyAdmin: User ${session.user.id} (email: ${session.user.email}) is Company Admin: ${userIsCompanyAdmin}`);
 
