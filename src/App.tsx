@@ -54,6 +54,7 @@ import ConfigPage from "./pages/ConfigPage"; // Importar nova página de configu
 import GuestAppointmentPage from "./pages/GuestAppointmentPage"; // Importar nova página de agendamento para convidados
 import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmationPage";
 import BannerManagementPage from "./pages/BannerManagementPage"; // Importar nova página de gerenciamento de banners
+import CollaboratorServicesPage from "./pages/CollaboratorServicesPage";
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -195,6 +196,7 @@ const App = () => (
               <Route path="colaboradores/new" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
               <Route path="colaboradores/edit/:collaboratorId" element={<ProtectedRoute><CollaboratorFormPage /></ProtectedRoute>} />
               <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} />
+              <Route path="colaboradores/:collaboratorId/servicos" element={<ProtectedRoute><CollaboratorServicesPage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
               <Route path="estoque/new" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />

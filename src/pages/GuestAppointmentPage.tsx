@@ -40,6 +40,7 @@ const GuestAppointmentPage: React.FC = () => {
   const [guestPhone, setGuestPhone] = useState('');
   const [services, setServices] = useState<Service[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -168,6 +169,30 @@ const GuestAppointmentPage: React.FC = () => {
     setSelectedTime(null);
     setAvailableTimes([]);
   };
+
+  // Carrega serviços permitidos para o colaborador selecionado (ou todos se "any")
+  useEffect(() => {
+    const loadAllowed = async () => {
+      if (!selectedCollaboratorId || selectedCollaboratorId === "any") {
+        setAllowedServiceIds([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('collaborator_services')
+        .select('service_id')
+        .eq('company_id', companyId)
+        .eq('collaborator_id', selectedCollaboratorId)
+        .eq('active', true);
+      if (error) {
+        console.error('Erro ao carregar serviços permitidos:', error);
+        showError('Erro ao carregar serviços permitidos para o colaborador.');
+        setAllowedServiceIds([]);
+        return;
+      }
+      setAllowedServiceIds((data || []).map((d: any) => d.service_id));
+    };
+    loadAllowed();
+  }, [selectedCollaboratorId, services, companyId]);
 
   const handleDateSelect = (date: Date | undefined) => {
     const today = startOfDay(new Date());
@@ -302,16 +327,23 @@ const GuestAppointmentPage: React.FC = () => {
         {/* Seleção de Serviço */}
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Escolha seu Serviço</h2>
-          <Select onValueChange={handleServiceChange} disabled={isSubmitting || services.length === 0 || !selectedCollaboratorId}>
+          <Select onValueChange={handleServiceChange} disabled={isSubmitting || services.length === 0 || (selectedCollaboratorId !== null && allowedServiceIds.length === 0)}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione um serviço" />
             </SelectTrigger>
             <SelectContent>
-              {services.map(service => (
-                <SelectItem key={service.id} value={service.id}>
-                  {service.name} (R$ {service.price.toFixed(2)}) ({service.duration_minutes} min)
+              {services
+                .filter(service => allowedServiceIds.includes(service.id))
+                .map(service => (
+                  <SelectItem key={service.id} value={service.id}>
+                    {service.name} (R$ {service.price.toFixed(2)}) ({service.duration_minutes} min)
+                  </SelectItem>
+                ))}
+              {services.length > 0 && allowedServiceIds.length === 0 && selectedCollaboratorId && (
+                <SelectItem value="no-allowed" disabled>
+                  Nenhum serviço permitido para este colaborador.
                 </SelectItem>
-              ))}
+              )}
             </SelectContent>
           </Select>
           {services.length === 0 && !loading && (

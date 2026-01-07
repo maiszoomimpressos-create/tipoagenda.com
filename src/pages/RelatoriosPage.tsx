@@ -8,6 +8,7 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSession } from '@/components/SessionContextProvider';
+import { ServiceCommissionDetailModal } from '@/components/ServiceCommissionDetailModal'; // Importação do modal
 
 // Helper component for KPI cards
 interface KpiCardProps {
@@ -52,6 +53,13 @@ const RelatoriosPage: React.FC = () => {
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [dateRangeKey, setDateRangeKey] = useState<DateRangeKey>('last_month');
   const { reportsData, loading, collaborators } = useReportsData(dateRangeKey);
+
+  // Estados para o modal de detalhes de comissão por serviço
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCollaboratorForModal, setSelectedCollaboratorForModal] = useState<string | null>(null);
+  const [selectedCollaboratorNameForModal, setSelectedCollaboratorNameForModal] = useState<string>('');
+  const [selectedServiceCommissionsForModal, setSelectedServiceCommissionsForModal] = useState<any[]>([]);
+
 
   if (sessionLoading || loadingPrimaryCompany || loading) {
     return (
@@ -109,6 +117,13 @@ const RelatoriosPage: React.FC = () => {
     },
   ];
 
+  const handleOpenServiceCommissionModal = (collaboratorId: string, collaboratorName: string) => {
+    setSelectedCollaboratorForModal(collaboratorId);
+    setSelectedCollaboratorNameForModal(collaboratorName);
+    setSelectedServiceCommissionsForModal(reportsData.serviceCommissionsByCollaborator[collaboratorId] || []);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -159,19 +174,31 @@ const RelatoriosPage: React.FC = () => {
                 <p className="text-gray-600">Nenhum colaborador com agendamentos concluídos no período.</p>
               ) : (
                 collaborators.map((colaborador) => (
-                  <div key={colaborador.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-gray-200 text-gray-700 text-sm">
-                          {colaborador.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium text-gray-900">{colaborador.name}</span>
+                  <div key={colaborador.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-gray-200 text-gray-700 text-sm">
+                            {colaborador.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-gray-900">{colaborador.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">{colaborador.appointments} atendimentos</p>
+                        <p className="text-sm font-bold text-yellow-600">Comissão Total: R$ {colaborador.commission.toFixed(2).replace('.', ',')}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">{colaborador.appointments} atendimentos</p>
-                      <p className="text-sm font-bold text-yellow-600">Comissão: R$ {colaborador.commission.toFixed(2).replace('.', ',')}</p>
-                    </div>
+                    {reportsData.serviceCommissionsByCollaborator[colaborador.id]?.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-3 w-full"
+                        onClick={() => handleOpenServiceCommissionModal(colaborador.id, colaborador.name)}
+                      >
+                        Ver Detalhes da Comissão por Serviço
+                      </Button>
+                    )}
                   </div>
                 ))
               )}
@@ -208,6 +235,17 @@ const RelatoriosPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Detalhes de Comissão por Serviço */}
+      {selectedCollaboratorForModal && (
+        <ServiceCommissionDetailModal
+          open={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          collaboratorName={selectedCollaboratorNameForModal}
+          serviceCommissions={selectedServiceCommissionsForModal}
+          allServiceNames={reportsData.allServiceNames} // Passar todos os nomes de serviços
+        />
+      )}
     </div>
   );
 };

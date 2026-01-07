@@ -63,6 +63,8 @@ const EditAgendamentoPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
+  const [commissionByService, setCommissionByService] = useState<Record<string, { type?: string; value?: number }>>({});
   const [loadingData, setLoadingData] = useState(true); // For initial data fetch
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
@@ -197,6 +199,44 @@ const EditAgendamentoPage: React.FC = () => {
     fetchInitialData();
   }, [session, sessionLoading, primaryCompanyId, loadingPrimaryCompany, navigate, fetchInitialData]);
 
+  // Carrega serviços permitidos para o colaborador selecionado.
+  // Para não quebrar agendamentos antigos, mantemos serviços já selecionados mesmo que não estejam mais permitidos.
+  useEffect(() => {
+    const loadAllowed = async () => {
+      if (!selectedCollaboratorId || !primaryCompanyId) {
+        setAllowedServiceIds([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('collaborator_services')
+        .select('service_id, commission_type, commission_value')
+        .eq('company_id', primaryCompanyId)
+        .eq('collaborator_id', selectedCollaboratorId)
+        .eq('active', true);
+      if (error) {
+        console.error('Erro ao carregar serviços permitidos:', error);
+        showError('Erro ao carregar serviços permitidos para o colaborador.');
+        setAllowedServiceIds([]);
+        return;
+      }
+      const ids = (data || []).map((d: any) => d.service_id);
+      const commissionMap = (data || []).reduce<Record<string, { type?: string; value?: number }>>((acc, cur: any) => {
+        acc[cur.service_id] = { type: cur.commission_type, value: cur.commission_value };
+        return acc;
+      }, {});
+      setCommissionByService(commissionMap);
+      // Mantém os já selecionados mesmo que não estejam mais permitidos, para edição de legado.
+      const merged = Array.from(new Set([...ids, ...selectedServiceIds]));
+      setAllowedServiceIds(merged);
+      setValue(
+        'serviceIds',
+        selectedServiceIds.filter((id) => merged.includes(id)),
+        { shouldValidate: true }
+      );
+    };
+    loadAllowed();
+  }, [selectedCollaboratorId, primaryCompanyId, selectedServiceIds, setValue]);
+
   // Effect to calculate total duration and price when services change
   useEffect(() => {
     const selected = services.filter(s => selectedServiceIds.includes(s.id));
@@ -292,6 +332,8 @@ const EditAgendamentoPage: React.FC = () => {
       const appointmentServicesToInsert = data.serviceIds.map(serviceId => ({
         appointment_id: appointmentId,
         service_id: serviceId,
+        commission_type: commissionByService[serviceId]?.type,
+        commission_value: commissionByService[serviceId]?.value ?? null,
       }));
 
       const { error: insertServicesError } = await supabase
@@ -421,8 +463,12 @@ const EditAgendamentoPage: React.FC = () => {
                 <div className="space-y-2">
                   {services.length === 0 ? (
                     <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
+                  ) : allowedServiceIds.length === 0 && selectedCollaboratorId ? (
+                    <p className="text-sm text-red-500">Nenhum serviço permitido para este colaborador.</p>
                   ) : (
-                    services.map((service) => (
+                    services
+                      .filter((service) => allowedServiceIds.includes(service.id))
+                      .map((service) => (
                       <div key={service.id} className="flex items-center">
                         <Checkbox
                           id={`service-${service.id}`}
@@ -434,7 +480,7 @@ const EditAgendamentoPage: React.FC = () => {
                           {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
                         </Label>
                       </div>
-                    ))
+                      ))
                   )}
                 </div>
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}

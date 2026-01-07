@@ -7,6 +7,9 @@ import { Link, useNavigate } from 'react-router-dom'; // Adicionar Link
 import { setTargetCompanyId, getTargetCompanyId } from '@/utils/storage';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useIsProprietario } from '@/hooks/useIsProprietario';
+import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
+import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import CompanySelectionModal from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
 import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays } from 'lucide-react'; // Adicionar Menu e CalendarDays
@@ -30,6 +33,9 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
+  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { plans, loading: loadingPlans } = useActivePlans();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +45,8 @@ const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
+
+  const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck;
 
   const categories = [
     { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
@@ -101,6 +109,46 @@ const LandingPage: React.FC = () => {
   useEffect(() => {
     fetchCompanies();
   }, [fetchCompanies]);
+
+  // Redirecionamento pós-login baseado no papel do usuário
+  useEffect(() => {
+    if (sessionLoading) {
+      return;
+    }
+
+    if (!session) {
+      return;
+    }
+
+    if (loadingRoles) {
+      return;
+    }
+
+    if (isGlobalAdmin) {
+      navigate('/admin-dashboard', { replace: true });
+      return;
+    }
+
+    if (isProprietario || isCompanyAdmin) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    // Se estiver logado mas não for admin/global/proprietário e também não for cliente,
+    // encaminha para o fluxo de cadastro de empresa
+    if (!isClient) {
+      navigate('/register-company', { replace: true });
+    }
+  }, [
+    session,
+    sessionLoading,
+    loadingRoles,
+    isGlobalAdmin,
+    isProprietario,
+    isCompanyAdmin,
+    isClient,
+    navigate,
+  ]);
 
   // Logic to open the selection modal if the user is a client and just logged in without a target company
   useEffect(() => {
