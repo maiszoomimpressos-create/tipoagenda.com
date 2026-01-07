@@ -52,6 +52,7 @@ const ClientAppointmentForm: React.FC = () => {
   const [targetCompanyId, setTargetCompanyIdState] = useState<string | null>(null); // State to hold the company ID for this form
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
   const [loadingData, setLoadingData] = useState(true); // For initial data fetch
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
@@ -203,6 +204,38 @@ const ClientAppointmentForm: React.FC = () => {
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
+
+  // Carrega serviços permitidos para o colaborador selecionado
+  useEffect(() => {
+    const loadAllowed = async () => {
+      if (!selectedCollaboratorId || !targetCompanyId) {
+        setAllowedServiceIds([]);
+        setValue('serviceIds', [], { shouldValidate: true });
+        return;
+      }
+      const { data, error } = await supabase
+        .from('collaborator_services')
+        .select('service_id')
+        .eq('company_id', targetCompanyId)
+        .eq('collaborator_id', selectedCollaboratorId)
+        .eq('active', true);
+      if (error) {
+        console.error('Erro ao carregar serviços permitidos:', error);
+        showError('Erro ao carregar serviços permitidos para o colaborador.');
+        setAllowedServiceIds([]);
+        setValue('serviceIds', [], { shouldValidate: true });
+        return;
+      }
+      const ids = (data || []).map((d: any) => d.service_id);
+      setAllowedServiceIds(ids);
+      setValue(
+        'serviceIds',
+        selectedServiceIds.filter((id) => ids.includes(id)),
+        { shouldValidate: true }
+      );
+    };
+    loadAllowed();
+  }, [selectedCollaboratorId, targetCompanyId, selectedServiceIds, setValue]);
 
   // Effect to calculate total duration and price when services change
   useEffect(() => {
@@ -380,10 +413,12 @@ const ClientAppointmentForm: React.FC = () => {
                   Serviços *
                 </Label>
                 <div className="space-y-2">
-                  {services.length === 0 ? (
-                    <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
-                  ) : (
-                    services.map((service) => (
+                  {selectedCollaboratorId && allowedServiceIds.length === 0 && (
+                    <p className="text-sm text-red-500">Nenhum serviço permitido para este colaborador.</p>
+                  )}
+                  {services
+                    .filter((service) => allowedServiceIds.includes(service.id))
+                    .map((service) => (
                       <div key={service.id} className="flex items-center">
                         <Checkbox
                           id={`service-${service.id}`}
@@ -395,7 +430,9 @@ const ClientAppointmentForm: React.FC = () => {
                           {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
                         </Label>
                       </div>
-                    ))
+                    ))}
+                  {services.length === 0 && (
+                    <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
                   )}
                 </div>
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}

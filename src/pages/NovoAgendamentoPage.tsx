@@ -59,6 +59,8 @@ const NovoAgendamentoPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
+  const [commissionByService, setCommissionByService] = useState<Record<string, { type?: string; value?: number }>>({});
   const [loadingData, setLoadingData] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
@@ -150,6 +152,51 @@ const NovoAgendamentoPage: React.FC = () => {
     fetchInitialData();
   }, [session, sessionLoading, primaryCompanyId, loadingPrimaryCompany, navigate, fetchInitialData]);
 
+  // Carrega serviços permitidos para o colaborador selecionado
+  // Importante: dependemos apenas do colaborador e da empresa para evitar loops de renderização.
+  useEffect(() => {
+    const loadAllowed = async () => {
+      if (!selectedCollaboratorId || !primaryCompanyId) {
+        setAllowedServiceIds([]);
+        setCommissionByService({});
+        setValue('serviceIds', [], { shouldValidate: true });
+        return;
+      }
+
+      // Sempre limpa serviços selecionados ao trocar de colaborador
+      setValue('serviceIds', [], { shouldValidate: true });
+
+      const { data, error } = await supabase
+        .from('collaborator_services')
+        .select('service_id, commission_type, commission_value')
+        .eq('company_id', primaryCompanyId)
+        .eq('collaborator_id', selectedCollaboratorId)
+        .eq('active', true);
+
+      if (error) {
+        console.error('Erro ao carregar serviços permitidos:', error);
+        showError('Erro ao carregar serviços permitidos para o colaborador.');
+        setAllowedServiceIds([]);
+        setCommissionByService({});
+        return;
+      }
+
+      const ids = (data || []).map((d: any) => d.service_id);
+      const commissionMap = (data || []).reduce<Record<string, { type?: string; value?: number }>>(
+        (acc, cur: any) => {
+          acc[cur.service_id] = { type: cur.commission_type, value: cur.commission_value };
+          return acc;
+        },
+        {}
+      );
+
+      setCommissionByService(commissionMap);
+      setAllowedServiceIds(ids);
+    };
+
+    loadAllowed();
+  }, [selectedCollaboratorId, primaryCompanyId, setValue]);
+
   // Effect to calculate total duration and price when services change
   useEffect(() => {
     const selected = services.filter(s => selectedServiceIds.includes(s.id));
@@ -237,6 +284,8 @@ const NovoAgendamentoPage: React.FC = () => {
       const appointmentServicesToInsert = data.serviceIds.map(serviceId => ({
         appointment_id: appointmentData.id,
         service_id: serviceId,
+        commission_type: commissionByService[serviceId]?.type,
+        commission_value: commissionByService[serviceId]?.value ?? null,
       }));
 
       const { error: servicesLinkError } = await supabase
@@ -398,7 +447,7 @@ const NovoAgendamentoPage: React.FC = () => {
                     setValue('appointmentTime', '');
                   }}
                   value={selectedServiceIds[0] || ''}
-                  disabled={services.length === 0}
+                  disabled={services.length === 0 || allowedServiceIds.length === 0}
                 >
                   <SelectTrigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                     <SelectValue placeholder="Selecione o serviço" />
@@ -408,12 +457,18 @@ const NovoAgendamentoPage: React.FC = () => {
                       <SelectItem value="no-services" disabled>
                         Nenhum serviço ativo disponível.
                       </SelectItem>
+                    ) : allowedServiceIds.length === 0 ? (
+                      <SelectItem value="no-allowed" disabled>
+                        Nenhum serviço permitido para este colaborador.
+                      </SelectItem>
                     ) : (
-                      services.map((service) => (
+                      services
+                        .filter((service) => allowedServiceIds.includes(service.id))
+                        .map((service) => (
                         <SelectItem key={service.id} value={service.id}>
                           {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
                         </SelectItem>
-                      ))
+                        ))
                     )}
                   </SelectContent>
                 </Select>

@@ -229,7 +229,7 @@ const AgendamentosPage: React.FC = () => {
           </TabsList>
         </Tabs>
         <select
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-800 focus:border-yellow-600 focus:ring-1 focus:ring-yellow-600"
           value={selectedCollaboratorFilter}
           onChange={(e) => setSelectedCollaboratorFilter(e.target.value)}
         >

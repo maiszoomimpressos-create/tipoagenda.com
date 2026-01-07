@@ -20,6 +20,13 @@ interface CollaboratorPerformance {
   commission: number;
 }
 
+interface ServiceCommissionDetail {
+  serviceId: string;
+  serviceName: string;
+  commission: number;
+  appointmentDate: string; // Adicionado a data do agendamento
+}
+
 interface PopularService {
   service: string;
   quantity: number;
@@ -33,6 +40,8 @@ interface ReportsData {
   cancellations: ReportMetric;
   collaboratorPerformance: CollaboratorPerformance[];
   popularServices: PopularService[];
+  serviceCommissionsByCollaborator: { [collaboratorId: string]: ServiceCommissionDetail[] };
+  allServiceNames: string[]; // Adicionado para os filtros
 }
 
 const initialReportMetric: ReportMetric = { value: 0, comparison: 0, isPositive: true };
@@ -44,6 +53,8 @@ const initialReportsData: ReportsData = {
   cancellations: initialReportMetric,
   collaboratorPerformance: [],
   popularServices: [],
+  serviceCommissionsByCollaborator: {},
+  allServiceNames: [], // Inicializado
 };
 
 // Helper to calculate comparison percentage
@@ -76,7 +87,7 @@ async function fetchMetrics(companyId: string, range: DateRange) {
   // 1. Fetch all relevant appointments (completed and cancelled)
   const { data: appointmentsData, error: appError } = await supabase
     .from('appointments')
-    .select('id, client_id, collaborator_id, total_price, status, total_duration_minutes')
+    .select('id, client_id, collaborator_id, total_price, status, appointment_date') // Adicionado appointment_date
     .eq('company_id', companyId)
     .gte('appointment_date', startDateDb)
     .lte('appointment_date', endDateDb);
@@ -94,28 +105,39 @@ async function fetchMetrics(companyId: string, range: DateRange) {
 
   if (cmError) throw cmError;
 
-  // 3. Fetch appointment services for popular services calculation
+  // 3. Fetch appointment services for popular services calculation and service-level commission
   const completedAppointmentIds = appointmentsData.filter(a => a.status === 'concluido').map(a => a.id);
   
   let serviceCounts: { [serviceId: string]: number } = {};
-  let serviceDetails: { [serviceId: string]: { name: string } } = {};
+  let serviceDetails: { [serviceId: string]: { name: string, price: number } } = {};
+  let appointmentServiceDetails: { [appointmentId: string]: { serviceId: string, servicePrice: number, appointmentDate: string }[] } = {}; // Adicionado appointmentDate
 
   if (completedAppointmentIds.length > 0) {
     const { data: appServicesData, error: asError } = await supabase
       .from('appointment_services')
-      .select(`service_id, services(name)`)
+      .select(`service_id, appointments(id, collaborator_id, appointment_date), services(name, price)`) // Selecionar appointment_date
       .in('appointment_id', completedAppointmentIds);
 
     if (asError) throw asError;
 
-    appServicesData.forEach(as => {
+    appServicesData.forEach((as: any) => {
       const serviceId = as.service_id;
+      const appointmentId = as.appointments.id;
+      const serviceName = as.services?.name || 'Serviço Desconhecido';
+      const servicePrice = as.services?.price || 0;
+      const appointmentDate = as.appointments.appointment_date; // Obter a data do agendamento
+
       serviceCounts[serviceId] = (serviceCounts[serviceId] || 0) + 1;
-      if (as.services) {
-        serviceDetails[serviceId] = as.services as { name: string };
+      serviceDetails[serviceId] = { name: serviceName, price: servicePrice };
+
+      if (!appointmentServiceDetails[appointmentId]) {
+        appointmentServiceDetails[appointmentId] = [];
       }
+      appointmentServiceDetails[appointmentId].push({ serviceId, servicePrice, appointmentDate }); // Incluir appointmentDate
     });
   }
+
+  const allServiceNames = Array.from(new Set(Object.values(serviceDetails).map(s => s.name))); // Coletar todos os nomes de serviços
 
   // --- Calculations ---
 
@@ -137,13 +159,50 @@ async function fetchMetrics(companyId: string, range: DateRange) {
 
   // Collaborator Performance (Appointments Count and Revenue)
   const collabPerformanceMap = new Map<string, { appointments: number, revenue: number }>();
-  
+  const serviceCommissionsByCollaborator: { [collaboratorId: string]: ServiceCommissionDetail[] } = {};
+
+  // Fetch collaborator commission rates
+  const { data: collaboratorsData, error: collabsError } = await supabase
+    .from('collaborators')
+    .select('id, commission_percentage')
+    .eq('company_id', companyId);
+
+  if (collabsError) throw collabsError;
+
+  const collabCommissionRates: { [id: string]: number } = {};
+  collaboratorsData.forEach(c => {
+    collabCommissionRates[c.id] = c.commission_percentage || 0;
+  });
+
+
   completedAppointments.forEach(app => {
     const collabId = app.collaborator_id;
+    if (!collabId) return; // Skip if no collaborator
+
     const current = collabPerformanceMap.get(collabId) || { appointments: 0, revenue: 0 };
     current.appointments += 1;
-    current.revenue += app.total_price; // Use total_price from appointment for performance metric
+    current.revenue += app.total_price;
     collabPerformanceMap.set(collabId, current);
+
+    // Calculate service commissions
+    if (appointmentServiceDetails[app.id]) {
+      if (!serviceCommissionsByCollaborator[collabId]) {
+        serviceCommissionsByCollaborator[collabId] = [];
+      }
+
+      appointmentServiceDetails[app.id].forEach(detail => {
+        const serviceName = serviceDetails[detail.serviceId]?.name || 'Serviço Desconhecido';
+        const commissionPercentage = collabCommissionRates[collabId] || 0;
+        const serviceCommission = detail.servicePrice * (commissionPercentage / 100);
+
+        serviceCommissionsByCollaborator[collabId].push({
+          serviceId: detail.serviceId,
+          serviceName: serviceName,
+          commission: serviceCommission,
+          appointmentDate: detail.appointmentDate, // Incluir a data do agendamento
+        });
+      });
+    }
   });
 
   return {
@@ -155,6 +214,8 @@ async function fetchMetrics(companyId: string, range: DateRange) {
     collabPerformanceMap,
     serviceCounts,
     serviceDetails,
+    serviceCommissionsByCollaborator,
+    allServiceNames, // Retornar todos os nomes de serviços únicos
   };
 }
 
@@ -240,6 +301,8 @@ export function useReportsData(dateRangeKey: DateRangeKey = 'last_month') {
         cancellations,
         collaboratorPerformance,
         popularServices,
+        serviceCommissionsByCollaborator: currentMetrics.serviceCommissionsByCollaborator,
+        allServiceNames: currentMetrics.allServiceNames, // Incluir todos os nomes de serviços
       });
 
     } catch (error: any) {

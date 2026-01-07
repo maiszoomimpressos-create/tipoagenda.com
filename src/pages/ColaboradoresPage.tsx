@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Edit, Trash2, Clock } from 'lucide-react'; // Importar ícones
+import { Edit, Trash2, Clock, Briefcase } from 'lucide-react'; // Importar ícones
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar componentes de diálogo
 
 interface Collaborator {
@@ -200,6 +200,17 @@ const ColaboradoresPage: React.FC = () => {
                       }}
                     >
                       <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="!rounded-button whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/colaboradores/${colaborador.id}/servicos`);
+                      }}
+                    >
+                      <Briefcase className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
