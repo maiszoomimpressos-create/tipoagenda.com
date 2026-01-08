@@ -92,7 +92,7 @@ const GuestAppointmentPage: React.FC = () => {
       setLoading(false);
       console.log('fetchServicesAndCollaborators: Finished loading. Services count:', services.length, 'Collaborators count:', collaborators.length); // ADDED LOG
     }
-  }, [companyId, services.length, collaborators.length]); // Adicionado services.length e collaborators.length para re-executar se o array mudar.
+  }, [companyId]); // Removido services.length e collaborators.length para evitar loop infinito
 
   useEffect(() => {
     if (companyId) {
@@ -124,7 +124,7 @@ const GuestAppointmentPage: React.FC = () => {
       const slots = await getAvailableTimeSlots(
         supabase,
         companyId,
-        selectedCollaboratorId === "any" ? null : selectedCollaboratorId!,
+        selectedCollaboratorId === "any" ? null : selectedCollaboratorId! ,
         selectedDate,
         service.duration_minutes,
       );
@@ -212,7 +212,7 @@ const GuestAppointmentPage: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    if (!companyId || !guestName || !guestPhone || !selectedServiceId || !selectedDate || !selectedTime || !selectedCollaboratorId) {
+    if (!companyId || !guestName || !guestPhone || !selectedServiceId || !selectedDate || !selectedCollaboratorId || !selectedTime) {
       showError('Por favor, preencha todos os campos obrigatórios.');
       setIsSubmitting(false);
       return;
@@ -327,7 +327,11 @@ const GuestAppointmentPage: React.FC = () => {
         {/* Seleção de Serviço */}
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Escolha seu Serviço</h2>
-          <Select onValueChange={handleServiceChange} disabled={isSubmitting || services.length === 0 || (selectedCollaboratorId !== null && allowedServiceIds.length === 0)}>
+          <Select 
+            onValueChange={handleServiceChange} 
+            value={selectedServiceId || ""} 
+            disabled={isSubmitting || services.length === 0 || !selectedCollaboratorId || (selectedCollaboratorId && allowedServiceIds.length === 0)}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione um serviço" />
             </SelectTrigger>
@@ -339,9 +343,14 @@ const GuestAppointmentPage: React.FC = () => {
                     {service.name} (R$ {service.price.toFixed(2)}) ({service.duration_minutes} min)
                   </SelectItem>
                 ))}
-              {services.length > 0 && allowedServiceIds.length === 0 && selectedCollaboratorId && (
+              {selectedCollaboratorId && allowedServiceIds.length === 0 && ( // Mensagem se nenhum serviço permitido
                 <SelectItem value="no-allowed" disabled>
                   Nenhum serviço permitido para este colaborador.
+                </SelectItem>
+              )}
+               {!selectedCollaboratorId && ( // Mensagem se nenhum colaborador selecionado
+                <SelectItem value="select-collaborator" disabled>
+                  Selecione um colaborador primeiro
                 </SelectItem>
               )}
             </SelectContent>
@@ -349,8 +358,11 @@ const GuestAppointmentPage: React.FC = () => {
           {services.length === 0 && !loading && (
             <p className="text-sm text-red-500 mt-2">Nenhum serviço ativo encontrado para esta empresa.</p>
           )}
-          {selectedCollaboratorId && !selectedServiceId && (
+          {selectedCollaboratorId && !selectedServiceId && allowedServiceIds.length > 0 && (
             <p className="text-sm text-gray-600 mt-2">Selecione um serviço para continuar.</p>
+          )}
+           {!selectedCollaboratorId && (
+            <p className="text-sm text-gray-600 mt-2">Selecione um colaborador para ver os serviços disponíveis.</p>
           )}
         </div>
 
@@ -370,22 +382,19 @@ const GuestAppointmentPage: React.FC = () => {
               />
             </div>
             <div className="flex-grow space-y-4">
-              <Label>Horários Disponíveis</Label>
+              <Label htmlFor="selectedTime" className="block text-sm font-medium text-gray-700 mb-2">Horário *</Label>
               <div className="grid grid-cols-3 gap-2">
                 {fetchingTimes ? (
-                  <div className="col-span-3 flex justify-center items-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-yellow-600" />
-                    <span className="ml-2 text-gray-600">Buscando horários...</span>
-                  </div>
+                  <p className="text-gray-500 col-span-3 text-center">Buscando horários...</p>
                 ) : availableTimes.length > 0 ? (
                   availableTimes.map((slot) => (
                     <Button
                       key={slot.time}
-                      variant={selectedTime === slot.time ? "default" : "outline"}
-                      onClick={() => setSelectedTime(slot.time)}
                       type="button"
-                      disabled={isSubmitting || !slot.is_available}
-                      className={!slot.is_available ? "opacity-50 cursor-not-allowed" : ""}
+                      variant={selectedTime === slot.time ? "default" : "outline"}
+                      className="text-sm"
+                      onClick={() => setSelectedTime(slot.time)}
+                      disabled={isSubmitting || !slot.is_available || services.find(s => s.id === selectedServiceId)?.duration_minutes === 0}
                     >
                       {slot.time}
                     </Button>
