@@ -46,6 +46,11 @@ const AgendamentosPage: React.FC = () => {
   const [collaboratorsList, setCollaboratorsList] = useState<CollaboratorFilter[]>([]);
   const [selectedCollaboratorFilter, setSelectedCollaboratorFilter] = useState('all');
 
+  console.log('AgendamentosPage: session', session);
+  console.log('AgendamentosPage: sessionLoading', sessionLoading);
+  console.log('AgendamentosPage: primaryCompanyId', primaryCompanyId);
+  console.log('AgendamentosPage: loadingPrimaryCompany', loadingPrimaryCompany);
+
   // Estados para o modal de checkout
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [appointmentToCheckout, setAppointmentToCheckout] = useState<{ id: string; status: string } | null>(null);
@@ -217,7 +222,10 @@ const AgendamentosPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Agendamentos</h1>
-        {createButton(() => navigate('/novo-agendamento'), 'fas fa-plus', 'Novo Agendamento')}
+        {createButton(() => {
+          console.log("Botão 'Novo Agendamento' clicado. Navegando para /novo-agendamento");
+          navigate('/novo-agendamento');
+        }, 'fas fa-plus', 'Novo Agendamento')}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
