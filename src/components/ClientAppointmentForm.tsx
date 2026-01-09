@@ -4,10 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { X, ArrowLeft } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,10 +14,9 @@ import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMinutes, startOfDay, isBefore } from 'date-fns';
+import { format, addMinutes, startOfDay, isBefore, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
-import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 // Zod schema for new appointment registration
 const clientAppointmentSchema = z.object({
@@ -44,14 +42,18 @@ interface Service {
   duration_minutes: number;
 }
 
-const ClientAppointmentForm: React.FC = () => {
+interface ClientAppointmentFormProps {
+  companyId: string;
+}
+
+const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId }) => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const [loading, setLoading] = useState(false); // For form submission
   const [clientContext, setClientContext] = useState<{ clientId: string; clientName: string } | null>(null);
-  const [targetCompanyId, setTargetCompanyIdState] = useState<string | null>(null); // State to hold the company ID for this form
+  // const [targetCompanyId, setTargetCompanyIdState] = useState<string | null>(null); // REMOVIDO: companyId vem da prop
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>([]); // Serviços do colaborador selecionado
   const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
   const [loadingData, setLoadingData] = useState(true); // For initial data fetch
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -63,6 +65,7 @@ const ClientAppointmentForm: React.FC = () => {
     register,
     handleSubmit,
     setValue,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<ClientAppointmentFormValues>({
@@ -156,20 +159,17 @@ const ClientAppointmentForm: React.FC = () => {
         clientName: clientData.clientName 
       });
 
-      // 2. Determine the target company ID from storage (if user clicked from Landing Page)
-      const storedCompanyId = getTargetCompanyId();
-      console.log('ClientAppointmentForm: Target Company ID from storage:', storedCompanyId); // LOG ADDED
-      
-      if (!storedCompanyId) {
-        throw new Error('Nenhuma empresa selecionada. Por favor, selecione uma empresa na página inicial.');
+      // O companyId agora vem das props, não do storage.
+      if (!companyId) {
+        throw new Error('ID da empresa não fornecido para o agendamento.');
       }
-      setTargetCompanyIdState(storedCompanyId);
+      // Não precisamos setar targetCompanyIdState pois usamos a prop companyId diretamente.
 
       // 3. Fetch Collaborators for the selected company
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
         .select('id, first_name, last_name')
-        .eq('company_id', storedCompanyId)
+        .eq('company_id', companyId)
         .eq('status', 'Ativo')
         .order('first_name', { ascending: true });
 
@@ -177,20 +177,11 @@ const ClientAppointmentForm: React.FC = () => {
       setCollaborators(collaboratorsData);
       console.log('ClientAppointmentForm: Fetched collaborators count:', collaboratorsData.length); // LOG ADDED
 
-      // 4. Fetch Services for the selected company
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select('id, name, price, duration_minutes')
-        .eq('company_id', storedCompanyId)
-        .eq('status', 'Ativo')
-        .order('name', { ascending: true });
+      // 4. Services serão carregados apenas quando um colaborador for selecionado
+      // Não carregamos todos os serviços aqui para evitar lista grande
+      setServices([]);
 
-      if (servicesError) throw servicesError;
-      setServices(servicesData);
-      console.log('ClientAppointmentForm: Fetched services count:', servicesData.length); // LOG ADDED
-
-      // 5. Clear the target ID from storage once the context is established
-      clearTargetCompanyId();
+      // 5. Clear the target ID from storage is no longer needed here as it's not stored here.
 
     } catch (error: any) {
       console.error('Erro ao carregar dados iniciais para agendamento do cliente:', error);
@@ -199,7 +190,7 @@ const ClientAppointmentForm: React.FC = () => {
     } finally {
       setLoadingData(false);
     }
-  }, [session, sessionLoading, navigate, createClientProfileIfMissing]);
+  }, [session, sessionLoading, navigate, createClientProfileIfMissing, companyId]);
 
   useEffect(() => {
     fetchInitialData();
@@ -208,34 +199,63 @@ const ClientAppointmentForm: React.FC = () => {
   // Carrega serviços permitidos para o colaborador selecionado
   useEffect(() => {
     const loadAllowed = async () => {
-      if (!selectedCollaboratorId || !targetCompanyId) {
+      if (!selectedCollaboratorId || !companyId) {
         setAllowedServiceIds([]);
+        setServices([]);
         setValue('serviceIds', [], { shouldValidate: true });
         return;
       }
-      const { data, error } = await supabase
+
+      // Busca os IDs dos serviços permitidos
+      const { data: collaboratorServicesData, error: collaboratorServicesError } = await supabase
         .from('collaborator_services')
         .select('service_id')
-        .eq('company_id', targetCompanyId)
+        .eq('company_id', companyId)
         .eq('collaborator_id', selectedCollaboratorId)
         .eq('active', true);
-      if (error) {
-        console.error('Erro ao carregar serviços permitidos:', error);
+
+      if (collaboratorServicesError) {
+        console.error('Erro ao carregar serviços permitidos:', collaboratorServicesError);
         showError('Erro ao carregar serviços permitidos para o colaborador.');
         setAllowedServiceIds([]);
+        setServices([]);
         setValue('serviceIds', [], { shouldValidate: true });
         return;
       }
-      const ids = (data || []).map((d: any) => d.service_id);
+
+      const ids = (collaboratorServicesData || []).map((d: any) => d.service_id);
       setAllowedServiceIds(ids);
-      setValue(
-        'serviceIds',
-        selectedServiceIds.filter((id) => ids.includes(id)),
-        { shouldValidate: true }
-      );
+
+      // Agora busca os detalhes dos serviços (apenas os permitidos para este colaborador)
+      if (ids.length > 0) {
+        const { data: servicesData, error: servicesError } = await supabase
+          .from('services')
+          .select('id, name, price, duration_minutes')
+          .eq('company_id', companyId)
+          .eq('status', 'Ativo')
+          .in('id', ids)
+          .order('name', { ascending: true });
+
+        if (servicesError) {
+          console.error('Erro ao carregar detalhes dos serviços:', servicesError);
+          showError('Erro ao carregar detalhes dos serviços.');
+          setServices([]);
+        } else {
+          setServices(servicesData || []);
+        }
+      } else {
+        setServices([]);
+      }
+
+      // Limpa serviços selecionados que não estão mais permitidos
+      const currentServiceIds = getValues('serviceIds');
+      const filteredServiceIds = currentServiceIds.filter((id) => ids.includes(id));
+      if (filteredServiceIds.length !== currentServiceIds.length) {
+        setValue('serviceIds', filteredServiceIds, { shouldValidate: true });
+      }
     };
     loadAllowed();
-  }, [selectedCollaboratorId, targetCompanyId, selectedServiceIds, setValue]);
+  }, [selectedCollaboratorId, companyId, getValues, setValue]);
 
   // Effect to calculate total duration and price when services change
   useEffect(() => {
@@ -249,13 +269,13 @@ const ClientAppointmentForm: React.FC = () => {
   // Effect to fetch available time slots
   useEffect(() => {
     const fetchSlots = async () => {
-      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && targetCompanyId) {
+      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && companyId) {
         setLoading(true);
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           const slots = await getAvailableTimeSlots(
             supabase,
-            targetCompanyId,
+            companyId,
             selectedCollaboratorId,
             selectedDate,
             totalDurationMinutes
@@ -274,60 +294,112 @@ const ClientAppointmentForm: React.FC = () => {
       }
     };
     fetchSlots();
-  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, targetCompanyId, setValue]);
+  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, companyId, setValue]);
 
 
-  const handleServiceChange = (serviceId: string, checked: boolean) => {
-    let currentServices = selectedServiceIds;
-    if (checked) {
-      currentServices = [...currentServices, serviceId];
-    } else {
-      currentServices = currentServices.filter((id) => id !== serviceId);
+  const handleAddService = (serviceId: string) => {
+    if (!selectedServiceIds.includes(serviceId)) {
+      setValue('serviceIds', [...selectedServiceIds, serviceId], { shouldValidate: true });
     }
-    setValue('serviceIds', currentServices, { shouldValidate: true });
+  };
+
+  const handleRemoveService = (serviceId: string) => {
+    setValue('serviceIds', selectedServiceIds.filter((id) => id !== serviceId), { shouldValidate: true });
   };
 
   const onSubmit = async (data: ClientAppointmentFormValues) => {
     setLoading(true);
-    if (!session?.user || !clientContext?.clientId || !targetCompanyId) {
+    if (!session?.user || !clientContext?.clientId || !companyId) {
       showError('Erro de autenticação ou dados do cliente/empresa faltando.');
       setLoading(false);
       return;
     }
 
     try {
-      const startTimeForDb = data.appointmentTime.split(' ')[0];
+      // O appointmentTime já vem no formato "HH:mm" dos botões
+      const startTimeForDb = data.appointmentTime.includes(' ') 
+        ? data.appointmentTime.split(' ')[0] 
+        : data.appointmentTime;
       
       // Extract only the first name from the full client name
       const clientFirstName = clientContext.clientName.split(' ')[0];
 
+      const requestBody = {
+        clientId: clientContext.clientId,
+        clientNickname: clientFirstName,
+        collaboratorId: data.collaboratorId,
+        serviceIds: data.serviceIds,
+        appointmentDate: data.appointmentDate,
+        appointmentTime: startTimeForDb,
+        totalDurationMinutes: totalDurationMinutes,
+        totalPriceCalculated: totalPriceCalculated,
+        observations: data.observations || '',
+        companyId: companyId,
+      };
+
+      console.log('Enviando dados para book-appointment:', requestBody);
+
       const response = await supabase.functions.invoke('book-appointment', {
-        body: JSON.stringify({
-          clientId: clientContext.clientId,
-          clientNickname: clientFirstName, // <-- Usando apenas o primeiro nome
-          collaboratorId: data.collaboratorId,
-          serviceIds: data.serviceIds,
-          appointmentDate: data.appointmentDate,
-          appointmentTime: startTimeForDb,
-          totalDurationMinutes: totalDurationMinutes,
-          totalPriceCalculated: totalPriceCalculated,
-          observations: data.observations,
-          companyId: targetCompanyId, // Use the company ID determined in fetchInitialData
-        }),
+        body: JSON.stringify(requestBody),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
+      console.log('Resposta da Edge Function:', response);
+
       if (response.error) {
+        console.error('Erro completo da Edge Function:', JSON.stringify(response.error, null, 2));
         let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
-        if (response.error.context && response.error.context.data && response.error.context.data.error) {
-          edgeFunctionErrorMessage = response.error.context.data.error;
-        } else if (response.error.message) {
-          edgeFunctionErrorMessage = response.error.message;
+        
+        // Tenta extrair a mensagem de erro de diferentes formatos de resposta
+        try {
+          // Primeiro tenta pegar do contexto
+          if (response.error.context?.data) {
+            const errorData = response.error.context.data;
+            if (typeof errorData === 'string') {
+              try {
+                const parsed = JSON.parse(errorData);
+                edgeFunctionErrorMessage = parsed.error || parsed.message || edgeFunctionErrorMessage;
+              } catch {
+                edgeFunctionErrorMessage = errorData;
+              }
+            } else if (errorData.error) {
+              edgeFunctionErrorMessage = errorData.error;
+            } else if (errorData.message) {
+              edgeFunctionErrorMessage = errorData.message;
+            }
+          }
+          
+          // Se não encontrou, tenta pegar da mensagem direta
+          if (edgeFunctionErrorMessage === 'Erro desconhecido da Edge Function.' && response.error.message) {
+            edgeFunctionErrorMessage = response.error.message;
+          }
+          
+          // Tenta pegar do data se existir
+          if (edgeFunctionErrorMessage === 'Erro desconhecido da Edge Function.' && response.data) {
+            if (typeof response.data === 'string') {
+              try {
+                const parsed = JSON.parse(response.data);
+                edgeFunctionErrorMessage = parsed.error || parsed.message || edgeFunctionErrorMessage;
+              } catch {
+                edgeFunctionErrorMessage = response.data;
+              }
+            } else if (response.data.error) {
+              edgeFunctionErrorMessage = response.data.error;
+            }
+          }
+        } catch (parseError) {
+          console.error('Erro ao parsear mensagem de erro:', parseError);
         }
+        
         throw new Error(edgeFunctionErrorMessage);
+      }
+
+      // Verifica se a resposta tem dados válidos
+      if (!response.data) {
+        throw new Error('Resposta vazia da Edge Function');
       }
 
       showSuccess('Agendamento criado com sucesso!');
@@ -348,8 +420,8 @@ const ClientAppointmentForm: React.FC = () => {
     );
   }
 
-  if (!session?.user || !clientContext || !targetCompanyId) {
-    // If clientContext or targetCompanyId is null here, it means fetchInitialData failed to find the client profile or company association.
+  if (!session?.user || !clientContext || !companyId) {
+    // If clientContext or companyId is null here, it means fetchInitialData failed to find the client profile or company association.
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">
@@ -379,7 +451,7 @@ const ClientAppointmentForm: React.FC = () => {
         </Button>
         <h1 className="text-3xl font-bold text-gray-900">Novo Agendamento</h1>
       </div>
-      <div className="max-w-2xl">
+      <div className="max-w-4xl">
         <Card className="border-gray-200">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -412,29 +484,73 @@ const ClientAppointmentForm: React.FC = () => {
                 <Label className="block text-sm font-medium text-gray-700 mb-2">
                   Serviços *
                 </Label>
-                <div className="space-y-2">
-                  {selectedCollaboratorId && allowedServiceIds.length === 0 && (
-                    <p className="text-sm text-red-500">Nenhum serviço permitido para este colaborador.</p>
-                  )}
-                  {services
-                    .filter((service) => allowedServiceIds.includes(service.id))
-                    .map((service) => (
-                      <div key={service.id} className="flex items-center">
-                        <Checkbox
-                          id={`service-${service.id}`}
-                          checked={selectedServiceIds.includes(service.id)}
-                          onCheckedChange={(checked) => handleServiceChange(service.id, !!checked)}
-                          className="mr-2"
-                        />
-                        <Label htmlFor={`service-${service.id}`} className="text-sm">
-                          {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
-                        </Label>
-                      </div>
-                    ))}
-                  {services.length === 0 && (
-                    <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
-                  )}
-                </div>
+                <Select
+                  onValueChange={handleAddService}
+                  value=""
+                  disabled={!selectedCollaboratorId || services.length === 0}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <SelectValue placeholder={!selectedCollaboratorId ? "Selecione um colaborador primeiro" : services.length === 0 ? "Nenhum serviço disponível" : "Selecione um serviço"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!selectedCollaboratorId ? (
+                      <SelectItem value="no-collaborator" disabled>
+                        Selecione um colaborador primeiro
+                      </SelectItem>
+                    ) : services.length === 0 ? (
+                      <SelectItem value="no-services" disabled>
+                        Nenhum serviço disponível para este colaborador
+                      </SelectItem>
+                    ) : (
+                      services
+                        .filter((service) => !selectedServiceIds.includes(service.id))
+                        .map((service) => (
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
+                          </SelectItem>
+                        ))
+                    )}
+                  </SelectContent>
+                </Select>
+                
+                {/* Lista de serviços selecionados */}
+                {selectedServiceIds.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {selectedServiceIds.map((serviceId) => {
+                      const service = services.find((s) => s.id === serviceId);
+                      if (!service) return null;
+                      return (
+                        <div
+                          key={serviceId}
+                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-gray-900">{service.name}</span>
+                            <span className="text-xs text-gray-600 ml-2">
+                              R$ {service.price.toFixed(2).replace('.', ',')} • {service.duration_minutes} min
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveService(serviceId)}
+                            className="h-6 w-6 p-0 text-gray-500 hover:text-red-500"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {!selectedCollaboratorId && (
+                  <p className="text-sm text-gray-600 mt-2">Selecione um colaborador para ver os serviços.</p>
+                )}
+                {selectedCollaboratorId && services.length === 0 && allowedServiceIds.length === 0 && (
+                  <p className="text-sm text-red-500 mt-2">Nenhum serviço permitido para este colaborador.</p>
+                )}
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
                 {totalDurationMinutes > 0 && (
                   <p className="text-sm text-gray-600 mt-2">
@@ -443,47 +559,69 @@ const ClientAppointmentForm: React.FC = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="appointmentDate" className="block text-sm font-medium text-gray-700 mb-2">
-                    Data *
-                  </Label>
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      setSelectedDate(date);
-                      setValue('appointmentDate', date ? format(date, 'yyyy-MM-dd') : '', { shouldValidate: true });
-                    }}
-                    initialFocus
-                    locale={ptBR}
-                    disabled={(date) => isBefore(date, startOfDay(new Date()))} // Disable dates before today
-                    className="rounded-md border shadow w-full"
-                  />
-                  {errors.appointmentDate && <p className="text-red-500 text-xs mt-1">{errors.appointmentDate.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="appointmentTime" className="block text-sm font-medium text-gray-700 mb-2">
-                    Horário *
-                  </Label>
-                  <Select onValueChange={(value) => setValue('appointmentTime', value, { shouldValidate: true })} value={selectedAppointmentTime}>
-                    <SelectTrigger id="appointmentTime" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled={!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0 || loading}>
-                      <SelectValue placeholder={loading ? "Buscando horários..." : "Selecione o horário"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTimeSlots.length === 0 ? (
-                        <SelectItem value="no-slots" disabled>Nenhum horário disponível.</SelectItem>
-                      ) : (
-                        availableTimeSlots.map((timeSlot) => (
-                          <SelectItem key={timeSlot} value={timeSlot}>
-                            {timeSlot}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {errors.appointmentTime && <p className="text-red-500 text-xs mt-1">{errors.appointmentTime.message}</p>}
-                </div>
+              <div>
+                <Label htmlFor="appointmentDate" className="block text-sm font-medium text-gray-700 mb-2">
+                  Data *
+                </Label>
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    setValue('appointmentDate', date ? format(date, 'yyyy-MM-dd') : '', { shouldValidate: true });
+                  }}
+                  initialFocus
+                  locale={ptBR}
+                  disabled={(date) => isBefore(date, startOfDay(new Date()))} // Disable dates before today
+                  className="rounded-md border shadow w-full max-w-sm"
+                />
+                {errors.appointmentDate && <p className="text-red-500 text-xs mt-1">{errors.appointmentDate.message}</p>}
+              </div>
+
+              <div>
+                <Label htmlFor="appointmentTime" className="block text-sm font-medium text-gray-700 mb-2">
+                  Horário *
+                </Label>
+                {loading ? (
+                  <div className="flex items-center justify-center p-8 border border-gray-200 rounded-lg">
+                    <p className="text-gray-600">Buscando horários disponíveis...</p>
+                  </div>
+                ) : availableTimeSlots.length === 0 ? (
+                  <div className="flex items-center justify-center p-8 border border-gray-200 rounded-lg bg-gray-50">
+                    <p className="text-gray-600 text-sm">
+                      {!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0
+                        ? "Selecione colaborador, serviços e data para ver os horários disponíveis"
+                        : "Nenhum horário disponível para esta data"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+                    {availableTimeSlots.map((timeSlot) => {
+                      // Parse o horário inicial e calcula o horário final
+                      const startTime = parse(timeSlot, 'HH:mm', new Date());
+                      const endTime = addMinutes(startTime, totalDurationMinutes);
+                      const timeRange = `${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')}`;
+                      const isSelected = selectedAppointmentTime === timeSlot;
+
+                      return (
+                        <Button
+                          key={timeSlot}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          onClick={() => setValue('appointmentTime', timeSlot, { shouldValidate: true })}
+                          className={`!rounded-button text-sm py-2.5 px-3 h-auto font-medium transition-all ${
+                            isSelected
+                              ? 'bg-yellow-600 hover:bg-yellow-700 text-black border-yellow-600 shadow-sm'
+                              : 'border-gray-300 hover:border-yellow-500 hover:bg-yellow-50 bg-white'
+                          }`}
+                        >
+                          {timeRange}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+                {errors.appointmentTime && <p className="text-red-500 text-xs mt-1">{errors.appointmentTime.message}</p>}
               </div>
               
               <div>

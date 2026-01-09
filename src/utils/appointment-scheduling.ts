@@ -195,9 +195,11 @@ export async function getAvailableTimeSlots(
       if (isSlotFree) {
         availableSlots.push(`${format(slotStart, 'HH:mm')}`); // Simplificado para apenas o horário de início
         console.log(`    Slot added: ${format(slotStart, 'HH:mm')}`);
-        currentTime = addMinutes(currentTime, slotIntervalMinutes);
-      } else { // ADDED ELSE BLOCK FOR CLARITY IN LOGGING
-        console.log(`    Slot ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')} is NOT free.`); // ADDED LOG
+        currentTime = addMinutes(currentTime, slotIntervalMinutes); // Move to the next slot
+      } else {
+        console.log(`    Slot ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')} is NOT free.`);
+        // If not free, still advance to the next potential slot to check
+        currentTime = addMinutes(currentTime, slotIntervalMinutes); 
       }
     }
   }
