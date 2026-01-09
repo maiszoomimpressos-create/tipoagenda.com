@@ -112,11 +112,42 @@ const ConfigPage: React.FC = () => {
 
   const handleCopyLink = () => {
     if (guestAppointmentLink) {
-      navigator.clipboard.writeText(guestAppointmentLink);
-      toast.success("Link copiado para a área de transferência!");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        console.log('Attempting to copy link using navigator.clipboard:', guestAppointmentLink);
+        navigator.clipboard.writeText(guestAppointmentLink)
+          .then(() => {
+            toast.success("Link copiado para a área de transferência!");
+          })
+          .catch(err => {
+            console.error('Failed to copy link using navigator.clipboard, falling back:', err);
+            fallbackCopyTextToClipboard(guestAppointmentLink);
+          });
+      } else {
+        console.log('navigator.clipboard not available, falling back:', guestAppointmentLink);
+        fallbackCopyTextToClipboard(guestAppointmentLink);
+      }
     } else {
       toast.error("Nenhum link para copiar.");
     }
+  };
+
+  const fallbackCopyTextToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";  // Evita que a rolagem aconteça
+    textArea.style.left = "-9999px";
+    textArea.style.top = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      toast.success("Link copiado para a área de transferência! (Fallback)");
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+      toast.error("Falha ao copiar o link usando fallback.");
+    }
+    document.body.removeChild(textArea);
   };
 
   if (loading) {

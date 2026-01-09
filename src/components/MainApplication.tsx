@@ -11,6 +11,7 @@ import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Zap, Menu, Bell } from 'lucide-react';
@@ -27,6 +28,7 @@ const MainApplication: React.FC = () => {
   const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   
   // Novo: Status da Assinatura
   const { status: subscriptionStatus, endDate, loading: loadingSubscription } = useSubscriptionStatus();
@@ -50,7 +52,12 @@ const MainApplication: React.FC = () => {
     navigate(path);
   };
 
-  const finalMenuItems = [...menuItems];
+  const finalMenuItems = menuItems.map(item => {
+    if (item.id === 'agendamentos' && primaryCompanyId) {
+      return { ...item, path: `/agendamentos/${primaryCompanyId}` };
+    }
+    return item;
+  });
 
   // Se o usuário é Proprietário/Admin e a assinatura expirou ou não existe, bloqueia o acesso a todas as rotas de gerenciamento
   if (isProprietarioOrCompanyAdmin && (subscriptionStatus === 'expired' || subscriptionStatus === 'no_subscription')) {
