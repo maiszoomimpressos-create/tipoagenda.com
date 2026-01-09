@@ -84,7 +84,7 @@ const DashboardPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <div className="flex gap-3">
-          {createButton(() => navigate('/novo-agendamento'), 'fas fa-plus', 'Novo Agendamento')}
+          {createButton(() => navigate(`/novo-agendamento/${primaryCompanyId}`), 'fas fa-plus', 'Novo Agendamento')}
           {createButton(() => navigate('/novo-cliente'), 'fas fa-user-plus', 'Novo Cliente')}
           {createButton(() => navigate('/fechar-caixa'), 'fas fa-cash-register', 'Fechar Caixa')}
         </div>
