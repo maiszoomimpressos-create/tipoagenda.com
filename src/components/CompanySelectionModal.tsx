@@ -1,141 +1,120 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
-import { setTargetCompanyId } from '@/utils/storage';
-import { useIsClient } from '@/hooks/useIsClient';
 
 interface Company {
   id: string;
   name: string;
-  image_url: string | null;
-  segment_types: { name: string } | null;
 }
 
 interface CompanySelectionModalProps {
-  isOpen: boolean;
+  userId: string;
+  onCompanySelected: (companyId: string) => void;
   onClose: () => void;
 }
 
-const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({ isOpen, onClose }) => {
-  const navigate = useNavigate();
-  const { isClient, loadingClientCheck } = useIsClient();
+export const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({
+  userId, // Recebe o userId como prop
+  onCompanySelected,
+  onClose,
+}) => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const fetchCompanies = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Fetch all active companies and their segment type name
-      const { data: companiesData, error } = await supabase
-        .from('companies')
-        .select(`
-          id,
-          name,
-          image_url,
-          segment_types(name)
-        `)
-        .eq('ativo', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      setCompanies(companiesData as Company[]);
-    } catch (error: any) {
-      console.error('Erro ao carregar empresas para seleção:', error);
-      showError('Erro ao carregar empresas: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (isOpen && isClient) {
+    const fetchCompanies = async () => {
+      try {
+        setLoading(true);
+
+        // Busca as empresas associadas ao usuário logado (cliente)
+        const { data, error } = await supabase
+          .from('user_companies') // Presumo que haja uma tabela 'user_companies' para associar usuários a empresas
+          .select('company_id, companies(id, name)')
+          .eq('user_id', userId);
+
+        if (error) {
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          const userCompanies: Company[] = data.map((uc: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: uc.companies.id,
+            name: uc.companies.name,
+          }));
+          setCompanies(userCompanies);
+          // Se houver apenas uma empresa, seleciona automaticamente
+          if (userCompanies.length === 1) {
+            setSelectedCompanyId(userCompanies[0].id);
+          }
+        } else {
+          showError('Nenhuma empresa encontrada para este usuário.');
+          onClose(); // Fecha o modal se nenhuma empresa for encontrada
+        }
+      } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        console.error('Erro ao buscar empresas:', error);
+        showError('Erro ao carregar empresas: ' + error.message);
+        onClose(); // Fecha o modal em caso de erro
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userId) {
       fetchCompanies();
     }
-  }, [isOpen, isClient, fetchCompanies]);
+  }, [userId, onClose]);
 
-  const handleSelectCompany = (companyId: string) => {
-    setTargetCompanyId(companyId);
-    onClose();
-    navigate('/agendar'); // Redirect to the client appointment form
+  const handleSelect = () => {
+    if (selectedCompanyId) {
+      onCompanySelected(selectedCompanyId);
+    } else {
+      showError('Por favor, selecione uma empresa.');
+    }
   };
 
-  if (loadingClientCheck || loading) {
+  if (loading) {
     return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[600px]">
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Selecione a Empresa</DialogTitle>
-            <DialogDescription>
-              Carregando opções de agendamento...
-            </DialogDescription>
+            <DialogTitle>Carregando Empresas...</DialogTitle>
+            <DialogDescription>Aguarde enquanto carregamos suas empresas.</DialogDescription>
           </DialogHeader>
-          <div className="p-4 text-center text-gray-600">
-            <i className="fas fa-spinner fa-spin mr-2"></i>
-            Carregando empresas...
-          </div>
         </DialogContent>
       </Dialog>
     );
   }
 
-  if (!isClient) {
-    return null; // Should not happen if ClientProtectedRoute is working, but safe fallback
-  }
-
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Selecione a Empresa</DialogTitle>
           <DialogDescription>
-            Escolha a empresa ou profissional com quem você deseja agendar um serviço.
+            Por favor, selecione a empresa para a qual deseja agendar um serviço.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto space-y-4 p-2 -mx-2">
-          {companies.length === 0 ? (
-            <p className="text-gray-600 text-center p-4">Nenhuma empresa ativa encontrada para agendamento.</p>
-          ) : (
-            companies.map((company) => (
-              <Card 
-                key={company.id} 
-                className="border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => handleSelectCompany(company.id)}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <img
-                    src={company.image_url || `https://readdy.ai/api/search-image?query=professional%20${company.segment_types?.name || 'business'}%20logo&width=64&height=64&seq=${company.id}&orientation=squarish`}
-                    alt={company.name}
-                    className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg">{company.name}</h3>
-                    <p className="text-sm text-gray-600">{company.segment_types?.name || 'Serviços Gerais'}</p>
-                  </div>
-                  <Button 
-                    className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black flex-shrink-0"
-                    size="sm"
-                  >
-                    Agendar
-                  </Button>
-                </CardContent>
-              </Card>
-            ))
-          )}
+        <div className="space-y-4 py-4">
+          {companies.map((company) => (
+            <Button
+              key={company.id}
+              variant={selectedCompanyId === company.id ? 'default' : 'outline'}
+              className="w-full"
+              onClick={() => setSelectedCompanyId(company.id)}
+            >
+              {company.name}
+            </Button>
+          ))}
         </div>
+        <Button onClick={handleSelect} className="w-full">
+          Confirmar Seleção
+        </Button>
       </DialogContent>
     </Dialog>
   );
 };
-
-export default CompanySelectionModal;

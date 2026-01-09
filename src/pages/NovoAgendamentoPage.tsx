@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -55,6 +55,11 @@ const NovoAgendamentoPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { companyId: companyIdFromUrl } = useParams<{ companyId: string }>(); // Pega o companyId da URL
+
+  // Determina o ID da empresa a ser usado, priorizando o da URL
+  const currentCompanyId = companyIdFromUrl || primaryCompanyId;
+  const loadingCompanyId = companyIdFromUrl ? false : loadingPrimaryCompany; // Se veio da URL, não está carregando
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -95,7 +100,7 @@ const NovoAgendamentoPage: React.FC = () => {
   // const selectedPaymentMethod = watch('paymentMethod'); // REMOVIDO
 
   const fetchInitialData = useCallback(async () => {
-    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+    if (sessionLoading || loadingCompanyId || !currentCompanyId) {
       return;
     }
 
@@ -105,7 +110,7 @@ const NovoAgendamentoPage: React.FC = () => {
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('id, name')
-        .or(`company_id.eq.${primaryCompanyId},company_id.is.null`)
+        .or(`company_id.eq.${currentCompanyId},company_id.is.null`)
         .order('name', { ascending: true });
 
       if (clientsError) throw clientsError;
@@ -115,7 +120,7 @@ const NovoAgendamentoPage: React.FC = () => {
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
         .select('id, first_name, last_name')
-        .eq('company_id', primaryCompanyId)
+        .eq('company_id', currentCompanyId)
         .order('first_name', { ascending: true });
 
       if (collaboratorsError) throw collaboratorsError;
@@ -125,7 +130,7 @@ const NovoAgendamentoPage: React.FC = () => {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('id, name, price, duration_minutes')
-        .eq('company_id', primaryCompanyId)
+        .eq('company_id', currentCompanyId)
         .eq('status', 'Ativo') // Only active services
         .order('name', { ascending: true });
 
@@ -138,7 +143,7 @@ const NovoAgendamentoPage: React.FC = () => {
     } finally {
       setLoadingData(false);
     }
-  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId]);
+  }, [sessionLoading, loadingCompanyId, currentCompanyId]);
 
   useEffect(() => {
     if (!session && !sessionLoading) {
@@ -156,7 +161,7 @@ const NovoAgendamentoPage: React.FC = () => {
   // Importante: dependemos apenas do colaborador e da empresa para evitar loops de renderização.
   useEffect(() => {
     const loadAllowed = async () => {
-      if (!selectedCollaboratorId || !primaryCompanyId) {
+      if (!selectedCollaboratorId || !currentCompanyId) {
         setAllowedServiceIds([]);
         setCommissionByService({});
         setValue('serviceIds', [], { shouldValidate: true });
@@ -169,7 +174,7 @@ const NovoAgendamentoPage: React.FC = () => {
       const { data, error } = await supabase
         .from('collaborator_services')
         .select('service_id, commission_type, commission_value')
-        .eq('company_id', primaryCompanyId)
+        .eq('company_id', currentCompanyId)
         .eq('collaborator_id', selectedCollaboratorId)
         .eq('active', true);
 
@@ -195,7 +200,7 @@ const NovoAgendamentoPage: React.FC = () => {
     };
 
     loadAllowed();
-  }, [selectedCollaboratorId, primaryCompanyId, setValue]);
+  }, [selectedCollaboratorId, currentCompanyId, setValue]);
 
   // Effect to calculate total duration and price when services change
   useEffect(() => {
@@ -209,13 +214,13 @@ const NovoAgendamentoPage: React.FC = () => {
   // Effect to fetch available time slots
   useEffect(() => {
     const fetchSlots = async () => {
-      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && primaryCompanyId) {
+      if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && currentCompanyId) {
         setLoading(true);
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           const slots = await getAvailableTimeSlots(
             supabase,
-            primaryCompanyId,
+            currentCompanyId,
             selectedCollaboratorId,
             selectedDate,
             totalDurationMinutes
@@ -227,7 +232,7 @@ const NovoAgendamentoPage: React.FC = () => {
             startDateTime.setHours(hour, minute, 0, 0);
 
             const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
-            return `${format(startDateTime, 'HH:mm')} - ${format(endDateTime, 'HH:mm')}`;
+            return `${format(startDateTime, 'HH:mm')} às ${format(endDateTime, 'HH:mm')}`;
           });
           setAvailableTimeSlots(formattedSlots);
         } catch (error: any) {
@@ -243,12 +248,12 @@ const NovoAgendamentoPage: React.FC = () => {
       }
     };
     fetchSlots();
-  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, primaryCompanyId, setValue]);
+  }, [selectedCollaboratorId, selectedDate, totalDurationMinutes, currentCompanyId, setValue]);
 
 
   const onSubmit = async (data: NewAppointmentFormValues) => {
     setLoading(true);
-    if (!session?.user || !primaryCompanyId) {
+    if (!session?.user || !currentCompanyId) {
       showError('Erro de autenticação ou empresa primária não encontrada.');
       setLoading(false);
       return;
@@ -262,7 +267,7 @@ const NovoAgendamentoPage: React.FC = () => {
       const { data: appointmentData, error: appointmentError } = await supabase
         .from('appointments')
         .insert({
-          company_id: primaryCompanyId,
+          company_id: currentCompanyId,
           client_id: data.clientId,
           client_nickname: data.clientNickname, // Save the new nickname field
           collaborator_id: data.collaboratorId,
@@ -309,7 +314,7 @@ const NovoAgendamentoPage: React.FC = () => {
         if (clientDetails.company_id === null) {
           const { error: updateClientError } = await supabase
             .from('clients')
-            .update({ company_id: primaryCompanyId })
+            .update({ company_id: currentCompanyId })
             .eq('id', data.clientId);
           
           if (updateClientError) {
@@ -332,7 +337,7 @@ const NovoAgendamentoPage: React.FC = () => {
     }
   };
 
-  if (sessionLoading || loadingPrimaryCompany || loadingData) {
+  if (sessionLoading || loadingCompanyId || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando dados para agendamento...</p>
@@ -340,7 +345,7 @@ const NovoAgendamentoPage: React.FC = () => {
     );
   }
 
-  if (!session?.user || !primaryCompanyId) {
+  if (!session?.user || !currentCompanyId) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">

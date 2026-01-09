@@ -157,8 +157,8 @@ async function getAvailableTimeSlotsBackend(
 
       if (isSlotFree) {
         availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
-        currentTime = addMinutes(currentTime, slotIntervalMinutes);
       }
+      currentTime = addMinutes(currentTime, slotIntervalMinutes); // Always advance currentTime
     }
   }
   return Array.from(new Set(availableSlots)).sort();

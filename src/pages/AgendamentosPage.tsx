@@ -14,6 +14,7 @@ import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, end
 import { ptBR } from 'date-fns/locale';
 import { Edit } from 'lucide-react';
 import CheckoutModal from '@/components/CheckoutModal'; // Importar o novo modal
+import { useParams } from 'react-router-dom'; // Importar useParams
 
 interface Appointment {
   id: string;
@@ -39,6 +40,11 @@ const AgendamentosPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { companyId: companyIdFromUrl } = useParams<{ companyId: string }>(); // Pega o companyId da URL
+
+  // Determina o ID da empresa a ser usado, priorizando o da URL
+  const currentCompanyId = companyIdFromUrl || primaryCompanyId;
+  const loadingCompanyId = companyIdFromUrl ? false : loadingPrimaryCompany; // Se veio da URL, não está carregando
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [selectedTab, setSelectedTab] = useState('dia'); // State to control the active tab
@@ -48,15 +54,15 @@ const AgendamentosPage: React.FC = () => {
 
   console.log('AgendamentosPage: session', session);
   console.log('AgendamentosPage: sessionLoading', sessionLoading);
-  console.log('AgendamentosPage: primaryCompanyId', primaryCompanyId);
-  console.log('AgendamentosPage: loadingPrimaryCompany', loadingPrimaryCompany);
+  console.log('AgendamentosPage: currentCompanyId', currentCompanyId);
+  console.log('AgendamentosPage: loadingCompanyId', loadingCompanyId);
 
   // Estados para o modal de checkout
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [appointmentToCheckout, setAppointmentToCheckout] = useState<{ id: string; status: string } | null>(null);
 
   const fetchAppointments = useCallback(async () => {
-    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+    if (sessionLoading || loadingCompanyId || !currentCompanyId) {
       return;
     }
 
@@ -79,7 +85,7 @@ const AgendamentosPage: React.FC = () => {
             services(name)
           )
         `)
-        .eq('company_id', primaryCompanyId)
+        .eq('company_id', currentCompanyId)
         .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true });
 
@@ -149,16 +155,16 @@ const AgendamentosPage: React.FC = () => {
     } finally {
       setLoadingAppointments(false);
     }
-  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId, selectedTab, selectedDate, selectedCollaboratorFilter]);
+  }, [sessionLoading, loadingCompanyId, currentCompanyId, selectedTab, selectedDate, selectedCollaboratorFilter]);
 
   const fetchCollaborators = useCallback(async () => {
-    if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
+    if (sessionLoading || loadingCompanyId || !currentCompanyId) {
       return;
     }
     const { data, error } = await supabase
       .from('collaborators')
       .select('id, first_name, last_name')
-      .eq('company_id', primaryCompanyId)
+      .eq('company_id', currentCompanyId)
       .order('first_name', { ascending: true });
 
     if (error) {
@@ -166,7 +172,7 @@ const AgendamentosPage: React.FC = () => {
     } else if (data) {
       setCollaboratorsList(data);
     }
-  }, [sessionLoading, loadingPrimaryCompany, primaryCompanyId]);
+  }, [sessionLoading, loadingCompanyId, currentCompanyId]);
 
   useEffect(() => {
     fetchCollaborators();
@@ -185,7 +191,7 @@ const AgendamentosPage: React.FC = () => {
     fetchAppointments(); // Re-fetch appointments to update the list
   };
 
-  if (sessionLoading || loadingPrimaryCompany || loadingAppointments) {
+  if (sessionLoading || loadingCompanyId || loadingAppointments) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando agendamentos...</p>
@@ -201,7 +207,7 @@ const AgendamentosPage: React.FC = () => {
     );
   }
 
-  if (!primaryCompanyId) {
+  if (!currentCompanyId) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-gray-700 text-center mb-4">
@@ -328,12 +334,12 @@ const AgendamentosPage: React.FC = () => {
         )}
       </div>
 
-      {appointmentToCheckout && primaryCompanyId && (
+      {appointmentToCheckout && currentCompanyId && (
         <CheckoutModal
           isOpen={isCheckoutModalOpen}
           onClose={() => setIsCheckoutModalOpen(false)}
           appointmentId={appointmentToCheckout.id}
-          companyId={primaryCompanyId}
+          companyId={currentCompanyId}
           onCheckoutComplete={handleCheckoutComplete}
         />
       )}
