@@ -212,7 +212,7 @@ const ClientAppointmentsPage: React.FC = () => {
     // Se já houver um target_company_id definido (por ex. vindo da Landing), apenas navega
     const existingTargetCompanyId = getTargetCompanyId();
     if (existingTargetCompanyId) {
-      navigate('/agendar');
+      navigate(`/agendar/${existingTargetCompanyId}`);
       return;
     }
 
@@ -221,7 +221,7 @@ const ClientAppointmentsPage: React.FC = () => {
       const latestAppointment = appointments[0];
       if (latestAppointment.company_id) {
         setTargetCompanyId(latestAppointment.company_id);
-        navigate('/agendar');
+        navigate(`/agendar/${latestAppointment.company_id}`);
         return;
       }
     }

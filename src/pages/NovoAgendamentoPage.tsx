@@ -328,7 +328,7 @@ const NovoAgendamentoPage: React.FC = () => {
 
 
       showSuccess('Agendamento criado com sucesso!');
-      navigate('/agendamentos'); // Redirect to appointments list
+      navigate(`/agendamentos/${currentCompanyId}`); // Redirect to appointments list
     } catch (error: any) {
       console.error('Erro ao criar agendamento:', error);
       showError('Erro ao criar agendamento: ' + error.message);
