@@ -10,7 +10,7 @@ import { useIsClient } from '@/hooks/useIsClient';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
-import CompanySelectionModal from '@/components/CompanySelectionModal';
+import { CompanySelectionModal } from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
 import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays } from 'lucide-react'; // Adicionar Menu e CalendarDays
 import { Input } from '@/components/ui/input';
@@ -186,7 +186,7 @@ const LandingPage: React.FC = () => {
     setTargetCompanyId(companyId);
     
     if (session && isClient) {
-      navigate('/agendar');
+      navigate(`/agendar/${companyId}`);
     } else {
       navigate('/login');
     }
@@ -195,6 +195,12 @@ const LandingPage: React.FC = () => {
   const handleProfessionalSignup = () => {
     // Redireciona para a nova página de cadastro unificado
     navigate('/register-professional');
+  };
+
+  const handleCompanySelected = (companyId: string) => {
+    setTargetCompanyId(companyId);
+    setIsSelectionModalOpen(false);
+    navigate(`/agendar/${companyId}`, { replace: true });
   };
   
   // Determine the most expensive plan for visual highlight
@@ -583,10 +589,12 @@ const LandingPage: React.FC = () => {
       </footer>
       
       {/* Company Selection Modal */}
-      {session && isClient && !loadingClientCheck && (
+      {session && isClient && !loadingClientCheck && session.user && (
         <CompanySelectionModal 
           isOpen={isSelectionModalOpen} 
           onClose={() => setIsSelectionModalOpen(false)} 
+          userId={session.user.id}
+          onCompanySelected={handleCompanySelected}
         />
       )}
 

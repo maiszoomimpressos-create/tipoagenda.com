@@ -10,7 +10,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { format, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { getTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
+import { getTargetCompanyId, setTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 interface Appointment {
   id: string;
@@ -23,6 +23,7 @@ interface Appointment {
   // clients: { name: string } | null; // REMOVIDO: Causa recursão
   collaborators: { first_name: string; last_name: string } | null;
   appointment_services: { services: { name: string } | null }[];
+  company_id: string;
   companies: { name: string } | null; // Adicionar para exibir o nome da empresa
 }
 
@@ -121,6 +122,7 @@ const ClientAppointmentsPage: React.FC = () => {
           total_duration_minutes,
           status,
           client_nickname,
+          company_id,
           collaborators(first_name, last_name),
           appointment_services(
             services(name)
@@ -206,13 +208,36 @@ const ClientAppointmentsPage: React.FC = () => {
   
   const clientName = clientContext?.clientName || 'Cliente';
 
+  const handleNewAppointmentClick = () => {
+    // Se já houver um target_company_id definido (por ex. vindo da Landing), apenas navega
+    const existingTargetCompanyId = getTargetCompanyId();
+    if (existingTargetCompanyId) {
+      navigate('/agendar');
+      return;
+    }
+
+    // Tenta usar a empresa do agendamento mais recente como padrão
+    if (appointments.length > 0) {
+      const latestAppointment = appointments[0];
+      if (latestAppointment.company_id) {
+        setTargetCompanyId(latestAppointment.company_id);
+        navigate('/agendar');
+        return;
+      }
+    }
+
+    // Fallback: leva para a Landing Page para escolher uma barbearia
+    showError('Selecione uma barbearia para agendar.');
+    navigate('/');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Meus Agendamentos</h1>
         <Button
           className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
-          onClick={() => navigate('/agendar')}
+          onClick={handleNewAppointmentClick}
         >
           <i className="fas fa-plus mr-2"></i>
           Novo Agendamento

@@ -180,12 +180,12 @@ const App = () => (
               <Route path="register-company" element={<ProtectedRoute><CompanyRegistrationPage /></ProtectedRoute>} />
               
               {/* Rotas de Cliente (protegidas por ClientProtectedRoute) */}
-              <Route path="agendar" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
+              <Route path="agendar/:companyId" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
               <Route path="meus-agendamentos" element={<ClientProtectedRoute><ClientAppointmentsPage /></ClientProtectedRoute>} />
 
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-              <Route path="agendamentos" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
+              <Route path="agendamentos/:companyId" element={<ProtectedRoute><AgendamentosPage /></ProtectedRoute>} />
               <Route path="agendamentos/edit/:appointmentId" element={<ProtectedRoute><EditAgendamentoPage /></ProtectedRoute>} />
               <Route path="servicos" element={<ProtectedRoute><ServicesPage /></ProtectedRoute>} />
               <Route path="servicos/new" element={<ProtectedRoute><ServiceFormPage /></ProtectedRoute>} />
@@ -207,7 +207,7 @@ const App = () => (
               <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
 
               {/* Rotas de formulários específicos (protegidas) */}
-              <Route path="novo-agendamento" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
+              <Route path="novo-agendamento/:companyId" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
 
