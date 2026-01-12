@@ -55,6 +55,7 @@ import GuestAppointmentPage from "./pages/GuestAppointmentPage"; // Importar nov
 import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmationPage";
 import BannerManagementPage from "./pages/BannerManagementPage"; // Importar nova página de gerenciamento de banners
 import CollaboratorServicesPage from "./pages/CollaboratorServicesPage";
+import NovaTransacaoPage from "./pages/NovaTransacaoPage";
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -209,6 +210,7 @@ const App = () => (
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento/:companyId" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />
               <Route path="novo-cliente" element={<ProtectedRoute><NovoClientePage /></ProtectedRoute>} />
+              <Route path="nova-transacao" element={<ProtectedRoute><NovaTransacaoPage /></ProtectedRoute>} />
               <Route path="fechar-caixa" element={<ProtectedRoute><FecharCaixaPage /></ProtectedRoute>} />
 
               {/* A rota /settings não existe mais, suas funcionalidades foram movidas */}

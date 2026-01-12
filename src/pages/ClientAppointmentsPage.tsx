@@ -10,6 +10,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { format, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { getTargetCompanyId, setTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 interface Appointment {
@@ -36,6 +37,8 @@ const ClientAppointmentsPage: React.FC = () => {
   const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
   const [cancellingAppointment, setCancellingAppointment] = useState(false);
   const [clientContext, setClientContext] = useState<{ clientId: string; clientName: string } | null>(null); // Novo estado para armazenar o contexto do cliente
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState<string | null>(null);
 
   const createClientProfileIfMissing = useCallback(async (userId: string) => {
     let clientId: string = '';
@@ -157,22 +160,36 @@ const ClientAppointmentsPage: React.FC = () => {
 
   const handleCancelClick = (appointmentId: string) => {
     setAppointmentToCancel(appointmentId);
+    setCancelReason('');
+    setCancelReasonError(null);
     setIsCancelModalOpen(true);
   };
 
   const confirmCancel = async () => {
-    if (!appointmentToCancel || !session?.user) {
-      showError('Erro: Agendamento ou sessão inválida para cancelar.');
+    if (!appointmentToCancel || !session?.user || !clientContext?.clientId) {
+      showError('Erro: Dados inválidos para cancelar o agendamento.');
+      return;
+    }
+
+    const trimmedReason = cancelReason.trim();
+    if (trimmedReason.length < 20) {
+      const message = 'Informe um motivo com pelo menos 20 caracteres.';
+      setCancelReasonError(message);
+      showError(message);
       return;
     }
 
     setCancellingAppointment(true);
     try {
+      // Atualiza o agendamento pelo ID e client_id; as RLS do Supabase
+      // garantem que o cliente só consiga cancelar os próprios agendamentos.
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'cancelado' })
+        .update({ status: 'cancelado', cancellation_reason: trimmedReason })
         .eq('id', appointmentToCancel)
-        .eq('created_by_user_id', session.user.id); // Ensure client can only cancel their own
+        .eq('client_id', clientContext.clientId);
+
+      console.log('Resultado do cancelamento de agendamento (cliente) - erro:', error);
 
       if (error) {
         throw error;
@@ -182,9 +199,11 @@ const ClientAppointmentsPage: React.FC = () => {
       fetchAppointments(); // Re-fetch to update the list
       setIsCancelModalOpen(false);
       setAppointmentToCancel(null);
+      setCancelReason('');
+      setCancelReasonError(null);
     } catch (error: any) {
       console.error('Erro ao cancelar agendamento:', error);
-      showError('Erro ao cancelar agendamento: ' + error.message);
+      showError('Erro ao cancelar agendamento: ' + (error.message || 'Erro desconhecido.'));
     } finally {
       setCancellingAppointment(false);
     }
@@ -245,10 +264,12 @@ const ClientAppointmentsPage: React.FC = () => {
       </div>
 
       <div className="grid gap-4">
-        {appointments.length === 0 ? (
+        {appointments.filter(a => a.status !== 'cancelado').length === 0 ? (
           <p className="text-gray-600">Você não possui agendamentos. Clique em "Novo Agendamento" para começar!</p>
         ) : (
-          appointments.map((agendamento) => {
+          appointments
+            .filter((agendamento) => agendamento.status !== 'cancelado')
+            .map((agendamento) => {
             const collaboratorName = agendamento.collaborators ? `${agendamento.collaborators.first_name} ${agendamento.collaborators.last_name}` : 'Colaborador Desconhecido';
             const serviceNames = agendamento.appointment_services
               .map(as => as.services?.name)
@@ -287,20 +308,7 @@ const ClientAppointmentsPage: React.FC = () => {
                       <Badge className={`${getStatusColor(agendamento.status)} text-white text-xs`}>
                         {agendamento.status}
                       </Badge>
-                      {isCancellable && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="!rounded-button whitespace-nowrap mt-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelClick(agendamento.id);
-                          }}
-                        >
-                          <i className="fas fa-times-circle mr-2"></i>
-                          Cancelar
-                        </Button>
-                      )}
+                      {/* Botão de cancelar temporariamente oculto */}
                     </div>
                   </div>
                 </CardContent>
@@ -310,7 +318,17 @@ const ClientAppointmentsPage: React.FC = () => {
         )}
       </div>
 
-      <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+      <Dialog
+        open={isCancelModalOpen}
+        onOpenChange={(open) => {
+          setIsCancelModalOpen(open);
+          if (!open) {
+            setCancelReason('');
+            setCancelReasonError(null);
+            setAppointmentToCancel(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Cancelamento</DialogTitle>
@@ -318,11 +336,46 @@ const ClientAppointmentsPage: React.FC = () => {
               Tem certeza que deseja cancelar este agendamento? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Motivo do cancelamento
+            </label>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => {
+                setCancelReason(e.target.value);
+                if (cancelReasonError && e.target.value.trim().length >= 20) {
+                  setCancelReasonError(null);
+                }
+              }}
+              rows={4}
+              maxLength={500}
+              placeholder="Descreva o motivo do cancelamento (mínimo de 20 caracteres)..."
+              className="w-full"
+              disabled={cancellingAppointment}
+            />
+            <p className="text-xs text-gray-500">
+              {cancelReason.trim().length} / 500 caracteres
+            </p>
+            {cancelReasonError && (
+              <p className="text-xs text-red-500">{cancelReasonError}</p>
+            )}
+          </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCancelModalOpen(false)} disabled={cancellingAppointment}>
+            <Button
+              variant="outline"
+              onClick={() => setIsCancelModalOpen(false)}
+              disabled={cancellingAppointment}
+            >
               Voltar
             </Button>
-            <Button variant="destructive" onClick={confirmCancel} disabled={cancellingAppointment}>
+            <Button
+              variant="destructive"
+              onClick={confirmCancel}
+              disabled={cancellingAppointment}
+            >
               {cancellingAppointment ? 'Cancelando...' : 'Confirmar Cancelamento'}
             </Button>
           </DialogFooter>
