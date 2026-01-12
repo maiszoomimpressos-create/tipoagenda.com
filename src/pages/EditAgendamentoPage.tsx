@@ -251,7 +251,6 @@ const EditAgendamentoPage: React.FC = () => {
     const fetchSlots = async () => {
       if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && primaryCompanyId) {
         setLoading(true);
-        // setValue('appointmentTime', ''); // Clear selected time when inputs change, but not if it's the current one
         try {
           const slots = await getAvailableTimeSlots(
             supabase,
@@ -262,7 +261,18 @@ const EditAgendamentoPage: React.FC = () => {
             30, // slotIntervalMinutes
             appointmentId // Pass the current appointment ID to exclude it from busy slots
           );
-          setAvailableTimeSlots(slots);
+
+          // Converte horários de início (HH:mm) para "HH:mm às HH:mm"
+          const formattedSlots = slots.map((startTime) => {
+            const [hour, minute] = startTime.split(':').map(Number);
+            const startDateTime = new Date(selectedDate);
+            startDateTime.setHours(hour, minute, 0, 0);
+
+            const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
+            return `${format(startDateTime, 'HH:mm')} às ${format(endDateTime, 'HH:mm')}`;
+          });
+
+          setAvailableTimeSlots(formattedSlots);
         } catch (error: any) {
           console.error('Erro ao buscar horários disponíveis:', error);
           showError('Erro ao buscar horários disponíveis: ' + error.message);
@@ -272,7 +282,6 @@ const EditAgendamentoPage: React.FC = () => {
         }
       } else {
         setAvailableTimeSlots([]);
-        // setValue('appointmentTime', '');
       }
     };
     fetchSlots();
@@ -343,7 +352,7 @@ const EditAgendamentoPage: React.FC = () => {
       if (insertServicesError) throw insertServicesError;
 
       showSuccess('Agendamento atualizado com sucesso!');
-      navigate('/agendamentos');
+      navigate(`/agendamentos/${primaryCompanyId}`);
     } catch (error: any) {
       console.error('Erro ao atualizar agendamento:', error);
       showError('Erro ao atualizar agendamento: ' + error.message);
@@ -458,31 +467,40 @@ const EditAgendamentoPage: React.FC = () => {
               
               <div>
                 <Label className="block text-sm font-medium text-gray-700 mb-2">
-                  Serviços *
+                  Serviço *
                 </Label>
-                <div className="space-y-2">
-                  {services.length === 0 ? (
-                    <p className="text-gray-600 text-sm">Nenhum serviço ativo disponível.</p>
-                  ) : allowedServiceIds.length === 0 && selectedCollaboratorId ? (
-                    <p className="text-sm text-red-500">Nenhum serviço permitido para este colaborador.</p>
-                  ) : (
-                    services
-                      .filter((service) => allowedServiceIds.includes(service.id))
-                      .map((service) => (
-                      <div key={service.id} className="flex items-center">
-                        <Checkbox
-                          id={`service-${service.id}`}
-                          checked={selectedServiceIds.includes(service.id)}
-                          onCheckedChange={(checked) => handleServiceChange(service.id, !!checked)}
-                          className="mr-2"
-                        />
-                        <Label htmlFor={`service-${service.id}`} className="text-sm">
+                <Select
+                  onValueChange={(value) => {
+                    const serviceId = value;
+                    setValue('serviceIds', serviceId ? [serviceId] : [], { shouldValidate: true });
+                    setValue('appointmentTime', '');
+                  }}
+                  value={selectedServiceIds[0] || ''}
+                  disabled={services.length === 0 || allowedServiceIds.length === 0}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <SelectValue placeholder="Selecione o serviço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.length === 0 ? (
+                      <SelectItem value="no-services" disabled>
+                        Nenhum serviço ativo disponível.
+                      </SelectItem>
+                    ) : allowedServiceIds.length === 0 ? (
+                      <SelectItem value="no-allowed" disabled>
+                        Nenhum serviço permitido para este colaborador.
+                      </SelectItem>
+                    ) : (
+                      services
+                        .filter((service) => allowedServiceIds.includes(service.id))
+                        .map((service) => (
+                        <SelectItem key={service.id} value={service.id}>
                           {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
-                        </Label>
-                      </div>
-                      ))
-                  )}
-                </div>
+                        </SelectItem>
+                        ))
+                    )}
+                  </SelectContent>
+                </Select>
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
                 {totalDurationMinutes > 0 && (
                   <p className="text-sm text-gray-600 mt-2">
@@ -514,22 +532,32 @@ const EditAgendamentoPage: React.FC = () => {
                   <Label htmlFor="appointmentTime" className="block text-sm font-medium text-gray-700 mb-2">
                     Horário *
                   </Label>
-                  <Select onValueChange={(value) => setValue('appointmentTime', value, { shouldValidate: true })} value={selectedAppointmentTime}>
-                    <SelectTrigger id="appointmentTime" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled={!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0 || loading}>
-                      <SelectValue placeholder={loading ? "Buscando horários..." : "Selecione o horário"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTimeSlots.length === 0 ? (
-                        <SelectItem value="no-slots" disabled>Nenhum horário disponível.</SelectItem>
-                      ) : (
-                        availableTimeSlots.map((timeSlot) => (
-                          <SelectItem key={timeSlot} value={timeSlot}>
-                            {timeSlot}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <div className="grid grid-cols-3 gap-2">
+                    {loading ? (
+                      <p className="text-gray-500 col-span-3 text-center">Buscando horários...</p>
+                    ) : availableTimeSlots.length > 0 ? (
+                      availableTimeSlots.map((timeSlot) => (
+                        <Button
+                          key={timeSlot}
+                          type="button"
+                          variant={selectedAppointmentTime === timeSlot ? "default" : "outline"}
+                          className="text-sm"
+                          onClick={() => setValue('appointmentTime', timeSlot, { shouldValidate: true })}
+                          disabled={!selectedCollaboratorId || !selectedDate || totalDurationMinutes === 0}
+                        >
+                          {timeSlot}
+                        </Button>
+                      ))
+                    ) : selectedDate && selectedCollaboratorId && totalDurationMinutes > 0 ? (
+                      <p className="text-gray-500 col-span-3">
+                        Nenhum horário disponível para a data, colaborador e serviço selecionados.
+                      </p>
+                    ) : (
+                      <p className="text-gray-500 col-span-3">
+                        Selecione colaborador, serviço e data para ver os horários.
+                      </p>
+                    )}
+                  </div>
                   {errors.appointmentTime && <p className="text-red-500 text-xs mt-1">{errors.appointmentTime.message}</p>}
                 </div>
               </div>
