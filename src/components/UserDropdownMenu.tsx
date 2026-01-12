@@ -34,8 +34,12 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const { isClient, loadingClientCheck } = useIsClient();
 
   const handleLogout = async () => {
+    console.log('UserDropdownMenu - handleLogout: Iniciando logout.');
+    console.log('UserDropdownMenu - handleLogout: Session atual:', session);
+    console.log('UserDropdownMenu - handleLogout: User atual:', user);
     markExplicitLogout(); // Marca que o logout foi explícito
     const { error } = await supabase.auth.signOut();
+    console.log('UserDropdownMenu - handleLogout: Resultado do signOut - Erro:', error);
     if (error) {
       showError('Erro ao fazer logout: ' + error.message);
     } else {
