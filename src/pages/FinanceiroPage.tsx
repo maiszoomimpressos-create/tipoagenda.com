@@ -8,6 +8,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
 interface Transaction {
   id: string;
@@ -20,6 +21,7 @@ interface Transaction {
 }
 
 const FinanceiroPage: React.FC = () => {
+  const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -101,7 +103,7 @@ const FinanceiroPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Financeiro</h1>
         <div className="flex gap-3">
           {createButton(() => {}, 'fas fa-download', 'Exportar PDF', 'outline')}
-          {createButton(() => {}, 'fas fa-plus', 'Nova Transação')}
+          {createButton(() => navigate('/nova-transacao'), 'fas fa-plus', 'Nova Transação')}
         </div>
       </div>
 

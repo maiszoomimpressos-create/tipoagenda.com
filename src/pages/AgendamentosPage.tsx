@@ -229,8 +229,13 @@ const AgendamentosPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Agendamentos</h1>
         {createButton(() => {
-          console.log("Botão 'Novo Agendamento' clicado. Navegando para /novo-agendamento");
-          navigate('/novo-agendamento');
+          if (!currentCompanyId) {
+            console.error("Botão 'Novo Agendamento' clicado, mas currentCompanyId está indefinido.");
+            showError('Não foi possível identificar a empresa para o novo agendamento.');
+            return;
+          }
+          console.log("Botão 'Novo Agendamento' clicado. Navegando para /novo-agendamento/:companyId", currentCompanyId);
+          navigate(`/novo-agendamento/${currentCompanyId}`);
         }, 'fas fa-plus', 'Novo Agendamento')}
       </div>
 
