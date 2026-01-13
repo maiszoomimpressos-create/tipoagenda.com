@@ -8,6 +8,7 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError } from '@/utils/toast';
+import MonthlyRevenueChart from '@/components/MonthlyRevenueChart';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -100,13 +101,7 @@ const DashboardPage: React.FC = () => {
         <Card className="border-gray-200">
           <CardHeader><CardTitle className="text-gray-900">Faturamento Mensal</CardTitle></CardHeader>
           <CardContent>
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <i className="fas fa-chart-line text-4xl text-yellow-600 mb-4"></i>
-                <p className="text-gray-600">Gráfico de Performance</p>
-                <p className="text-sm text-gray-500 mt-2">Dados de faturamento em breve...</p>
-              </div>
-            </div>
+            <MonthlyRevenueChart data={data.monthlyRevenueData} />
           </CardContent>
         </Card>
 

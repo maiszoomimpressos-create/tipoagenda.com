@@ -4,7 +4,12 @@ import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from './usePrimaryCompany';
 import { useReportsData } from './useReportsData';
-import { format, startOfDay, endOfDay, parse, addMinutes } from 'date-fns';
+import { format, startOfDay, endOfDay, parse, addMinutes, startOfMonth } from 'date-fns';
+
+interface MonthlyRevenueDataPoint {
+  date: string; // Ex: 'YYYY-MM-DD'
+  revenue: number;
+}
 
 interface AppointmentToday {
   id: string;
@@ -29,6 +34,7 @@ interface DashboardData {
   mostActiveCollaborator: { name: string; count: number } | null;
   criticalStockCount: number;
   appointmentsToday: AppointmentToday[];
+  monthlyRevenueData: MonthlyRevenueDataPoint[];
 }
 
 const initialDashboardData: DashboardData = {
@@ -38,6 +44,7 @@ const initialDashboardData: DashboardData = {
   appointmentsTodayChange: 0,
   mostActiveCollaborator: null,
   criticalStockCount: 0,
+  monthlyRevenueData: [],
   appointmentsToday: [],
 };
 
@@ -58,7 +65,10 @@ export function useDashboardData() {
     try {
       const todayStartDb = format(startOfDay(new Date()), 'yyyy-MM-dd');
       const todayEndDb = format(endOfDay(new Date()), 'yyyy-MM-dd');
-      
+
+      const currentMonthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+      const currentMonthEnd = format(endOfDay(new Date()), 'yyyy-MM-dd');
+
       // --- 1. Fetch Appointments Today ---
       const { data: appointmentsData, error: appError } = await supabase
         .from('appointments')
@@ -146,7 +156,31 @@ export function useDashboardData() {
       // --- 5. Integrate Revenue KPI from useReportsData (last_month) ---
       const revenue = reportsData.revenue.value;
       const revenueChange = reportsData.revenue.comparison;
-      
+
+      // --- 6. Fetch Monthly Revenue Data for Chart ---
+      const { data: monthlyRevenueRaw, error: monthlyRevenueError } = await supabase
+        .from('appointments')
+        .select('appointment_date, total_price')
+        .eq('company_id', primaryCompanyId)
+        .gte('appointment_date', currentMonthStart)
+        .lte('appointment_date', currentMonthEnd)
+        .neq('status', 'cancelado') // Excluir agendamentos cancelados do faturamento
+        .order('appointment_date', { ascending: true });
+
+      if (monthlyRevenueError) throw monthlyRevenueError;
+
+      // Aggregate daily revenue
+      const dailyRevenueMap = monthlyRevenueRaw.reduce((acc: Map<string, number>, item: any) => {
+        const date = item.appointment_date;
+        acc.set(date, (acc.get(date) || 0) + item.total_price);
+        return acc;
+      }, new Map<string, number>());
+
+      const monthlyRevenueData: MonthlyRevenueDataPoint[] = Array.from(dailyRevenueMap.entries())
+        .map(([date, revenue]) => ({ date, revenue }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+
       setData({
         revenue,
         revenueChange,
@@ -154,6 +188,7 @@ export function useDashboardData() {
         appointmentsTodayChange,
         mostActiveCollaborator,
         criticalStockCount,
+        monthlyRevenueData,
         appointmentsToday,
       });
 
