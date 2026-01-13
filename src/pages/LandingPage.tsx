@@ -16,6 +16,7 @@ import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, Cale
 import { Input } from '@/components/ui/input';
 import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Importar componentes de diálogo
 
 interface Company {
   id: string;
@@ -45,6 +46,7 @@ const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
+  const [isConfirmLogoutDialogOpen, setIsConfirmLogoutDialogOpen] = useState(false); // Novo estado para o diálogo de confirmação de logout
 
   const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck;
 
@@ -592,7 +594,7 @@ const LandingPage: React.FC = () => {
       {session && isClient && !loadingClientCheck && session.user && (
         <CompanySelectionModal 
           isOpen={isSelectionModalOpen} 
-          onClose={() => setIsSelectionModalOpen(false)} 
+          onClose={() => setIsConfirmLogoutDialogOpen(true)} 
           userId={session.user.id}
           onCompanySelected={handleCompanySelected}
         />
@@ -603,6 +605,32 @@ const LandingPage: React.FC = () => {
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
       />
+
+      {/* Confirm Logout Dialog */}
+      <Dialog open={isConfirmLogoutDialogOpen} onOpenChange={setIsConfirmLogoutDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Atenção!</DialogTitle>
+            <DialogDescription>
+              Você precisa selecionar uma empresa para agendar um serviço. Deseja sair e voltar para a página inicial?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsConfirmLogoutDialogOpen(false)}>
+              Não
+            </Button>
+            <Button onClick={async () => {
+              await supabase.auth.signOut();
+              setIsConfirmLogoutDialogOpen(false);
+              setIsSelectionModalOpen(false); // Garante que o modal de seleção também seja fechado
+              navigate('/', { replace: true });
+            }}>
+              Sim
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
