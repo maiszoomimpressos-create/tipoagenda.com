@@ -4,10 +4,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { showError } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
+import CompanyCard from './CompanyCard'; // Importar o novo componente CompanyCard
 
 interface Company {
   id: string;
   name: string;
+  image_url: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
 }
 
 interface CompanySelectionModalProps {
@@ -34,7 +39,7 @@ export const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({
         // Busca as empresas associadas ao usuário logado (cliente)
         const { data, error } = await supabase
           .from('user_companies') // Presumo que haja uma tabela 'user_companies' para associar usuários a empresas
-          .select('company_id, companies(id, name)')
+          .select('company_id, companies(id, name, image_url, address, city, state)')
           .eq('user_id', userId);
 
         if (error) {
@@ -45,6 +50,10 @@ export const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({
           const userCompanies: Company[] = data.map((uc: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: uc.companies.id,
             name: uc.companies.name,
+            image_url: uc.companies.image_url,
+            address: uc.companies.address,
+            city: uc.companies.city,
+            state: uc.companies.state,
           }));
           setCompanies(userCompanies);
           // Se houver apenas uma empresa, seleciona automaticamente
@@ -101,14 +110,12 @@ export const CompanySelectionModal: React.FC<CompanySelectionModalProps> = ({
         </DialogHeader>
         <div className="space-y-4 py-4">
           {companies.map((company) => (
-            <Button
+            <CompanyCard
               key={company.id}
-              variant={selectedCompanyId === company.id ? 'default' : 'outline'}
-              className="w-full"
-              onClick={() => setSelectedCompanyId(company.id)}
-            >
-              {company.name}
-            </Button>
+              company={company}
+              isSelected={selectedCompanyId === company.id}
+              onClick={setSelectedCompanyId}
+            />
           ))}
         </div>
         <Button onClick={handleSelect} className="w-full">
