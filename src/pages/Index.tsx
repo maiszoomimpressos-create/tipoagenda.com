@@ -43,10 +43,8 @@ const IndexPage: React.FC = () => {
       console.log('IndexPage: User is Proprietario or CompanyAdmin, redirecting to /dashboard');
       navigate('/dashboard', { replace: true });
     } else if (isClient) {
-      console.log('IndexPage: User is a pure client, rendering LandingPage (for company selection or /agendar if target set).');
-      // The LandingPage component handles the CompanySelectionModal logic.
-      // If a target company was set before login, SessionContextProvider would have redirected to /agendar.
-      // If not, LandingPage will show the company selection modal.
+      console.log('IndexPage: User is a pure client, redirecting to /meus-agendamentos');
+      navigate('/meus-agendamentos', { replace: true });
     } else {
       console.log('IndexPage: Logged in but no specific role, redirecting to /register-company');
       navigate('/register-company', { replace: true });
@@ -61,8 +59,14 @@ const IndexPage: React.FC = () => {
     );
   }
 
-  // If not logged in, or if logged in as a pure client, render the LandingPage
-  return <LandingPage />;
-};
+  // Se não há sessão, renderiza a LandingPage (pública)
+  if (!session) {
+    return <LandingPage />;
+  }
+
+  // Se há sessão, mas nenhum redirecionamento ocorreu no useEffect, significa que algo está errado ou um novo fluxo precisa ser definido.
+  // Para o propósito atual, podemos renderizar um fallback ou um erro se o usuário logado não tiver um papel definido.
+  // Por enquanto, vamos retornar null para evitar renderizar a LandingPage para usuários logados.
+  return null;};
 
 export default IndexPage;

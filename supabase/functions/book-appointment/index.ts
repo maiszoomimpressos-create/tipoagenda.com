@@ -17,6 +17,7 @@ async function getAvailableTimeSlotsBackend(
   slotIntervalMinutes: number = 30,
   excludeAppointmentId?: string
 ): Promise<string[]> {
+  console.log('getAvailableTimeSlotsBackend Start:', { companyId, collaboratorId, date: date.toISOString(), requiredDuration });
   const availableSlots: string[] = [];
   const selectedDayOfWeek = getDay(date);
   const today = startOfDay(new Date());
@@ -29,6 +30,8 @@ async function getAvailableTimeSlotsBackend(
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('day_of_week', selectedDayOfWeek);
+    
+  console.log('getAvailableTimeSlotsBackend: workingSchedules fetched:', workingSchedules, 'error:', wsError);
 
   if (wsError) throw wsError;
 
@@ -40,6 +43,8 @@ async function getAvailableTimeSlotsBackend(
     .eq('company_id', companyId)
     .eq('exception_date', format(date, 'yyyy-MM-dd'));
 
+  console.log('getAvailableTimeSlotsBackend: exceptions fetched:', exceptions, 'error:', exError);
+
   if (exError) throw exError;
 
   let effectiveWorkingIntervals: Array<{ start: Date; end: Date }> = [];
@@ -48,6 +53,7 @@ async function getAvailableTimeSlotsBackend(
   if (workingSchedules && workingSchedules.length > 0) {
     effectiveWorkingIntervals = workingSchedules.map(schedule => {
       if (!schedule || typeof schedule.start_time !== 'string' || typeof schedule.end_time !== 'string') {
+        console.warn('getAvailableTimeSlotsBackend: Invalid schedule entry:', schedule);
         return null;
       }
       const startTimeStr = schedule.start_time.substring(0, 5);
@@ -57,20 +63,24 @@ async function getAvailableTimeSlotsBackend(
       return { start, end };
     }).filter(Boolean) as Array<{ start: Date; end: Date }>;
   }
+  console.log('getAvailableTimeSlotsBackend: effectiveWorkingIntervals:', effectiveWorkingIntervals.map(i => ({ start: i.start.toISOString(), end: i.end.toISOString() })));
 
   let isFullDayOff = false;
   if (exceptions && exceptions.length > 0) {
     for (const exception of exceptions) {
       if (exception.is_day_off) {
         isFullDayOff = true;
+        console.log('getAvailableTimeSlotsBackend: Full day off exception found.');
         break; // If any exception is a full day off, no need to check others
       } else if (exception.start_time && exception.end_time) {
         if (typeof exception.start_time !== 'string' || typeof exception.end_time !== 'string') {
+          console.warn('getAvailableTimeSlotsBackend: Invalid exception times, skipping:', exception);
           // Invalid exception times, skip
         } else {
           const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
           const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
           busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
+          console.log('getAvailableTimeSlotsBackend: Added exception busy interval:', { start: exceptionStart.toISOString(), end: exceptionEnd.toISOString() });
         }
       }
     }
@@ -78,9 +88,11 @@ async function getAvailableTimeSlotsBackend(
 
   if (isFullDayOff) {
     effectiveWorkingIntervals = [];
+    console.log('getAvailableTimeSlotsBackend: effectiveWorkingIntervals cleared due to full day off.');
   }
 
   if (effectiveWorkingIntervals.length === 0) {
+    console.log('getAvailableTimeSlotsBackend: No effective working intervals, returning empty slots.');
     return [];
   }
 
@@ -95,23 +107,28 @@ async function getAvailableTimeSlotsBackend(
 
   if (excludeAppointmentId) {
     appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
+    console.log('getAvailableTimeSlotsBackend: Excluding appointment ID:', excludeAppointmentId);
   }
 
   const { data: existingAppointments, error: appError } = await appointmentsQuery;
+  console.log('getAvailableTimeSlotsBackend: existingAppointments fetched:', existingAppointments, 'error:', appError);
 
   if (appError) throw appError;
 
   if (existingAppointments) {
     existingAppointments.forEach(app => {
       if (!app || typeof app.appointment_time !== 'string') {
+        console.warn('getAvailableTimeSlotsBackend: Invalid appointment entry, skipping:', app);
         return;
       }
       const appStartTimeStr = app.appointment_time.substring(0, 5);
       const appStartTime = parse(appStartTimeStr, 'HH:mm', date);
       const appEndTime = addMinutes(appStartTime, app.total_duration_minutes);
       busyIntervals.push({ start: appStartTime, end: appEndTime });
+      console.log('getAvailableTimeSlotsBackend: Added existing appointment busy interval:', { start: appStartTime.toISOString(), end: appEndTime.toISOString() });
     });
   }
+  console.log('getAvailableTimeSlotsBackend: All raw busyIntervals (from exceptions and appointments):', busyIntervals.map(b => ({ start: b.start.toISOString(), end: b.end.toISOString() })));
 
   busyIntervals.sort((a, b) => a.start.getTime() - b.start.getTime());
   const mergedBusyIntervals = [];
@@ -128,6 +145,7 @@ async function getAvailableTimeSlotsBackend(
     }
     mergedBusyIntervals.push(currentMerged);
   }
+  console.log('getAvailableTimeSlotsBackend: Merged busyIntervals:', mergedBusyIntervals.map(b => ({ start: b.start.toISOString(), end: b.end.toISOString() })));
 
   for (const workingInterval of effectiveWorkingIntervals) {
     let currentTime = workingInterval.start;
@@ -139,6 +157,7 @@ async function getAvailableTimeSlotsBackend(
         currentTime = nextSlotAfterNow;
       }
     }
+    console.log('getAvailableTimeSlotsBackend: Starting iteration for workingInterval:', { start: workingInterval.start.toISOString(), end: workingInterval.end.toISOString(), initialCurrentTime: currentTime.toISOString() });
 
     while (isBefore(addMinutes(currentTime, requiredDuration), addMinutes(workingInterval.end, 1))) {
       const slotStart = currentTime;
@@ -146,21 +165,31 @@ async function getAvailableTimeSlotsBackend(
 
       let isSlotFree = true;
       
-      for (const busy of mergedBusyIntervals) {
-        if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
-          isSlotFree = false;
-          const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
-          currentTime = isAfter(currentTime, busyEndAligned) ? currentTime : busyEndAligned;
-          break;
+      // Check against past time for current day
+      if (selectedDateStart.getTime() === today.getTime() && isBefore(slotStart, new Date())) {
+        isSlotFree = false;
+        console.log('Slot ignored (in past):', format(slotStart, 'HH:mm'));
+      } else {
+        for (const busy of mergedBusyIntervals) {
+          if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
+            isSlotFree = false;
+            console.log('Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
+            const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+            currentTime = isAfter(currentTime, busyEndAligned) ? currentTime : busyEndAligned;
+            break;
+          }
         }
       }
 
       if (isSlotFree) {
         availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
+        console.log('Slot added:', format(slotStart, 'HH:mm'));
       }
       currentTime = addMinutes(currentTime, slotIntervalMinutes); // Always advance currentTime
+      console.log('Advanced currentTime to:', format(currentTime, 'HH:mm'));
     }
   }
+  console.log('getAvailableTimeSlotsBackend End - Final availableSlots:', availableSlots);
   return Array.from(new Set(availableSlots)).sort();
 }
 
@@ -213,11 +242,13 @@ serve(async (req) => {
       companyId,
     } = await req.json();
 
+    console.log('book-appointment: Received payload for booking:', { companyId, clientId, collaboratorId, serviceIds, appointmentDate, appointmentTime, totalDurationMinutes, totalPriceCalculated, observations });
+
     if (!clientId || !collaboratorId || !serviceIds || serviceIds.length === 0 || !appointmentDate || !appointmentTime || !companyId || totalDurationMinutes === undefined || totalPriceCalculated === undefined) {
-      return new Response(JSON.stringify({ error: 'Missing required appointment data' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+        return new Response(JSON.stringify({ error: 'Missing required appointment data' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
     }
 
     // Create a Supabase client with the service role key for admin operations
@@ -239,6 +270,7 @@ serve(async (req) => {
       .single();
 
     if (clientFetchError || !clientData || clientData.client_auth_id !== user.id) {
+      console.warn('book-appointment: Forbidden attempt to book for another client.', { userId: user.id, clientId, clientAuthId: clientData?.client_auth_id });
       return new Response(JSON.stringify({ error: 'Forbidden: You can only book appointments for yourself.' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -251,6 +283,9 @@ serve(async (req) => {
     const endTimeForDb = format(addMinutes(parse(startTimeForDb, 'HH:mm', parsedAppointmentDate), totalDurationMinutes), 'HH:mm');
     const requestedSlot = `${startTimeForDb} às ${endTimeForDb}`;
 
+    console.log('book-appointment: Re-validating requestedSlot:', requestedSlot);
+    console.log('book-appointment: Parameters for getAvailableTimeSlotsBackend:', { companyId, collaboratorId, parsedAppointmentDate: parsedAppointmentDate.toISOString(), totalDurationMinutes });
+
     const availableSlots = await getAvailableTimeSlotsBackend(
       supabaseAdmin, // Use admin client for backend check
       companyId,
@@ -259,8 +294,11 @@ serve(async (req) => {
       totalDurationMinutes
     );
 
+    console.log('book-appointment: Available slots from backend (re-validation):', availableSlots);
+
     if (!availableSlots.includes(requestedSlot)) {
-      return new Response(JSON.stringify({ error: 'The selected time slot is no longer available. Please choose another time.' }), {
+      console.warn('book-appointment: Requested slot not available during re-validation.', { requestedSlot, availableSlots });
+      return new Response(JSON.stringify({ error: 'O horário selecionado não está mais disponível. Por favor, escolha outro horário.' }), {
         status: 409, // Conflict
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -286,6 +324,7 @@ serve(async (req) => {
       .single();
 
     if (insertAppointmentError) {
+      console.error('book-appointment: Error inserting appointment:', insertAppointmentError.message);
       return new Response(JSON.stringify({ error: insertAppointmentError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -303,6 +342,7 @@ serve(async (req) => {
       .insert(appointmentServicesToInsert);
 
     if (insertServicesError) {
+      console.error('book-appointment: Error inserting appointment services:', insertServicesError.message);
       // Consider rolling back the appointment if service linking fails
       await supabaseAdmin.from('appointments').delete().eq('id', appointment.id);
       return new Response(JSON.stringify({ error: 'Failed to link services to appointment: ' + insertServicesError.message }), {

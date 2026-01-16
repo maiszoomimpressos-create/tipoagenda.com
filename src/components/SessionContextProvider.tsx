@@ -83,9 +83,9 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
             return;
           }
           
-          // Se não houver empresa alvo, redireciona para a raiz.
-          // O IndexPage cuidará do redirecionamento baseado no papel.
-          navigate('/', { replace: true }); 
+          // Se não houver empresa alvo, não faz nenhum redirecionamento aqui.
+          // O IndexPage, componente pai, será responsável por direcionar o usuário com base no papel.
+          // navigate('/', { replace: true }); // Removido
 
         } else if (event === 'PASSWORD_RECOVERY') {
           showSuccess('Verifique seu e-mail para redefinir a senha.');

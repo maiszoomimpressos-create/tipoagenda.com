@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const LoginForm: React.FC = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,7 @@ const LoginForm: React.FC = () => {
       showError(error.message);
     } else {
       // Success message handled by SessionContextProvider
+      navigate('/'); // Redireciona para a rota raiz
     }
     setLoading(false);
   };

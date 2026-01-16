@@ -228,26 +228,7 @@ const ClientAppointmentsPage: React.FC = () => {
   const clientName = clientContext?.clientName || 'Cliente';
 
   const handleNewAppointmentClick = () => {
-    // Se já houver um target_company_id definido (por ex. vindo da Landing), apenas navega
-    const existingTargetCompanyId = getTargetCompanyId();
-    if (existingTargetCompanyId) {
-      navigate(`/agendar/${existingTargetCompanyId}`);
-      return;
-    }
-
-    // Tenta usar a empresa do agendamento mais recente como padrão
-    if (appointments.length > 0) {
-      const latestAppointment = appointments[0];
-      if (latestAppointment.company_id) {
-        setTargetCompanyId(latestAppointment.company_id);
-        navigate(`/agendar/${latestAppointment.company_id}`);
-        return;
-      }
-    }
-
-    // Fallback: leva para a Landing Page para escolher uma barbearia
-    showError('Selecione uma barbearia para agendar.');
-    navigate('/');
+    navigate('/selecionar-empresa');
   };
 
   return (

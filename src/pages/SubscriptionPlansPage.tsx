@@ -193,7 +193,13 @@ const SubscriptionPlansPage: React.FC = () => {
         return;
     }
 
-    if (currentSubscription && currentSubscription.status === 'active') {
+    // Verificar se há assinatura ativa (não expirada e não cancelada)
+    // Recalcular isExpired e isCanceled dentro da função para garantir valores atuais
+    const subscriptionIsCanceled = currentSubscription?.status === 'canceled';
+    const subscriptionIsExpired = currentSubscription?.end_date ? isPast(parseISO(currentSubscription.end_date)) : false;
+    const hasActiveSubscription = currentSubscription && !subscriptionIsExpired && !subscriptionIsCanceled && currentSubscription.status === 'active';
+
+    if (hasActiveSubscription) {
         showError('Você já possui uma assinatura ativa. Cancele a atual antes de mudar.');
         return;
     }
@@ -332,15 +338,6 @@ const SubscriptionPlansPage: React.FC = () => {
     }
   };
 
-  const getSubscriptionStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active': return <Badge className="bg-green-500 text-white">Ativo</Badge>;
-      case 'inactive': return <Badge className="bg-gray-500 text-white">Inativo</Badge>;
-      case 'pending': return <Badge className="bg-yellow-500 text-black">Pendente</Badge>;
-      case 'canceled': return <Badge className="bg-red-500 text-white">Cancelado</Badge>;
-      default: return null;
-    }
-  };
 
   useEffect(() => {
     fetchSubscriptionData();
@@ -373,22 +370,54 @@ const SubscriptionPlansPage: React.FC = () => {
   }
   
   const isCanceled = currentSubscription?.status === 'canceled';
+  const isExpired = currentSubscription?.end_date ? isPast(parseISO(currentSubscription.end_date)) : false; // Nova variável
   const expirationDateFormatted = currentSubscription?.end_date 
     ? format(parseISO(currentSubscription.end_date), 'dd/MM/yyyy', { locale: ptBR }) 
     : 'N/A';
+
+  // Ajustar o status para exibição
+  let displayStatus = currentSubscription?.status;
+  if (displayStatus !== 'canceled' && isExpired) {
+    displayStatus = 'expired'; // Priorizar 'expired' se não for 'canceled'
+  }
+
+  console.log('--- Debug SubscriptionPlansPage ---');
+  console.log('currentSubscription:', currentSubscription);
+  console.log('currentSubscription.end_date:', currentSubscription?.end_date);
+  if (currentSubscription?.end_date) {
+    const parsedEndDate = parseISO(currentSubscription.end_date);
+    console.log('Parsed End Date:', parsedEndDate);
+    console.log('isPast(Parsed End Date):', isPast(parsedEndDate));
+  }
+  console.log('isExpired:', isExpired);
+  console.log('currentSubscription.status (raw):', currentSubscription?.status);
+  console.log('displayStatus (final):', displayStatus);
+  console.log('Current Date (for reference):', new Date());
+  console.log('-----------------------------------');
+
+  const getSubscriptionStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active': return <Badge className="bg-green-500 text-white">Ativo</Badge>;
+      case 'inactive': return <Badge className="bg-gray-500 text-white">Inativo</Badge>;
+      case 'pending': return <Badge className="bg-yellow-500 text-black">Pendente</Badge>;
+      case 'canceled': return <Badge className="bg-red-500 text-white">Cancelado</Badge>;
+      case 'expired': return <Badge className="bg-red-500 text-white">Expirado</Badge>; // Novo badge
+      default: return null;
+    }
+  };
 
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold text-gray-900">Planos de Assinatura</h1>
 
       {/* Status da Assinatura Atual */}
-      <Card className={`border-2 shadow-lg ${isCanceled ? 'border-red-600 bg-red-50' : 'border-yellow-600'}`}>
+      <Card className={`border-2 shadow-lg ${isCanceled || isExpired ? 'border-red-600 bg-red-50' : 'border-yellow-600'}`}>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className={`text-xl text-gray-900 flex items-center gap-2 ${isCanceled ? 'text-red-600' : 'text-yellow-600'}`}>
-            {isCanceled ? <AlertTriangle className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
-            Sua Assinatura Atual
+          <CardTitle className={`text-xl text-gray-900 flex items-center gap-2 ${isCanceled || isExpired ? 'text-red-600' : 'text-yellow-600'}`}>
+            {isCanceled || isExpired ? <AlertTriangle className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
+            {isExpired && !isCanceled ? 'Assinatura Expirada' : 'Sua Assinatura Atual'}
           </CardTitle>
-          {currentSubscription && getSubscriptionStatusBadge(currentSubscription.status)}
+          {currentSubscription && displayStatus && getSubscriptionStatusBadge(displayStatus)}
         </CardHeader>
         <CardContent className="space-y-3">
           {currentSubscription ? (
@@ -441,11 +470,11 @@ const SubscriptionPlansPage: React.FC = () => {
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
               className="flex-1"
-              disabled={loadingData || !!currentSubscription}
+              disabled={loadingData || (currentSubscription && !isExpired && !isCanceled && currentSubscription.status === 'active')}
             />
             <Button 
               onClick={handleValidateCoupon} 
-              disabled={loadingData || !couponCode || !!currentSubscription}
+              disabled={loadingData || !couponCode || (currentSubscription && !isExpired && !isCanceled && currentSubscription.status === 'active')}
               className="!rounded-button whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
             >
               {loadingData ? 'Validando...' : 'Aplicar'}
@@ -478,13 +507,13 @@ const SubscriptionPlansPage: React.FC = () => {
           
           // Lógica de desabilitação corrigida:
           // 1. Desabilita se estiver carregando dados.
-          // 2. Desabilita se for o plano atual E o status for 'active' (não pode assinar o mesmo plano ativo).
+          // 2. Desabilita se for o plano atual E o status for 'active' E não estiver expirado (não pode assinar o mesmo plano ativo).
           // 3. Permite se o status for 'canceled' ou 'expired' (re-assinatura).
-          const isCurrentAndActive = isCurrentPlan && currentSubscription?.status === 'active';
+          const isCurrentAndActive = isCurrentPlan && displayStatus === 'active' && !isExpired;
           const buttonDisabled = loadingData || isCurrentAndActive;
           
-          const buttonText = isCurrentPlan && currentSubscription?.status === 'active' ? 'Plano Atual' : 'Assinar Agora';
-          const buttonClass = isCurrentPlan && currentSubscription?.status === 'active' ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
+          const buttonText = isCurrentPlan && displayStatus === 'active' && !isExpired ? 'Plano Atual' : 'Assinar Agora';
+          const buttonClass = isCurrentPlan && displayStatus === 'active' && !isExpired ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
 
           // Calculate discounted price for display
           let finalPrice = plan.price;

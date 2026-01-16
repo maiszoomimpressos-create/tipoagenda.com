@@ -52,12 +52,28 @@ const MainApplication: React.FC = () => {
     navigate(path);
   };
 
-  const finalMenuItems = menuItems.map(item => {
-    if (item.id === 'agendamentos' && primaryCompanyId) {
-      return { ...item, path: `/agendamentos/${primaryCompanyId}` };
-    }
-    return item;
-  });
+  const finalMenuItems = menuItems
+    .filter(item => {
+      // Filtrar itens com restrição de roles
+      if (item.roles && item.roles.length > 0) {
+        // Se o item requer 'Proprietário', mostrar apenas para proprietários
+        if (item.roles.includes('Proprietário')) {
+          return isProprietario;
+        }
+      }
+      // Item "Dados da Empresa" - mostrar apenas para gestores e proprietários
+      if (item.id === 'empresa') {
+        return isProprietarioOrCompanyAdmin;
+      }
+      // Outros itens sem restrição - mostrar para todos
+      return true;
+    })
+    .map(item => {
+      if (item.id === 'agendamentos' && primaryCompanyId) {
+        return { ...item, path: `/agendamentos/${primaryCompanyId}` };
+      }
+      return item;
+    });
 
   // Se o usuário é Proprietário/Admin e a assinatura expirou ou não existe, bloqueia o acesso a todas as rotas de gerenciamento
   if (isProprietarioOrCompanyAdmin && (subscriptionStatus === 'expired' || subscriptionStatus === 'no_subscription')) {
