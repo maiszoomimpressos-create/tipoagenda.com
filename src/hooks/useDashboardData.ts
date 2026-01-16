@@ -26,6 +26,13 @@ interface CollaboratorPerformance {
   appointments: number;
 }
 
+interface CriticalProduct {
+  id: string;
+  name: string;
+  quantity: number;
+  min_stock: number;
+}
+
 interface DashboardData {
   revenue: number;
   revenueChange: number;
@@ -35,6 +42,7 @@ interface DashboardData {
   criticalStockCount: number;
   appointmentsToday: AppointmentToday[];
   monthlyRevenueData: MonthlyRevenueDataPoint[];
+  criticalProducts: CriticalProduct[];
 }
 
 const initialDashboardData: DashboardData = {
@@ -45,6 +53,7 @@ const initialDashboardData: DashboardData = {
   mostActiveCollaborator: null,
   criticalStockCount: 0,
   monthlyRevenueData: [],
+  criticalProducts: [],
   appointmentsToday: [],
 };
 
@@ -146,12 +155,22 @@ export function useDashboardData() {
       // --- 4. Fetch Critical Stock Count ---
       const { data: productsData, error: prodError } = await supabase
         .from('products')
-        .select('quantity, min_stock')
+        .select('id, name, quantity, min_stock')
         .eq('company_id', primaryCompanyId);
 
       if (prodError) throw prodError;
 
       const criticalStockCount = productsData.filter(p => p.quantity < p.min_stock).length;
+      const criticalProducts: CriticalProduct[] = productsData
+        .filter(p => p.quantity < p.min_stock)
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          quantity: p.quantity,
+          min_stock: p.min_stock,
+        }));
+
+      console.log('useDashboardData: Produtos Críticos', criticalProducts); // DEBUG LOG
 
       // --- 5. Integrate Revenue KPI from useReportsData (last_month) ---
       const revenue = reportsData.revenue.value;
@@ -188,6 +207,7 @@ export function useDashboardData() {
         appointmentsTodayChange,
         mostActiveCollaborator,
         criticalStockCount,
+        criticalProducts,
         monthlyRevenueData,
         appointmentsToday,
       });

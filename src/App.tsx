@@ -9,7 +9,7 @@ import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider, useSession } from "./components/SessionContextProvider";
 import MainApplication from "./components/MainApplication";
 import ProfilePage from "./pages/ProfilePage";
-import LandingPage from "./pages/LandingPage";
+import IndexPage from "./pages/Index"; // Importar IndexPage
 import CompanyRegistrationPage from "./pages/CompanyRegistrationPage";
 import DashboardPage from "./pages/DashboardPage";
 import AgendamentosPage from "./pages/AgendamentosPage";
@@ -56,6 +56,8 @@ import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmati
 import BannerManagementPage from "./pages/BannerManagementPage"; // Importar nova página de gerenciamento de banners
 import CollaboratorServicesPage from "./pages/CollaboratorServicesPage";
 import NovaTransacaoPage from "./pages/NovaTransacaoPage";
+import CompanySelectionPage from "./pages/CompanySelectionPage";
+import EditMyCompanyPage from "./pages/EditMyCompanyPage";
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
@@ -131,7 +133,7 @@ const App = () => (
       <BrowserRouter>
         <SessionContextProvider>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<IndexPage />} />
 
             {/* Rotas de autenticação (sem layout MainApplication) */}
             <Route path="/login" element={<AuthPage />} />
@@ -183,6 +185,7 @@ const App = () => (
               {/* Rotas de Cliente (protegidas por ClientProtectedRoute) */}
               <Route path="agendar/:companyId" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
               <Route path="meus-agendamentos" element={<ClientProtectedRoute><ClientAppointmentsPage /></ClientProtectedRoute>} />
+              <Route path="selecionar-empresa" element={<ClientProtectedRoute><CompanySelectionPage /></ClientProtectedRoute>} />
 
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
@@ -206,6 +209,7 @@ const App = () => (
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
               <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
               <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
+              <Route path="empresa/editar" element={<CompanyAdminProtectedRoute><EditMyCompanyPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTORES EDITAREM DADOS DA EMPRESA */}
 
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento/:companyId" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />

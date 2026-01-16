@@ -153,15 +153,6 @@ const LandingPage: React.FC = () => {
   ]);
 
   // Logic to open the selection modal if the user is a client and just logged in without a target company
-  useEffect(() => {
-    if (!sessionLoading && session && isClient && !loadingClientCheck) {
-      const targetCompanyId = getTargetCompanyId();
-      
-      if (!targetCompanyId) {
-        setIsSelectionModalOpen(true);
-      }
-    }
-  }, [session, sessionLoading, isClient, loadingClientCheck]);
 
 
   const filteredCompanies = companies.filter(company => {
@@ -590,46 +581,11 @@ const LandingPage: React.FC = () => {
         </div>
       </footer>
       
-      {/* Company Selection Modal */}
-      {session && isClient && !loadingClientCheck && session.user && (
-        <CompanySelectionModal 
-          isOpen={isSelectionModalOpen} 
-          onClose={() => setIsConfirmLogoutDialogOpen(true)} 
-          userId={session.user.id}
-          onCompanySelected={handleCompanySelected}
-        />
-      )}
-
       {/* Contact Request Modal */}
       <ContactRequestModal
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
       />
-
-      {/* Confirm Logout Dialog */}
-      <Dialog open={isConfirmLogoutDialogOpen} onOpenChange={setIsConfirmLogoutDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Atenção!</DialogTitle>
-            <DialogDescription>
-              Você precisa selecionar uma empresa para agendar um serviço. Deseja sair e voltar para a página inicial?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsConfirmLogoutDialogOpen(false)}>
-              Não
-            </Button>
-            <Button onClick={async () => {
-              await supabase.auth.signOut();
-              setIsConfirmLogoutDialogOpen(false);
-              setIsSelectionModalOpen(false); // Garante que o modal de seleção também seja fechado
-              navigate('/', { replace: true });
-            }}>
-              Sim
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );

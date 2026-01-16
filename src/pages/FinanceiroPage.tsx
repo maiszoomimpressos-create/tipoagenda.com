@@ -9,15 +9,19 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { SellProductModal } from '@/components/SellProductModal';
 
 interface Transaction {
   id: string;
-  transaction_type: 'recebimento' | 'despesa' | 'abertura';
+  transaction_type: 'recebimento' | 'despesa' | 'abertura' | 'venda_avulsa_produto'; // Adicionado novo tipo
   total_amount: number;
   transaction_date: string;
   payment_method: string;
   observations: string | null;
   appointment_id: string | null;
+  product_id?: string | null; // Novo: Link para o produto, se for venda de produto
+  quantity_sold?: number | null; // Novo: Quantidade de produto vendida
+  unit_price?: number | null; // Novo: Preço unitário no momento da venda
 }
 
 const FinanceiroPage: React.FC = () => {
@@ -103,6 +107,7 @@ const FinanceiroPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Financeiro</h1>
         <div className="flex gap-3">
           {createButton(() => {}, 'fas fa-download', 'Exportar PDF', 'outline')}
+          {createButton(() => setIsSellProductModalOpen(true), 'fas fa-cash-register', 'Vender Produto Avulso')}
           {createButton(() => navigate('/nova-transacao'), 'fas fa-plus', 'Nova Transação')}
         </div>
       </div>
@@ -151,6 +156,16 @@ const FinanceiroPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Venda Avulsa de Produto */}
+      {primaryCompanyId && (
+        <SellProductModal
+          isOpen={isSellProductModalOpen}
+          onClose={() => setIsSellProductModalOpen(false)}
+          companyId={primaryCompanyId}
+          onSaleSuccess={fetchTransactions}
+        />
+      )}
     </div>
   );
 };
