@@ -9,6 +9,7 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError } from '@/utils/toast';
 import MonthlyRevenueChart from '@/components/MonthlyRevenueChart';
+import CriticalStockReport from '@/components/CriticalStockReport';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -131,6 +132,11 @@ const DashboardPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      <CriticalStockReport products={data.criticalProducts} />
+
+      {console.log('DashboardPage: data.criticalProducts', data.criticalProducts)} {/* DEBUG LOG */}
+
     </div>
   );
 };
