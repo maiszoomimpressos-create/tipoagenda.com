@@ -205,4 +205,5 @@ export const SellProductModal: React.FC<SellProductModalProps> = ({
           </div>
         )}
       </DialogContent>
-    </Dialog>
+    </Dialog>)
+}

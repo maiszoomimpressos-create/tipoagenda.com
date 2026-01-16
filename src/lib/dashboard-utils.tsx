@@ -91,7 +91,8 @@ export const menuItems = [
   { id: 'relatorios', label: 'Relatórios', icon: 'fas fa-chart-bar', path: '/relatorios' },
   { id: 'fidelidade', label: 'Fidelidade', icon: 'fas fa-gift', path: '/fidelidade' },
   { id: 'planos', label: 'Planos', icon: 'fas fa-gem', path: '/planos' },
-  { id: 'config', label: 'Configurações', icon: 'fas fa-cog', path: '/config', roles: ['Proprietário'] }
+  { id: 'config', label: 'Configurações', icon: 'fas fa-cog', path: '/config', roles: ['Proprietário'] },
+  { id: 'empresa', label: 'Dados da Empresa', icon: 'fas fa-building', path: '/empresa/editar' }
 ];
 
 // Removendo mockData e estoque, pois serão substituídos por dados reais
