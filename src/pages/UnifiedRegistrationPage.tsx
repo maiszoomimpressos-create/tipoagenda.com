@@ -242,40 +242,54 @@ const UnifiedRegistrationPage: React.FC = () => {
       return;
     }
 
-    let imageUrl: string | null = null;
-
+    // Convert image to base64 if present
+    let imageBase64: string | null = null;
     if (data.companyLogo && data.companyLogo.length > 0) {
       const file = data.companyLogo[0];
-      const fileExt = file.name.split('.').pop();
-      // Use a temporary unique name before the user ID is known
-      const fileName = `temp-${Date.now()}.${fileExt}`;
-      const filePath = `company_logos/${fileName}`;
-
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from('company_logos')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        showError('Erro ao fazer upload da imagem: ' + uploadError.message);
+      
+      // Validate file size (5MB max)
+      if (file.size > 5000000) {
+        setError('companyLogo', { type: 'manual', message: 'Tamanho máximo da imagem é 5MB.' });
         setLoading(false);
         return;
       }
-
-      // Get the public URL for the temporary file
-      const { data: publicUrlData } = supabase.storage
-        .from('company_logos')
-        .getPublicUrl(filePath);
       
-      imageUrl = publicUrlData.publicUrl;
-      // NOTE: The Edge Function will need to handle renaming this file later if we want to use the final user ID in the path.
-      // For now, we rely on the URL being generated correctly.
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        setError('companyLogo', { type: 'manual', message: 'Apenas .jpg, .png e .webp são aceitos.' });
+        setLoading(false);
+        return;
+      }
+      
+      const reader = new FileReader();
+      
+      // Wait for the file to be read
+      imageBase64 = await new Promise<string | null>((resolve) => {
+        reader.onloadend = () => {
+          if (reader.result && typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            console.error('Failed to read file as base64');
+            resolve(null);
+          }
+        };
+        reader.onerror = (error) => {
+          console.error('Error reading file:', error);
+          resolve(null);
+        };
+        reader.readAsDataURL(file);
+      });
+      
+      if (!imageBase64) {
+        showError('Erro ao processar a imagem. Por favor, tente novamente.');
+        setLoading(false);
+        return;
+      }
     }
     
     setPendingData(data);
-    setPendingImageUrl(imageUrl);
+    setPendingImageUrl(imageBase64);
     setIsContractModalOpen(true);
     setLoading(false);
   };
@@ -290,20 +304,62 @@ const UnifiedRegistrationPage: React.FC = () => {
 
     const data = pendingData;
 
-    // Clean data for Edge Function
-    const cleanedData = {
-      ...data,
+    // Clean data for Edge Function - create new object without File objects
+    const cleanedData: any = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      password: data.password,
+      confirmPassword: data.confirmPassword,
       phoneNumber: data.phoneNumber.replace(/\D/g, ''),
       // Placeholder values for missing fields
       cpf: '00000000000', 
       birthDate: '1900-01-01',
       gender: 'Outro',
       // End Placeholder values
+      companyName: data.companyName,
+      razaoSocial: data.razaoSocial,
       cnpj: data.cnpj.replace(/\D/g, ''),
+      ie: data.ie || '',
+      companyEmail: data.companyEmail,
       companyPhoneNumber: data.companyPhoneNumber.replace(/\D/g, ''),
+      segmentType: data.segmentType,
+      address: data.address,
+      number: data.number,
+      neighborhood: data.neighborhood,
+      complement: data.complement || '',
       zipCode: data.zipCode.replace(/\D/g, ''),
-      imageUrl: pendingImageUrl,
+      city: data.city,
+      state: data.state,
+      imageBase64: pendingImageUrl, // Base64 string or null - NO File object
     };
+
+    // Explicitly ensure no File objects are in the data
+    if (cleanedData.companyLogo) {
+      delete cleanedData.companyLogo;
+    }
+
+    // Final verification: ensure no File objects in cleanedData
+    const hasFileObjects = Object.values(cleanedData).some(val => val instanceof File || (val && typeof val === 'object' && 'constructor' in val && val.constructor.name === 'File'));
+    if (hasFileObjects) {
+      console.error('ERROR: File object detected in cleanedData!', cleanedData);
+      showError('Erro interno: objeto File detectado nos dados. Por favor, recarregue a página e tente novamente.');
+      setLoading(false);
+      return;
+    }
+
+    // Verify imageBase64 is string or null, not File
+    if (cleanedData.imageBase64 && !(typeof cleanedData.imageBase64 === 'string')) {
+      console.error('ERROR: imageBase64 is not a string!', typeof cleanedData.imageBase64, cleanedData.imageBase64);
+      showError('Erro interno: formato de imagem inválido. Por favor, recarregue a página e tente novamente.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Sending data to Edge Function (no File objects):', {
+      ...cleanedData,
+      imageBase64: cleanedData.imageBase64 ? `${cleanedData.imageBase64.substring(0, 50)}...` : null
+    });
 
     try {
       const response = await supabase.functions.invoke('register-company-and-user', {

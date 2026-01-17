@@ -20,10 +20,18 @@ const companyEditSchema = z.object({
   name: z.string().min(1, "Nome fantasia é obrigatório."),
   razao_social: z.string().min(1, "Razão social é obrigatória."),
   cnpj: z.string().min(1, "CNPJ é obrigatório."),
+  ie: z.string().optional(),
   company_email: z.string().email("E-mail inválido.").min(1, "E-mail é obrigatório."),
   phone_number: z.string().min(1, "Telefone é obrigatório."),
   segment_type: z.string().min(1, "Segmento é obrigatório."),
-  company_logo: z.any().optional(),
+  address: z.string().optional(),
+  number: z.string().optional(),
+  neighborhood: z.string().optional(),
+  complement: z.string().optional(),
+  zip_code: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  image_url: z.any().optional(),
 });
 
 type CompanyEditFormValues = z.infer<typeof companyEditSchema>;
@@ -40,8 +48,8 @@ const EditMyCompanyPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [segments, setSegments] = useState<SegmentType[]>([]);
-  const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const {
     register,
@@ -56,14 +64,22 @@ const EditMyCompanyPage: React.FC = () => {
       name: '',
       razao_social: '',
       cnpj: '',
+      ie: '',
       company_email: '',
       phone_number: '',
       segment_type: '',
+      address: '',
+      number: '',
+      neighborhood: '',
+      complement: '',
+      zip_code: '',
+      city: '',
+      state: '',
     },
   });
 
   const segmentTypeValue = watch('segment_type');
-  const logoFile = watch('company_logo');
+  const imageFile = watch('image_url');
 
   const formatPhoneNumberInput = (value: string) => {
     if (!value) return '';
@@ -88,7 +104,7 @@ const EditMyCompanyPage: React.FC = () => {
       // Fetch Company Details
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
-        .select('*')
+        .select('*') // Select all company fields
         .eq('id', primaryCompanyId)
         .single();
 
@@ -104,8 +120,8 @@ const EditMyCompanyPage: React.FC = () => {
       setSegments(segmentsData);
 
       // Set current logo URL
-      if (companyData.company_logo) {
-        setCurrentLogoUrl(companyData.company_logo);
+      if (companyData.image_url) {
+        setCurrentImageUrl(companyData.image_url);
       }
 
       // Format data for form
@@ -113,9 +129,17 @@ const EditMyCompanyPage: React.FC = () => {
         name: companyData.name,
         razao_social: companyData.razao_social,
         cnpj: formatCnpjInput(companyData.cnpj || ''),
+        ie: companyData.ie || '',
         company_email: companyData.company_email,
         phone_number: formatPhoneNumberInput(companyData.phone_number || ''),
         segment_type: companyData.segment_type,
+        address: companyData.address || '',
+        number: companyData.number || '',
+        neighborhood: companyData.neighborhood || '',
+        complement: companyData.complement || '',
+        zip_code: formatZipCodeInput(companyData.zip_code || ''),
+        city: companyData.city || '',
+        state: companyData.state || '',
       });
 
     } catch (error: any) {
@@ -133,21 +157,26 @@ const EditMyCompanyPage: React.FC = () => {
 
   // Preview do logo quando um arquivo é selecionado
   useEffect(() => {
-    if (logoFile && logoFile.length > 0) {
-      const file = logoFile[0];
+    if (imageFile && imageFile.length > 0) {
+      const file = imageFile[0];
       const reader = new FileReader();
       reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
+        setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     } else {
-      setLogoPreview(null);
+      setImagePreview(null);
     }
-  }, [logoFile]);
+  }, [imageFile]);
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedValue = formatPhoneNumberInput(e.target.value);
     setValue('phone_number', formattedValue, { shouldValidate: true });
+  };
+
+  const handleZipCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatZipCodeInput(e.target.value);
+    setValue('zip_code', formattedValue, { shouldValidate: true });
   };
 
   const onSubmit = async (data: CompanyEditFormValues) => {
@@ -161,21 +190,22 @@ const EditMyCompanyPage: React.FC = () => {
     try {
       const cleanedPhoneNumber = data.phone_number.replace(/\D/g, '');
       const cleanedCnpj = data.cnpj.replace(/\D/g, '');
+      const cleanedZipCode = data.zip_code ? data.zip_code.replace(/\D/g, '') : '';
 
-      let logoUrl = currentLogoUrl; // Mantém o logo atual por padrão
+      let imageUrl = currentImageUrl; // Mantém o logo atual por padrão
 
       // Se um novo logo foi selecionado, fazer upload
-      if (data.company_logo && data.company_logo.length > 0) {
-        const file = data.company_logo[0];
+      if (data.image_url && data.image_url.length > 0) {
+        const file = data.image_url[0];
         const fileExt = file.name.split('.').pop();
         const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
         const filePath = `company_logos/${fileName}`;
 
         // Deletar logo antigo se existir
-        if (currentLogoUrl) {
+        if (currentImageUrl) {
           try {
             // Extrair o caminho do arquivo da URL completa
-            const urlParts = currentLogoUrl.split('/');
+            const urlParts = currentImageUrl.split('/');
             const fileNameIndex = urlParts.findIndex(part => part === 'company_logos') + 1;
             if (fileNameIndex > 0 && fileNameIndex < urlParts.length) {
               const fileName = urlParts.slice(fileNameIndex).join('/');
@@ -204,7 +234,7 @@ const EditMyCompanyPage: React.FC = () => {
           .from('company_logos')
           .getPublicUrl(filePath);
         
-        logoUrl = publicUrlData.publicUrl;
+        imageUrl = publicUrlData.publicUrl;
       }
 
       const { error } = await supabase
@@ -213,10 +243,18 @@ const EditMyCompanyPage: React.FC = () => {
           name: data.name,
           razao_social: data.razao_social,
           cnpj: cleanedCnpj,
+          ie: data.ie,
           company_email: data.company_email,
           phone_number: cleanedPhoneNumber,
           segment_type: data.segment_type,
-          company_logo: logoUrl,
+          address: data.address,
+          number: data.number,
+          neighborhood: data.neighborhood,
+          complement: data.complement,
+          zip_code: cleanedZipCode,
+          city: data.city,
+          state: data.state,
+          image_url: imageUrl,
         })
         .eq('id', primaryCompanyId);
 
@@ -282,24 +320,24 @@ const EditMyCompanyPage: React.FC = () => {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Logo da Empresa */}
             <div className="space-y-2">
-              <Label htmlFor="company_logo">Logo da Empresa</Label>
+              <Label htmlFor="image_url">Logo da Empresa</Label>
               <div className="flex items-center gap-4">
-                {(logoPreview || currentLogoUrl) && (
+                {(imagePreview || currentImageUrl) && (
                   <div className="relative">
                     <img
-                      src={logoPreview || currentLogoUrl || ''}
+                      src={imagePreview || currentImageUrl || ''}
                       alt="Logo atual"
                       className="w-32 h-32 object-contain border border-gray-300 rounded-lg"
                     />
-                    {logoPreview && (
+                    {imagePreview && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white h-6 w-6 rounded-full"
                         onClick={() => {
-                          setValue('company_logo', undefined);
-                          setLogoPreview(null);
+                          setValue('image_url', undefined);
+                          setImagePreview(null);
                         }}
                       >
                         <X className="h-3 w-3" />
@@ -309,10 +347,10 @@ const EditMyCompanyPage: React.FC = () => {
                 )}
                 <div className="flex-1">
                   <Input
-                    id="company_logo"
+                    id="image_url"
                     type="file"
                     accept="image/*"
-                    {...register('company_logo')}
+                    {...register('image_url')}
                     className="mt-1"
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -375,6 +413,64 @@ const EditMyCompanyPage: React.FC = () => {
               </Select>
               {errors.segment_type && <p className="text-red-500 text-xs mt-1">{errors.segment_type.message}</p>}
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="ie">Inscrição Estadual</Label>
+                <Input id="ie" {...register('ie')} className="mt-1" />
+                {errors.ie && <p className="text-red-500 text-xs mt-1">{errors.ie.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="zip_code">CEP</Label>
+                <Input
+                  id="zip_code"
+                  {...register('zip_code')}
+                  onChange={handleZipCodeChange}
+                  maxLength={9}
+                  className="mt-1"
+                />
+                {errors.zip_code && <p className="text-red-500 text-xs mt-1">{errors.zip_code.message}</p>}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="address">Endereço</Label>
+              <Input id="address" {...register('address')} className="mt-1" />
+              {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="number">Número</Label>
+                <Input id="number" {...register('number')} className="mt-1" />
+                {errors.number && <p className="text-red-500 text-xs mt-1">{errors.number.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="complement">Complemento</Label>
+                <Input id="complement" {...register('complement')} className="mt-1" />
+                {errors.complement && <p className="text-red-500 text-xs mt-1">{errors.complement.message}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="neighborhood">Bairro</Label>
+                <Input id="neighborhood" {...register('neighborhood')} className="mt-1" />
+                {errors.neighborhood && <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="city">Cidade</Label>
+                <Input id="city" {...register('city')} className="mt-1" />
+                {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="state">Estado</Label>
+              <Input id="state" {...register('state')} className="mt-1" />
+              {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state.message}</p>}
+            </div>
+
             <Button
               type="submit"
               className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base"

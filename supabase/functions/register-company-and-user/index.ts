@@ -56,7 +56,7 @@ serve(async (req) => {
         gender = 'Outro',
         // Company Data
         companyName, razaoSocial, cnpj, ie, companyEmail, companyPhoneNumber, segmentType,
-        address, number, neighborhood, complement, zipCode, city, state, imageUrl
+        address, number, neighborhood, complement, zipCode, city, state, imageBase64
     } = await req.json();
 
     // 1. Input Validation (Basic check, detailed validation is done on frontend)
@@ -92,7 +92,68 @@ serve(async (req) => {
     }
     const userId = authData.user.id;
 
-    // 4. Insert Company
+    // 4. Upload company logo if provided
+    let imageUrl: string | null = null;
+    if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.trim() !== '') {
+        try {
+            // Validate and extract base64 data
+            let base64Data: string;
+            if (imageBase64.includes(',')) {
+                base64Data = imageBase64.split(',')[1]; // Remove data:image/...;base64, prefix
+            } else {
+                base64Data = imageBase64; // Assume it's already just the base64 data
+            }
+
+            if (!base64Data || base64Data.trim() === '') {
+                console.warn('Empty base64 data provided, skipping image upload');
+            } else {
+                // Convert base64 to buffer
+                const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+                
+                // Determine file extension from base64 data URL or default to jpg
+                let fileExt = 'jpg';
+                const mimeMatch = imageBase64.match(/data:image\/(\w+);base64/);
+                if (mimeMatch && mimeMatch[1]) {
+                    fileExt = mimeMatch[1].toLowerCase();
+                    // Normalize extensions
+                    if (fileExt === 'jpeg') fileExt = 'jpg';
+                }
+                
+                const fileName = `${userId}-${Date.now()}.${fileExt}`;
+                const filePath = fileName; // Path should be just the filename, not include bucket name
+
+                console.log(`Uploading image: ${fileName} to company_logos bucket`);
+
+                // Upload to Supabase Storage using admin client (bypasses RLS)
+                const { error: uploadError } = await supabaseAdmin.storage
+                    .from('company_logos')
+                    .upload(filePath, imageBuffer, {
+                        contentType: `image/${fileExt}`,
+                        cacheControl: '3600',
+                        upsert: false,
+                    });
+
+                if (uploadError) {
+                    console.error('Image Upload Error:', uploadError.message, uploadError);
+                    // Don't fail the registration if image upload fails, just log it and continue
+                    imageUrl = null;
+                } else {
+                    // Get public URL
+                    const { data: publicUrlData } = supabaseAdmin.storage
+                        .from('company_logos')
+                        .getPublicUrl(filePath);
+                    imageUrl = publicUrlData.publicUrl;
+                    console.log(`Image uploaded successfully: ${imageUrl}`);
+                }
+            }
+        } catch (error: any) {
+            console.error('Error processing image:', error.message, error);
+            // Don't fail the registration if image processing fails, just continue without image
+            imageUrl = null;
+        }
+    }
+
+    // 5. Insert Company
     const { data: companyData, error: insertCompanyError } = await supabaseAdmin
         .from('companies')
         .insert({
@@ -126,7 +187,7 @@ serve(async (req) => {
     }
     const companyId = companyData.id;
 
-    // 5. Assign Proprietário Role and Set as Primary
+    // 6. Assign Proprietário Role and Set as Primary
     const { error: assignRoleError } = await supabaseAdmin.rpc('assign_user_to_company', {
         p_user_id: userId,
         p_company_id: companyId,
@@ -149,7 +210,7 @@ serve(async (req) => {
         throw new Error('Failed to set company as primary: ' + setPrimaryError.message);
     }
 
-    // 6. Update user type to PROPRIETARIO
+    // 7. Update user type to PROPRIETARIO
     const { error: updateTypeError } = await supabaseAdmin
         .from('type_user')
         .update({ cod: 'PROPRIETARIO', descr: 'Proprietário' })
@@ -159,7 +220,7 @@ serve(async (req) => {
         console.warn('Failed to update user type to Proprietario:', updateTypeError.message);
     }
 
-    // 7. Generate Session Token for automatic login
+    // 8. Generate Session Token for automatic login
     const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'magiclink',
         email: email,
