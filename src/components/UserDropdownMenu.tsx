@@ -18,6 +18,7 @@ import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useIsClient } from '@/hooks/useIsClient';
 import { markExplicitLogout } from '@/utils/auth-state';
+import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 
 interface UserDropdownMenuProps {
   session: Session | null;
@@ -32,17 +33,7 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { isClient, loadingClientCheck } = useIsClient();
-
-  const handleLogout = async () => {
-    markExplicitLogout(); // Marca que o logout foi explícito
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      showError('Erro ao fazer logout: ' + error.message);
-    } else {
-      // O redirecionamento para a Landing Page será tratado pelo SessionContextProvider
-      // showSuccess('Logout realizado com sucesso!'); // O SessionContextProvider já exibe este toast
-    }
-  };
+  const { primaryCompanyName, loadingPrimaryCompany } = usePrimaryCompany();
 
   const isProprietarioOrCompanyAdmin = isProprietario || isCompanyAdmin;
   const isAnyAdminRole = isGlobalAdmin || isProprietarioOrCompanyAdmin;
@@ -50,18 +41,79 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
   // Novo cálculo: O usuário é um cliente puro (não Proprietário/Admin/GlobalAdmin)
   const isPureClient = isClient && !isAnyAdminRole;
 
+  const handleLogout = async () => {
+    try {
+      markExplicitLogout(); // Marca que o logout foi explícito
+      
+      // Tentar fazer logout normalmente
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn('Logout error (will clear manually):', error.message);
+        }
+      } catch (signOutError: any) {
+        console.warn('SignOut failed (will clear manually):', signOutError);
+      }
+      
+      // Limpar manualmente o localStorage do Supabase para garantir que a sessão seja removida
+      try {
+        // Limpar todas as chaves relacionadas ao Supabase Auth
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('supabase') || key.includes('auth'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Limpar sessionStorage também
+        const sessionKeysToRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (key.includes('supabase') || key.includes('auth'))) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+      } catch (clearError) {
+        console.error('Error clearing storage:', clearError);
+      }
+      
+      // Forçar atualização da sessão no Supabase
+      await supabase.auth.getSession();
+      
+      // Redirecionar para a Landing Page e recarregar para garantir limpeza completa
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('Unexpected error during logout:', error);
+      // Em caso de erro, forçar redirecionamento e limpeza
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (e) {
+        console.error('Failed to clear storage:', e);
+      }
+      window.location.href = '/';
+    }
+  };
+
+  const displayName = primaryCompanyName && !loadingPrimaryCompany && isProprietarioOrCompanyAdmin 
+    ? primaryCompanyName
+    : userName;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="flex flex-col items-center gap-1 !rounded-button cursor-pointer px-3 py-2">
           <Menu className="h-5 w-5" />
-          <span className="text-xs text-gray-700">{userName}</span>
+          <span className="text-xs text-gray-700">{displayName}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col">
-            <span>{userName}</span>
+            <span>{displayName}</span>
             <span className="text-xs text-gray-500">{userEmail}</span>
           </div>
         </DropdownMenuLabel>
@@ -70,6 +122,14 @@ const UserDropdownMenu: React.FC<UserDropdownMenuProps> = ({ session }) => {
           <i className="fas fa-user mr-2"></i>
           Meu Perfil
         </DropdownMenuItem>
+
+        {/* Link para Dados da Empresa (Proprietário/Admin da Empresa) */}
+        {!loadingProprietarioCheck && !loadingCompanyAdminCheck && isProprietarioOrCompanyAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/empresa/editar')}>
+            <i className="fas fa-building mr-2"></i>
+            Dados da Empresa
+          </DropdownMenuItem>
+        )}
         
         {/* Link para Dashboard Admin Global (Apenas Admin Global) */}
         {!loadingGlobalAdminCheck && isGlobalAdmin && (

@@ -13,6 +13,7 @@ interface UserCompanyContext {
 export function usePrimaryCompany() {
   const { session, loading: sessionLoading } = useSession();
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string | null>(null);
+  const [primaryCompanyName, setPrimaryCompanyName] = useState<string | null>(null);
   const [loadingPrimaryCompany, setLoadingPrimaryCompany] = useState(true);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export function usePrimaryCompany() {
 
       if (!session?.user) {
         setPrimaryCompanyId(null);
+        setPrimaryCompanyName(null);
         setLoadingPrimaryCompany(false);
         return;
       }
@@ -40,14 +42,28 @@ export function usePrimaryCompany() {
 
         if (primaryCompany) {
           setPrimaryCompanyId(primaryCompany.company_id);
+
+          // Fetch company name using the primaryCompanyId
+          const { data: companyNameData, error: companyNameError } = await supabase
+            .from('companies')
+            .select('name')
+            .eq('id', primaryCompany.company_id)
+            .single();
+
+          if (companyNameError) {
+            throw companyNameError;
+          }
+          setPrimaryCompanyName(companyNameData.name);
         } else {
           setPrimaryCompanyId(null);
+          setPrimaryCompanyName(null);
         }
 
       } catch (error: any) {
         console.error('Error fetching primary company:', error);
         showError('Erro ao carregar empresa primária: ' + error.message);
         setPrimaryCompanyId(null);
+        setPrimaryCompanyName(null);
       } finally {
         setLoadingPrimaryCompany(false);
       }
@@ -56,5 +72,5 @@ export function usePrimaryCompany() {
     fetchPrimaryCompany();
   }, [session, sessionLoading]);
 
-  return { primaryCompanyId, loadingPrimaryCompany };
+  return { primaryCompanyId, primaryCompanyName, loadingPrimaryCompany };
 }

@@ -81,7 +81,7 @@ serve(async (req) => {
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const MERCADOPAGO_ACCESS_TOKEN = Deno.env.get('PAYMENT_API_KEY_SECRET');
-  const SITE_URL = Deno.env.get('SITE_URL') ?? 'http://localhost:8080';
+  const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://tipoagenda.com';
 
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
@@ -94,21 +94,86 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !user) return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token or user not found' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
-    const { planId, companyId, planName, planPrice, durationMonths, coupon } = await req.json();
-
-    if (!planId || !companyId || !planName || planPrice === undefined || durationMonths === undefined) {
-      return new Response(JSON.stringify({ error: 'Missing required plan or company data' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (userError || !user) {
+      console.error('Edge Function - Authentication error:', userError);
+      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token or user not found' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    let finalPrice = planPrice;
-    let finalDurationMonths = durationMonths;
+    let requestData;
+    try {
+      requestData = await req.json();
+      console.log('Edge Function - Received request data:', JSON.stringify(requestData, null, 2));
+    } catch (jsonError: any) {
+      console.error('Edge Function - JSON parse error:', jsonError);
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body: ' + (jsonError?.message || 'Unknown error') }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    const { planId, companyId, planName, planPrice, durationMonths, coupon } = requestData;
+
+    console.log('Edge Function - Extracted fields:', { 
+      planId: planId ? `${planId.substring(0, 8)}...` : 'null/undefined',
+      companyId: companyId ? `${companyId.substring(0, 8)}...` : 'null/undefined',
+      planName,
+      planPrice,
+      durationMonths,
+      hasCoupon: !!coupon
+    });
+
+    // Validate required fields (check for null, undefined, empty string, or empty object)
+    if (!planId || typeof planId !== 'string' || planId.trim() === '') {
+      console.error('Edge Function - Invalid planId:', planId);
+      return new Response(JSON.stringify({ error: 'Missing or invalid planId' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (!companyId || typeof companyId !== 'string' || companyId.trim() === '') {
+      console.error('Edge Function - Invalid companyId:', companyId);
+      return new Response(JSON.stringify({ error: 'Missing or invalid companyId' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (!planName || typeof planName !== 'string' || planName.trim() === '') {
+      console.error('Edge Function - Invalid planName:', planName);
+      return new Response(JSON.stringify({ error: 'Missing or invalid planName' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (planPrice === undefined || planPrice === null) {
+      console.error('Edge Function - Missing planPrice');
+      return new Response(JSON.stringify({ error: 'Missing planPrice' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (durationMonths === undefined || durationMonths === null) {
+      console.error('Edge Function - Missing durationMonths');
+      return new Response(JSON.stringify({ error: 'Missing durationMonths' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Ensure planPrice and durationMonths are numbers
+    const numericPlanPrice = Number(planPrice);
+    const numericDurationMonths = Number(durationMonths);
+    
+    if (isNaN(numericPlanPrice) || isNaN(numericDurationMonths) || numericPlanPrice < 0 || numericDurationMonths <= 0) {
+      console.error('Edge Function - Invalid plan price or duration:', { numericPlanPrice, numericDurationMonths });
+      return new Response(JSON.stringify({ error: 'Invalid plan price or duration' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    let finalPrice = numericPlanPrice;
+    let finalDurationMonths = numericDurationMonths;
     let couponId = null;
 
     // --- 1. Apply Coupon Logic (if provided) ---
-    if (coupon) {
+    if (coupon && coupon !== null && typeof coupon === 'object') {
+        // Validate coupon structure
+        if (!coupon.id || !coupon.discount_type || coupon.discount_value === undefined || coupon.discount_value === null) {
+            console.error('Edge Function - Invalid coupon structure:', coupon);
+            return new Response(JSON.stringify({ error: 'Invalid coupon structure. Missing required fields: id, discount_type, or discount_value' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+        }
+
         couponId = coupon.id;
+        console.log(`Edge Function - Applying coupon: ${couponId}, type: ${coupon.discount_type}, value: ${coupon.discount_value}`);
         
         // Re-validate coupon usage (security check against race conditions)
         const { data: usageData, error: usageError } = await supabaseAdmin
@@ -118,22 +183,53 @@ serve(async (req) => {
             .eq('admin_coupon_id', couponId)
             .limit(1);
 
-        if (usageError) throw usageError;
+        if (usageError) {
+            console.error('Edge Function - Error checking coupon usage:', usageError);
+            throw usageError;
+        }
         if (usageData && usageData.length > 0) {
             throw new Error('Coupon already used by this company.');
         }
 
+        // Validate discount_value is a number
+        const discountValue = Number(coupon.discount_value);
+        if (isNaN(discountValue) || discountValue < 0) {
+            console.error('Edge Function - Invalid discount value:', coupon.discount_value);
+            return new Response(JSON.stringify({ error: 'Invalid coupon discount value' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+        }
+
         // Apply financial discount
         if (coupon.discount_type === 'percentual') {
-            finalPrice = planPrice * (1 - coupon.discount_value / 100);
+            if (discountValue > 100) {
+                return new Response(JSON.stringify({ error: 'Invalid percentage discount: cannot exceed 100%' }), { 
+                    status: 400, 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                });
+            }
+            finalPrice = numericPlanPrice * (1 - discountValue / 100);
         } else if (coupon.discount_type === 'fixed') {
-            finalPrice = Math.max(0, planPrice - coupon.discount_value);
+            finalPrice = Math.max(0, numericPlanPrice - discountValue);
+        } else {
+            return new Response(JSON.stringify({ error: 'Invalid discount type. Must be "percentual" or "fixed"' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
         }
         
         // Apply time discount (30 days / 1 month free trial)
         finalDurationMonths += 1; // Add 1 month free trial
 
-        console.log(`Coupon applied. Original Price: ${planPrice}, Final Price: ${finalPrice}, Final Duration: ${finalDurationMonths} months.`);
+        console.log(`Edge Function - Coupon applied. Original Price: ${numericPlanPrice}, Final Price: ${finalPrice}, Final Duration: ${finalDurationMonths} months.`);
+    } else if (coupon !== null && coupon !== undefined) {
+        // Coupon was provided but is not a valid object
+        console.error('Edge Function - Invalid coupon format (not null and not object):', coupon);
+        return new Response(JSON.stringify({ error: 'Invalid coupon format' }), { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
     }
 
     // --- 2. Handle Subscription Activation ---
@@ -166,6 +262,15 @@ serve(async (req) => {
         }
 
         // --- NEW: Register payment attempt as 'initiated' ---
+        // Ensure amount is a valid number
+        const paymentAmount = Number(finalPrice);
+        if (isNaN(paymentAmount) || paymentAmount <= 0) {
+            console.error('Edge Function - Invalid payment amount:', finalPrice);
+            throw new Error('Invalid payment amount: ' + finalPrice);
+        }
+
+        console.log(`Edge Function - Creating payment attempt with amount: ${paymentAmount}`);
+
         const { data: paymentAttempt, error: paInsertError } = await supabaseAdmin
             .from('payment_attempts')
             .insert({
@@ -173,7 +278,7 @@ serve(async (req) => {
                 plan_id: planId,
                 user_id: user.id,
                 status: 'initiated',
-                amount: finalPrice,
+                amount: paymentAmount,
                 currency: 'BRL',
             })
             .select('id')
@@ -186,12 +291,31 @@ serve(async (req) => {
         const paymentAttemptId = paymentAttempt.id;
         console.log(`Payment attempt ${paymentAttemptId} initiated.`);
 
+        // Ensure finalPrice is a valid number greater than 0
+        const validFinalPrice = Number(finalPrice);
+        if (isNaN(validFinalPrice) || validFinalPrice <= 0) {
+            console.error('Edge Function - Invalid final price:', finalPrice, 'validFinalPrice:', validFinalPrice);
+            throw new Error('Invalid final price for payment: ' + finalPrice);
+        }
+
+        // Mercado Pago minimum value is 0.50 BRL
+        if (validFinalPrice < 0.50) {
+            console.error('Edge Function - Price below Mercado Pago minimum:', validFinalPrice);
+            return new Response(JSON.stringify({ error: 'O valor mínimo para pagamento é R$ 0,50. Seu plano tem desconto aplicado que resulta em valor abaixo do mínimo.' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+        }
+
+        // Round to 2 decimal places for Mercado Pago
+        const roundedPrice = Math.round(validFinalPrice * 100) / 100;
+        console.log(`Edge Function - Creating Mercado Pago preference with price: ${roundedPrice} (original: ${validFinalPrice})`);
 
         const preferenceBody = {
             items: [
                 {
-                    title: `Assinatura: ${planName} (${durationMonths} meses) - Desconto Aplicado`,
-                    unit_price: finalPrice,
+                    title: `Assinatura: ${planName} (${finalDurationMonths} meses)${coupon ? ' - Desconto Aplicado' : ''}`,
+                    unit_price: roundedPrice,
                     quantity: 1,
                     currency_id: 'BRL',
                 },
@@ -217,11 +341,23 @@ serve(async (req) => {
         });
 
         if (!mpResponse.ok) {
-            const errorData = await mpResponse.json();
-            console.error('Mercado Pago API Error:', mpResponse.status, errorData);
+            let errorMessage = `Mercado Pago API error: ${mpResponse.status} ${mpResponse.statusText}`;
+            try {
+                const errorData = await mpResponse.json();
+                console.error('Mercado Pago API Error:', mpResponse.status, errorData);
+                if (errorData.message) {
+                    errorMessage = `Mercado Pago API error: ${errorData.message}`;
+                } else if (errorData.error) {
+                    errorMessage = `Mercado Pago API error: ${errorData.error}`;
+                } else if (Array.isArray(errorData.cause) && errorData.cause.length > 0) {
+                    errorMessage = `Mercado Pago API error: ${errorData.cause[0].description || errorData.cause[0].message || errorMessage}`;
+                }
+            } catch (parseError) {
+                console.error('Failed to parse Mercado Pago error response:', parseError);
+            }
             // --- NEW: Update payment attempt status to 'failed' if Mercado Pago call fails ---
             await supabaseAdmin.from('payment_attempts').update({ status: 'failed' }).eq('id', paymentAttemptId);
-            throw new Error(`Mercado Pago API error: ${errorData.message || mpResponse.statusText}`);
+            throw new Error(errorMessage);
         }
 
         const mpData = await mpResponse.json();
@@ -240,8 +376,14 @@ serve(async (req) => {
     }
 
   } catch (error: any) {
-    console.error('Edge Function Error (apply-coupon-and-subscribe): Uncaught exception:', error.message);
-    return new Response(JSON.stringify({ error: 'Failed to process subscription: ' + error.message }), {
+    console.error('Edge Function Error (apply-coupon-and-subscribe): Uncaught exception:', error);
+    const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+    console.error('Edge Function Error - Full error details:', {
+      message: errorMessage,
+      stack: error?.stack,
+      name: error?.name,
+    });
+    return new Response(JSON.stringify({ error: 'Failed to process subscription: ' + errorMessage }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

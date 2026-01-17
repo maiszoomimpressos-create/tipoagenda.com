@@ -59,6 +59,7 @@ import NovaTransacaoPage from "./pages/NovaTransacaoPage";
 import CompanySelectionPage from "./pages/CompanySelectionPage";
 import EditMyCompanyPage from "./pages/EditMyCompanyPage";
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
+import { useIsProprietario } from "./hooks/useIsProprietario";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
 import ContractList from "./components/ContractList";
@@ -95,14 +96,14 @@ const GlobalAdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ ch
 };
 
 const CompanyAdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
+  const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
   const { loading: sessionLoading } = useSession();
 
-  if (sessionLoading || loadingCompanyAdminCheck) {
-    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de administrador da empresa...</div>;
+  if (sessionLoading || loadingProprietarioCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de proprietário da empresa...</div>;
   }
 
-  if (!isCompanyAdmin) {
+  if (!isProprietario) {
     return <Navigate to="/dashboard" replace />;
   }
 

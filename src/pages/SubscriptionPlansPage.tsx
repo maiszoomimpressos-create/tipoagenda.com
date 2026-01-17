@@ -107,21 +107,48 @@ const SubscriptionPlansPage: React.FC = () => {
 
   // Effect to handle Mercado Pago redirects (success/failure)
   useEffect(() => {
+    // Aguardar até que a sessão esteja carregada antes de processar o status
+    if (sessionLoading) {
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
 
+    if (!status) {
+      return; // Não há status na URL, não fazer nada
+    }
+
+    // Verificar se há sessão válida
+    if (!session?.user) {
+      console.warn('SubscriptionPlansPage - No session found after payment return, redirecting to login');
+      showError('Sua sessão expirou. Por favor, faça login novamente.');
+      navigate('/login', { replace: true });
+      return;
+    }
+
     if (status === 'success') {
       showSuccess('Pagamento aprovado! Sua assinatura será ativada em breve.');
-      navigate('/planos', { replace: true });
+      // Atualizar dados da assinatura antes de redirecionar
       fetchSubscriptionData();
+      // Redirecionar para o dashboard após um pequeno delay para mostrar a mensagem
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 2000);
     } else if (status === 'failure') {
       showError('O pagamento falhou. Por favor, tente novamente.');
+      // Limpar parâmetros da URL mas manter na página de planos
       navigate('/planos', { replace: true });
     } else if (status === 'pending') {
       showSuccess('Pagamento pendente. Sua assinatura será ativada assim que o pagamento for confirmado.');
-      navigate('/planos', { replace: true });
+      // Atualizar dados da assinatura
+      fetchSubscriptionData();
+      // Redirecionar para o dashboard após um pequeno delay
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 2000);
     }
-  }, [navigate, fetchSubscriptionData]);
+  }, [navigate, fetchSubscriptionData, sessionLoading, session]);
 
   const handleValidateCoupon = async () => {
     if (!couponCode || !primaryCompanyId || !session?.user) {
@@ -264,38 +291,97 @@ const SubscriptionPlansPage: React.FC = () => {
         }
 
         // Case: Payment needed, call Edge Function
+        // Validate required fields before calling Edge Function
+        if (!plan.id || !primaryCompanyId || !plan.name || plan.price === undefined || plan.price === null || plan.duration_months === undefined || plan.duration_months === null) {
+            throw new Error('Dados do plano incompletos. Por favor, recarregue a página e tente novamente.');
+        }
+
+        // Convert and validate price
+        const numericPrice = Number(plan.price);
+        const numericDuration = Number(plan.duration_months);
+
+        if (isNaN(numericPrice) || numericPrice < 0) {
+            throw new Error('Preço do plano inválido.');
+        }
+
+        if (isNaN(numericDuration) || numericDuration <= 0 || !Number.isInteger(numericDuration)) {
+            throw new Error('Duração do plano inválida.');
+        }
+
+        const requestBody = {
+            planId: String(plan.id),
+            companyId: String(primaryCompanyId),
+            planName: String(plan.name),
+            planPrice: numericPrice,
+            durationMonths: numericDuration,
+            coupon: validatedCoupon ? {
+                id: String(validatedCoupon.id),
+                discount_type: String(validatedCoupon.discount_type),
+                discount_value: Number(validatedCoupon.discount_value),
+            } : null,
+        };
+
+        console.log('SubscriptionPlansPage - Sending request:', {
+            planId: requestBody.planId,
+            companyId: requestBody.companyId,
+            planName: requestBody.planName,
+            planPrice: requestBody.planPrice,
+            durationMonths: requestBody.durationMonths,
+            coupon: requestBody.coupon ? { id: requestBody.coupon.id, discount_type: requestBody.coupon.discount_type, discount_value: requestBody.coupon.discount_value } : null,
+        });
+
         const response = await supabase.functions.invoke('apply-coupon-and-subscribe', {
-            body: JSON.stringify({
-                planId: plan.id,
-                companyId: primaryCompanyId,
-                planName: plan.name,
-                planPrice: plan.price, // Original plan price
-                finalPrice: finalPrice, // Pass calculated final price to Edge Function
-                durationMonths: plan.duration_months,
-                coupon: validatedCoupon,
-            }),
+            body: JSON.stringify(requestBody),
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`,
             },
         });
 
+        // Check if response has an error
         if (response.error) {
             let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
-            if (response.error.context && response.error.context.data && response.error.context.data.error) {
-                edgeFunctionErrorMessage = response.error.context.data.error;
+            
+            // Try to extract error message from different possible response structures
+            if (response.error.context?.data) {
+                if (typeof response.error.context.data === 'string') {
+                    try {
+                        const parsedError = JSON.parse(response.error.context.data);
+                        edgeFunctionErrorMessage = parsedError.error || edgeFunctionErrorMessage;
+                    } catch {
+                        edgeFunctionErrorMessage = response.error.context.data;
+                    }
+                } else if (response.error.context.data.error) {
+                    edgeFunctionErrorMessage = response.error.context.data.error;
+                }
             } else if (response.error.message) {
                 edgeFunctionErrorMessage = response.error.message;
             }
+            
             throw new Error(edgeFunctionErrorMessage);
         }
 
-        const { initPoint, subscriptionId } = response.data as { initPoint: string | null, subscriptionId: string | null };
+        // Also check if response.data has an error field (Edge Function might return error in data)
+        if (response.data && typeof response.data === 'object' && 'error' in response.data) {
+            const errorData = response.data as { error: string };
+            throw new Error(errorData.error || 'Erro desconhecido da Edge Function.');
+        }
 
-        if (initPoint) {
-            window.location.href = initPoint;
-        } else if (subscriptionId) {
+        const responseData = response.data as { 
+            initPoint?: string | null, 
+            subscriptionId?: string | null,
+            message?: string,
+            preferenceId?: string,
+            paymentAttemptId?: string
+        };
+
+        if (responseData.initPoint) {
+            window.location.href = responseData.initPoint;
+        } else if (responseData.subscriptionId) {
             showSuccess('Assinatura ativada com sucesso! Aproveite seu período de teste.');
+            fetchSubscriptionData();
+        } else if (responseData.message) {
+            showSuccess(responseData.message);
             fetchSubscriptionData();
         } else {
             throw new Error('Resposta de pagamento inválida.');
