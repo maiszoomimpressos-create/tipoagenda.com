@@ -49,8 +49,7 @@ const PaymentAttemptsPage: React.FC = () => {
           created_at,
           updated_at,
           companies(name, cnpj),
-          subscription_plans(name),
-          auth_users:user_id(email)
+          subscription_plans(name)
         `)
         .order('created_at', { ascending: false });
 

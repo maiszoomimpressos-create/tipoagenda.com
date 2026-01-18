@@ -20,7 +20,19 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const isUserLoggedInRef = useRef(false);
   // Flag para rastrear se ainda estamos na fase de inicialização (restauração da sessão)
   const isInitializingRef = useRef(true);
+  // Ref para manter a sessão anterior e comparar mudanças reais
+  const previousSessionRef = useRef<Session | null>(null);
   const navigate = useNavigate();
+
+  // Função helper para verificar se a sessão realmente mudou (mudança de usuário)
+  const hasSessionChanged = (prevSession: Session | null, newSession: Session | null): boolean => {
+    // Se ambas são null, não mudou
+    if (!prevSession && !newSession) return false;
+    // Se uma é null e outra não, mudou
+    if (!prevSession || !newSession) return true;
+    // Compara o ID do usuário - se for diferente, é uma mudança real
+    return prevSession.user.id !== newSession.user.id;
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -44,9 +56,39 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         
         // Após a inicialização, processa os eventos normalmente
         const wasLoggedIn = isUserLoggedInRef.current;
+        const previousSession = previousSessionRef.current;
         
-        // Atualiza a sessão apenas após a inicialização estar completa
-        setSession(currentSession);
+        // Verifica se o usuário realmente mudou
+        const userChanged = hasSessionChanged(previousSession, currentSession);
+        
+        // Ignora eventos TOKEN_REFRESHED e SIGNED_IN se o usuário não mudou (evita resetar a aplicação)
+        // SIGNED_IN pode ser disparado novamente quando a aba volta ao foco, mesmo sendo o mesmo usuário
+        const isTokenRefresh = event === 'TOKEN_REFRESHED';
+        const isSignedIn = event === 'SIGNED_IN';
+        const isSignedOut = event === 'SIGNED_OUT';
+        const isUserUpdated = event === 'USER_UPDATED';
+        const isPasswordRecovery = event === 'PASSWORD_RECOVERY';
+        
+        // Se for refresh de token ou SIGNED_IN repetido e o usuário não mudou, ignora completamente
+        // para evitar re-renderizações desnecessárias que resetam a aplicação
+        if ((isTokenRefresh || (isSignedIn && wasLoggedIn)) && !userChanged) {
+          console.log(`SessionContextProvider - Ignorando ${event} - usuário não mudou (já estava logado), evitando re-render`);
+          // Atualiza apenas a referência da sessão sem causar re-render
+          previousSessionRef.current = currentSession;
+          return;
+        }
+        
+        // Para eventos críticos ou mudanças reais de usuário, atualiza a sessão
+        // Isso garante que eventos importantes sempre sejam processados
+        const shouldUpdateSession = isSignedOut || isUserUpdated || isPasswordRecovery || userChanged || (isSignedIn && !wasLoggedIn);
+        
+        if (shouldUpdateSession) {
+          setSession(currentSession);
+          previousSessionRef.current = currentSession;
+        } else {
+          // Mesmo que não atualize o estado, mantém a referência atualizada
+          previousSessionRef.current = currentSession;
+        }
 
         if (currentSession) {
           isUserLoggedInRef.current = true;
@@ -104,6 +146,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       
       // Define a sessão inicial (fonte da verdade)
       setSession(initialSession);
+      previousSessionRef.current = initialSession;
       
       if (initialSession) {
         isUserLoggedInRef.current = true;

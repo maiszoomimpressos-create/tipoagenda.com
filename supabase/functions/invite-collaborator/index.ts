@@ -102,9 +102,11 @@ serve(async (req) => {
     let inviteOperationMessage = '';
 
     // Check if a user with this email already exists in auth.users
-    const { data: existingAuthUser, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+    const { data: { users: existingAuthUsers }, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.listUsers({
+      email: email,
+    });
 
-    if (fetchExistingUserError && fetchExistingUserError.message !== 'User not found') {
+    if (fetchExistingUserError) {
       console.error('Edge Function Error (invite-collaborator): Error checking for existing user -', fetchExistingUserError.message);
       return new Response(JSON.stringify({ error: 'Error checking for existing user: ' + fetchExistingUserError.message }), {
         status: 500,
@@ -112,7 +114,9 @@ serve(async (req) => {
       });
     }
 
-    if (existingAuthUser?.user) {
+    const existingAuthUser = existingAuthUsers.length > 0 ? existingAuthUsers[0] : null;
+
+    if (existingAuthUser) {
       // User already exists, send a magic link or password reset link
       console.log('Edge Function Debug (invite-collaborator): User already exists, sending magic link.');
       const { error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -127,7 +131,7 @@ serve(async (req) => {
         inviteOperationError = magicLinkError;
         inviteOperationMessage = 'Erro ao enviar link mágico para colaborador existente: ' + magicLinkError.message;
       } else {
-        invitedAuthUser = existingAuthUser.user;
+        invitedAuthUser = existingAuthUser;
         inviteOperationMessage = 'Link de acesso enviado com sucesso para o e-mail do colaborador existente.';
       }
     } else {

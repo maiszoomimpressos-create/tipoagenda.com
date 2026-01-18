@@ -7,6 +7,8 @@ export function useIsProprietario() {
   const { session, loading: sessionLoading } = useSession();
   const [isProprietario, setIsProprietario] = useState(false);
   const [loadingProprietarioCheck, setLoadingProprietarioCheck] = useState(true);
+  // Usa apenas o user.id como dependência para evitar re-execuções desnecessárias
+  const userId = session?.user?.id || null;
 
   useEffect(() => {
     const checkProprietarioStatus = async () => {
@@ -44,7 +46,7 @@ export function useIsProprietario() {
     };
 
     checkProprietarioStatus();
-  }, [session, sessionLoading]);
+  }, [userId, sessionLoading]); // Usa userId em vez de session inteiro
 
   return { isProprietario, loadingProprietarioCheck };
 }

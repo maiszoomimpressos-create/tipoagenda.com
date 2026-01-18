@@ -7,6 +7,8 @@ export function useIsGlobalAdmin() {
   const { session, loading: sessionLoading } = useSession();
   const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
   const [loadingGlobalAdminCheck, setLoadingGlobalAdminCheck] = useState(true);
+  // Usa apenas o user.id como dependência para evitar re-execuções desnecessárias
+  const userId = session?.user?.id || null;
 
   useEffect(() => {
     const checkGlobalAdminStatus = async () => {
@@ -60,7 +62,7 @@ export function useIsGlobalAdmin() {
     };
 
     checkGlobalAdminStatus();
-  }, [session, sessionLoading]);
+  }, [userId, sessionLoading]); // Usa userId em vez de session inteiro
 
   return { isGlobalAdmin, loadingGlobalAdminCheck };
 }

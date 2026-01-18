@@ -15,6 +15,8 @@ export function usePrimaryCompany() {
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string | null>(null);
   const [primaryCompanyName, setPrimaryCompanyName] = useState<string | null>(null);
   const [loadingPrimaryCompany, setLoadingPrimaryCompany] = useState(true);
+  // Usa apenas o user.id como dependência para evitar re-execuções desnecessárias
+  const userId = session?.user?.id || null;
 
   useEffect(() => {
     const fetchPrimaryCompany = async () => {
@@ -70,7 +72,7 @@ export function usePrimaryCompany() {
     };
 
     fetchPrimaryCompany();
-  }, [session, sessionLoading]);
+  }, [userId, sessionLoading]); // Usa userId em vez de session inteiro
 
   return { primaryCompanyId, primaryCompanyName, loadingPrimaryCompany };
 }
