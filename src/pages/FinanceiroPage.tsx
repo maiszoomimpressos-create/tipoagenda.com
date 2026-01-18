@@ -30,6 +30,7 @@ const FinanceiroPage: React.FC = () => {
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [isSellProductModalOpen, setIsSellProductModalOpen] = useState(false);
   const [entradas, setEntradas] = useState(0);
   const [saidas, setSaidas] = useState(0);
 

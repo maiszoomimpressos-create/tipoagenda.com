@@ -7,6 +7,8 @@ export function useIsClient() {
   const { session, loading: sessionLoading } = useSession();
   const [isClient, setIsClient] = useState(false);
   const [loadingClientCheck, setLoadingClientCheck] = useState(true);
+  // Usa apenas o user.id como dependência para evitar re-execuções desnecessárias
+  const userId = session?.user?.id || null;
 
   useEffect(() => {
     const checkClientStatus = async () => {
@@ -46,7 +48,7 @@ export function useIsClient() {
     };
 
     checkClientStatus();
-  }, [session, sessionLoading]);
+  }, [userId, sessionLoading]); // Usa userId em vez de session inteiro
 
   return { isClient, loadingClientCheck };
 }

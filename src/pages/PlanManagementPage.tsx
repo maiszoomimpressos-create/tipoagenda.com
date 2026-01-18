@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, PlusCircle, Edit, Trash2, DollarSign } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Edit, Trash2, DollarSign, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
@@ -144,6 +144,15 @@ const PlanManagementPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       {getStatusBadge(plan.status)}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="!rounded-button whitespace-nowrap"
+                        onClick={() => navigate(`/admin-dashboard/plans/${plan.id}/features`)}
+                        title="Gerenciar funcionalidades do plano"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

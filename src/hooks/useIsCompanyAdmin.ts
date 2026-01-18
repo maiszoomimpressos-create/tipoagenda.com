@@ -7,6 +7,8 @@ export function useIsCompanyAdmin() {
   const { session, loading: sessionLoading } = useSession();
   const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
   const [loadingCompanyAdminCheck, setLoadingCompanyAdminCheck] = useState(true);
+  // Usa apenas o user.id como dependência para evitar re-execuções desnecessárias
+  const userId = session?.user?.id || null;
 
   useEffect(() => {
     const checkCompanyAdminStatus = async () => {
@@ -58,7 +60,7 @@ export function useIsCompanyAdmin() {
     };
 
     checkCompanyAdminStatus();
-  }, [session, sessionLoading]);
+  }, [userId, sessionLoading]); // Usa userId em vez de session inteiro
 
   return { isCompanyAdmin, loadingCompanyAdminCheck };
 }

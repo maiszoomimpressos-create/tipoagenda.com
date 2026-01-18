@@ -38,6 +38,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import PlanManagementPage from "./pages/PlanManagementPage";
 import ContractManagementPage from "./pages/ContractManagementPage";
 import SubscriptionPlansPage from "./pages/SubscriptionPlansPage";
+import PlanFeaturesManagementPage from "./pages/PlanFeaturesManagementPage"; // Importar nova página de gerenciamento de funcionalidades de planos
 import ApiKeysPage from "./pages/ApiKeysPage"; // Import new page
 import SubscriptionExpiredPage from "./pages/SubscriptionExpiredPage"; // Importar página de expiração
 import CompanyManagementPage from "./pages/CompanyManagementPage"; // Import new page
@@ -158,6 +159,7 @@ const App = () => (
             <Route path="/admin-dashboard/areas-de-atuacao" element={<GlobalAdminProtectedRoute><AreaDeAtuacaoPage /></GlobalAdminProtectedRoute>} /> {/* NOVA ROTA */}
             {/* Rotas de gerenciamento de planos */}
             <Route path="/admin-dashboard/plans" element={<GlobalAdminProtectedRoute><PlanManagementPage /></GlobalAdminProtectedRoute>} />
+            <Route path="/admin-dashboard/plans/:planId/features" element={<GlobalAdminProtectedRoute><PlanFeaturesManagementPage /></GlobalAdminProtectedRoute>} /> {/* NOVA ROTA */}
             {/* Rotas de gerenciamento de chaves de API */}
             <Route path="/admin-dashboard/api-keys" element={<GlobalAdminProtectedRoute><ApiKeysPage /></GlobalAdminProtectedRoute>} />
             {/* Rota de gerenciamento de empresas */}

@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Check, X, DollarSign, Clock, Zap, Tag, AlertTriangle } from 'lucide-react';
+import { Check, X, DollarSign, Clock, Zap, Tag, AlertTriangle, Settings } from 'lucide-react';
 import { format, parseISO, addMonths, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,10 @@ const SubscriptionPlansPage: React.FC = () => {
         .eq('status', 'active')
         .order('price', { ascending: true });
 
-      if (plansError) throw plansError;
+      if (plansError) {
+        console.error('plansError:', plansError);
+        throw plansError;
+      }
       
       // Filtrar apenas planos ativos para a lista de planos disponíveis para assinatura
       const activePlans = plansData
@@ -83,8 +86,7 @@ const SubscriptionPlansPage: React.FC = () => {
           plan_id,
           start_date,
           end_date,
-          status,
-          subscription_plans(id, name, description, price, features, duration_months)
+          status
         `)
         .eq('company_id', primaryCompanyId)
         .order('start_date', { ascending: false })
@@ -92,6 +94,7 @@ const SubscriptionPlansPage: React.FC = () => {
         .single();
 
       if (subError && subError.code !== 'PGRST116') {
+        console.error('subError:', subError);
         throw subError;
       }
       
@@ -618,6 +621,20 @@ const SubscriptionPlansPage: React.FC = () => {
             <Card key={plan.id} className={`border-2 ${isCurrentPlan ? 'border-yellow-600 shadow-xl' : 'border-gray-200'}`}>
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl font-bold text-gray-900">{plan.name}</CardTitle>
+                <div className="flex justify-center items-center mt-2">
+                  {/* Botão para gerenciar funcionalidades do plano */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Evita que o clique no botão ative a lógica do card (se houver)
+                      navigate(`/admin-dashboard/plans/${plan.id}/features`);
+                    }}
+                    className="text-gray-500 hover:text-blue-600"
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </div>
                 <div className="mt-4">
                   {discountApplied && (
                     <p className="text-xl font-semibold text-gray-400 line-through">
