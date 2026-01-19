@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlusCircle, Edit, Trash2, ArrowLeft, Settings } from 'lucide-react';
+import { PlusCircle as PlusCircleIcon } from 'lucide-react'; // Importar PlusCircle para o botão de criar
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -33,6 +34,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
   const [availableFeatures, setAvailableFeatures] = useState<Feature[]>([]);
   const [loading, setLoading] = useState(true);
   const [planName, setPlanName] = useState('');
+  const [creatingNewFeature, setCreatingNewFeature] = useState(false); // Novo estado
 
   // Estado para o modal de adicionar/editar
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,6 +43,8 @@ const PlanFeaturesManagementPage: React.FC = () => {
   const [featureLimit, setFeatureLimit] = useState<number | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [featureToDelete, setFeatureToDelete] = useState<PlanFeature | null>(null);
+  const [featureName, setFeatureName] = useState(''); // Novo estado para o nome da funcionalidade
+  const [featureDescription, setFeatureDescription] = useState<string | null>(null); // Novo estado para a descrição
 
   const fetchPlanDetails = useCallback(async () => {
     if (!planId) return;
@@ -66,12 +70,21 @@ const PlanFeaturesManagementPage: React.FC = () => {
       const { data, error } = await supabase
         .from('plan_features')
         .select(`
+          plan_id,
+          feature_id,
           feature_limit,
-          features (*)
+          features (
+            id,
+            name,
+            slug,
+            description,
+            is_active
+          )
         `)
         .eq('plan_id', planId);
 
       if (error) throw error;
+      console.log('fetchPlanFeatures: Raw data from Supabase:', data); // DEBUG LOG
       setPlanFeatures(data as PlanFeature[]);
     } catch (error: any) {
       console.error('Erro ao carregar funcionalidades do plano:', error);
@@ -105,51 +118,133 @@ const PlanFeaturesManagementPage: React.FC = () => {
 
   const handleAddFeatureClick = () => {
     setEditingPlanFeature(null);
-    setSelectedFeatureId('');
+    setSelectedFeatureId(''); // Não será mais usado diretamente para a entrada
+    setFeatureName('');
+    setFeatureDescription('');
     setFeatureLimit(null);
     setIsModalOpen(true);
   };
 
   const handleEditFeatureClick = (planFeature: PlanFeature) => {
+    console.log('handleEditFeatureClick: planFeature recebido:', planFeature);
     setEditingPlanFeature(planFeature);
-    setSelectedFeatureId(planFeature.feature_id);
+    setSelectedFeatureId(planFeature.feature_id); // Manter o ID para o update
+    setFeatureName(planFeature.features.name); // Preencher o nome da funcionalidade
+    setFeatureDescription(planFeature.features.description || ''); // Preencher a descrição (garantir string vazia se for null)
     setFeatureLimit(planFeature.feature_limit);
     setIsModalOpen(true);
   };
 
   const handleSavePlanFeature = async () => {
-    if (!planId || !selectedFeatureId) {
-      showError('Selecione uma funcionalidade.');
+    if (!planId || !featureName.trim()) {
+      showError('O nome da funcionalidade é obrigatório.');
       return;
     }
 
     setLoading(true);
-    try {
-      if (editingPlanFeature) {
-        // Editar funcionalidade existente
-        const { error } = await supabase
-          .from('plan_features')
-          .update({ feature_limit: featureLimit })
-          .eq('plan_id', planId)
-          .eq('feature_id', editingPlanFeature.feature_id);
+    let featureIdToAssociate: string | null = null;
 
-        if (error) throw error;
+    try {
+      // 1. Tentar encontrar uma funcionalidade existente pelo nome
+      const { data: existingFeature, error: fetchFeatureError } = await supabase
+        .from('features')
+        .select('id, description')
+        .eq('name', featureName.trim())
+        .single();
+
+      if (fetchFeatureError && fetchFeatureError.code !== 'PGRST116') { // PGRST116 = No rows found
+        throw fetchFeatureError;
+      }
+
+      if (existingFeature) {
+        featureIdToAssociate = existingFeature.id;
+        // Se estiver editando uma funcionalidade e o nome mudou, ou a descrição mudou
+        if (editingPlanFeature && editingPlanFeature.feature_id === existingFeature.id) {
+          // Apenas atualiza a descrição se ela mudou
+          if (existingFeature.description !== featureDescription) {
+            const { error: updateFeatureError } = await supabase
+              .from('features')
+              .update({ description: featureDescription })
+              .eq('id', existingFeature.id);
+            if (updateFeatureError) throw updateFeatureError;
+          }
+        } else if (!editingPlanFeature) {
+          // Se estiver adicionando e a funcionalidade já existe, apenas a associa
+          // Não precisamos fazer nada aqui, o ID já está em featureIdToAssociate
+        }
+      } else {
+        // 2. Se a funcionalidade não existe, criar uma nova
+        const { data: newFeature, error: createFeatureError } = await supabase
+          .from('features')
+          .insert({
+            name: featureName.trim(),
+            slug: featureName.trim().toLowerCase().replace(/\s/g, '-'),
+            description: featureDescription,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+
+        if (createFeatureError) throw createFeatureError;
+        featureIdToAssociate = newFeature.id;
+        showSuccess(`Funcionalidade "${featureName}" criada com sucesso!`);
+      }
+
+      if (!featureIdToAssociate) {
+        throw new Error('Não foi possível determinar a funcionalidade para associar.');
+      }
+
+      console.log(`handleSavePlanFeature: planId: ${planId}, featureIdToAssociate: ${featureIdToAssociate}, featureLimit: ${featureLimit}`);
+
+      // 3. Associar (ou atualizar) a funcionalidade ao plano
+      if (editingPlanFeature) {
+        console.log('handleSavePlanFeature (EDITING): editingPlanFeature.feature_id:', editingPlanFeature.feature_id, 'featureIdToAssociate:', featureIdToAssociate);
+        // Se o ID da funcionalidade mudou durante a edição
+        if (editingPlanFeature.feature_id !== featureIdToAssociate) {
+          // Primeiro, remova a antiga associação
+          const { error: deleteOldError } = await supabase
+            .from('plan_features')
+            .delete()
+            .eq('plan_id', planId)
+            .eq('feature_id', editingPlanFeature.feature_id);
+          if (deleteOldError) throw deleteOldError;
+
+          // Em seguida, adicione a nova associação
+          const { error: insertNewError } = await supabase
+            .from('plan_features')
+            .insert({
+              plan_id: planId,
+              feature_id: featureIdToAssociate,
+              feature_limit: featureLimit,
+            });
+          if (insertNewError) throw insertNewError;
+        } else {
+          // Atualizar limite para funcionalidade existente
+          const { error } = await supabase
+            .from('plan_features')
+            .update({ feature_limit: featureLimit })
+            .eq('plan_id', planId)
+            .eq('feature_id', featureIdToAssociate);
+          if (error) throw error;
+        }
         showSuccess('Funcionalidade do plano atualizada com sucesso!');
       } else {
-        // Adicionar nova funcionalidade
+        // Adicionar nova associação
         const { error } = await supabase
           .from('plan_features')
           .insert({
             plan_id: planId,
-            feature_id: selectedFeatureId,
+            feature_id: featureIdToAssociate,
             feature_limit: featureLimit,
           });
 
         if (error) throw error;
         showSuccess('Funcionalidade adicionada ao plano com sucesso!');
       }
+
       setIsModalOpen(false);
       fetchPlanFeatures(); // Recarrega a lista
+      fetchAvailableFeatures(); // Recarrega as funcionalidades disponíveis (caso uma nova tenha sido criada)
     } catch (error: any) {
       console.error('Erro ao salvar funcionalidade do plano:', error);
       showError('Erro ao salvar funcionalidade do plano: ' + error.message);
@@ -165,6 +260,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
 
   const handleDeletePlanFeature = async () => {
     if (!featureToDelete || !planId) return;
+    console.log(`handleDeletePlanFeature: planId: ${planId}, featureToDelete.feature_id: ${featureToDelete.feature_id}`);
 
     setLoading(true);
     try {
@@ -259,21 +355,27 @@ const PlanFeaturesManagementPage: React.FC = () => {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="feature" className="text-right">Funcionalidade</Label>
-              <select
-                id="feature"
-                value={selectedFeatureId}
-                onChange={(e) => setSelectedFeatureId(e.target.value)}
-                className="col-span-3 p-2 border rounded-md"
-                disabled={!!editingPlanFeature} // Desabilita seleção ao editar
-              >
-                <option value="">Selecione uma funcionalidade</option>
-                {availableFeatures.map((feature) => (
-                  <option key={feature.id} value={feature.id}>
-                    {feature.name}
-                  </option>
-                ))}
-              </select>
+              <Label htmlFor="feature-name" className="text-right">Nome da Funcionalidade</Label>
+              <Input
+                id="feature-name"
+                type="text"
+                value={featureName}
+                onChange={(e) => setFeatureName(e.target.value)}
+                className="col-span-3"
+                placeholder="Ex: Envio de Mensagens WhatsApp"
+                disabled={creatingNewFeature || (!!editingPlanFeature && editingPlanFeature.features.name === featureName)}
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="feature-description" className="text-right">Descrição (Opcional)</Label>
+              <Textarea
+                id="feature-description"
+                value={featureDescription || ''}
+                onChange={(e) => setFeatureDescription(e.target.value)}
+                className="col-span-3"
+                placeholder="Uma breve descrição sobre a funcionalidade."
+                disabled={creatingNewFeature}
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="limit" className="text-right">Limite (opcional)</Label>
@@ -284,6 +386,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
                 onChange={(e) => setFeatureLimit(e.target.value === '' ? null : parseInt(e.target.value, 10))}
                 className="col-span-3"
                 placeholder="Ex: 100 (deixe em branco para ilimitado)"
+                disabled={creatingNewFeature}
               />
             </div>
           </div>
