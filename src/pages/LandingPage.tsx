@@ -18,18 +18,6 @@ import ContactRequestModal from '@/components/ContactRequestModal'; // Importar 
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Importar componentes de diálogo
 
-interface Company {
-  id: string;
-  name: string;
-  segment_type: string | null; // Segment ID
-  image_url: string | null;
-  // Adicionando campos para simular dados de serviço na listagem
-  min_price: number;
-  avg_rating: number;
-  city: string; // Adicionado para filtragem
-  state: string; // Adicionado para filtragem
-}
-
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
@@ -39,11 +27,9 @@ const LandingPage: React.FC = () => {
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { plans, loading: loadingPlans } = useActivePlans();
   
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // Estado para busca (mantido para UI, mas não usado para empresas)
   const [locationTerm, setLocationTerm] = useState(''); // Novo estado para localização
   const [selectedCategory, setSelectedCategory] = useState('todos');
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
   const [isConfirmLogoutDialogOpen, setIsConfirmLogoutDialogOpen] = useState(false); // Novo estado para o diálogo de confirmação de logout
@@ -61,56 +47,6 @@ const LandingPage: React.FC = () => {
     { id: 'auto', name: 'Automotivo', icon: 'fas fa-car' },
     { id: 'pet', name: 'Pet Care', icon: 'fas fa-paw' }
   ];
-
-  const fetchCompanies = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Buscar todas as empresas cadastradas que estão ativas
-      const { data: companiesData, error } = await supabase
-        .from('companies')
-        .select(`
-          id,
-          name,
-          segment_type,
-          image_url,
-          city,
-          state,
-          services(price, duration_minutes)
-        `)
-        .eq('ativo', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      const processedCompanies: Company[] = companiesData.map(company => {
-        const prices = company.services.map(s => s.price);
-        const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-        const avgRating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1);
-
-        return {
-          id: company.id,
-          name: company.name,
-          segment_type: company.segment_type,
-          image_url: company.image_url,
-          min_price: minPrice,
-          avg_rating: parseFloat(avgRating),
-          city: company.city || '',
-          state: company.state || '',
-        };
-      });
-
-      setCompanies(processedCompanies);
-    } catch (error: any) {
-      console.error('Erro ao carregar empresas:', error);
-      showError('Erro ao carregar empresas: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
 
   // Redirecionamento pós-login baseado no papel do usuário
   useEffect(() => {
@@ -153,37 +89,6 @@ const LandingPage: React.FC = () => {
   ]);
 
   // Logic to open the selection modal if the user is a client and just logged in without a target company
-
-
-  const filteredCompanies = companies.filter(company => {
-    const searchLower = searchTerm.toLowerCase();
-    const locationLower = locationTerm.toLowerCase();
-
-    const matchesSearch = company.name.toLowerCase().includes(searchLower);
-    
-    const matchesLocation = !locationLower || 
-      company.city.toLowerCase().includes(locationLower) || 
-      company.state.toLowerCase().includes(locationLower);
-
-    return matchesSearch && matchesLocation;
-  });
-
-  const getImageUrl = (company: Company) => {
-    if (company.image_url) {
-      return company.image_url;
-    }
-    return `https://readdy.ai/api/search-image?query=professional%20${company.name.toLowerCase()}%20business%20front%20or%20logo%20in%20clean%20minimalist%20workspace&width=300&height=200&seq=${company.id}&orientation=landscape`;
-  };
-
-  const handleBookAppointment = (companyId: string) => {
-    setTargetCompanyId(companyId);
-    
-    if (session && isClient) {
-      navigate(`/agendar/${companyId}`);
-    } else {
-      navigate('/login');
-    }
-  };
 
   const handleProfessionalSignup = () => {
     // Redireciona para a nova página de cadastro unificado
@@ -298,7 +203,8 @@ const LandingPage: React.FC = () => {
                 </div>
                 <Button 
                   className="!rounded-button whitespace-nowrap h-14 text-lg font-semibold bg-yellow-600 hover:bg-yellow-700 text-black"
-                  onClick={fetchCompanies} // Re-fetch companies to apply filters
+                  onClick={() => {}} // Botão desabilitado - empresas não são mais exibidas
+                  disabled
                 >
                   <Search className="h-5 w-5 mr-2" />
                   Buscar Serviços
@@ -417,42 +323,7 @@ const LandingPage: React.FC = () => {
 
           {/* Services/Companies Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {loading ? (
-              <p className="text-gray-600 col-span-full text-center">Carregando empresas...</p>
-            ) : filteredCompanies.length === 0 ? (
-              <p className="text-gray-600 col-span-full text-center">Nenhuma empresa encontrada com os critérios de busca.</p>
-            ) : (
-              filteredCompanies.map((company) => (
-                <Card key={company.id} className="border-gray-200 cursor-pointer hover:shadow-lg transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="relative mb-4">
-                      <img
-                        src={getImageUrl(company)}
-                        alt={company.name}
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
-                        <div className="flex items-center gap-1">
-                          <i className="fas fa-star text-yellow-500 text-sm"></i>
-                          <span className="text-sm font-semibold">{company.avg_rating}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <h3 className="font-bold text-gray-900 text-lg mb-2">{company.name}</h3>
-                    <p className="text-yellow-600 font-semibold mb-4">
-                      {company.min_price > 0 ? `A partir de R$ ${company.min_price.toFixed(2).replace('.', ',')}` : 'Preço sob consulta'}
-                    </p>
-                    <Button 
-                      className="!rounded-button whitespace-nowrap w-full bg-yellow-600 hover:bg-yellow-700 text-black"
-                      onClick={() => handleBookAppointment(company.id)}
-                    >
-                      <i className="fas fa-calendar-alt mr-2"></i>
-                      Agendar Agora
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+            {/* Removido a seção de cards de empresas */}
           </div>
         </div>
       </section>
