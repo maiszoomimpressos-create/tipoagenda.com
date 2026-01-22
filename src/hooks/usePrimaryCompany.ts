@@ -33,16 +33,20 @@ export function usePrimaryCompany() {
 
       setLoadingPrimaryCompany(true);
       try {
+        console.log('usePrimaryCompany: Buscando contexto do usuário para user_id:', session.user.id);
         const { data, error } = await supabase
           .rpc('get_user_context', { p_user_id: session.user.id });
 
         if (error) {
+          console.error('usePrimaryCompany: Erro ao buscar contexto do usuário:', error);
           throw error;
         }
 
+        console.log('usePrimaryCompany: Dados retornados do get_user_context:', data);
         const primaryCompany = data.find((company: UserCompanyContext) => company.is_primary);
 
         if (primaryCompany) {
+          console.log('usePrimaryCompany: Empresa primária encontrada:', primaryCompany.company_id, primaryCompany.company_name);
           setPrimaryCompanyId(primaryCompany.company_id);
 
           // Fetch company name using the primaryCompanyId
@@ -56,7 +60,9 @@ export function usePrimaryCompany() {
             throw companyNameError;
           }
           setPrimaryCompanyName(companyNameData.name);
+          console.log('usePrimaryCompany: Nome da empresa carregado:', companyNameData.name);
         } else {
+          console.warn('usePrimaryCompany: Nenhuma empresa primária encontrada para o usuário');
           setPrimaryCompanyId(null);
           setPrimaryCompanyName(null);
         }

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import { format, addMonths, parseISO, startOfDay } from 'https://esm.sh/date-fns@3.6.0';
+import { format, addMonths, parseISO, startOfDay, isPast } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -112,62 +112,108 @@ serve(async (req) => {
     // 3. Handle Subscription Activation/Extension (only if approved)
     const today = new Date();
     const startDate = format(today, 'yyyy-MM-dd');
-    
-    // Check for existing active subscription for this company
-    const { data: existingSub, error: checkSubError } = await supabaseAdmin
+
+    let finalEndDate: string;
+    let subscriptionId: string;
+
+    // 3.1 Tentar usar assinatura PENDENTE criada no início do fluxo
+    const { data: pendingSub, error: pendingError } = await supabaseAdmin
+        .from('company_subscriptions')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('plan_id', planId)
+        .eq('status', 'pending')
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (pendingError) {
+        console.error('Error fetching pending subscription in webhook:', pendingError);
+        throw pendingError;
+    }
+
+    // 3.2 Buscar assinatura ativa atual (para estender data de término, se existir)
+    const { data: existingActive, error: activeError } = await supabaseAdmin
         .from('company_subscriptions')
         .select('id, end_date')
         .eq('company_id', companyId)
         .eq('status', 'active')
         .order('end_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-    let finalEndDate: string;
-    let subscriptionId: string;
+    if (activeError && activeError.code !== 'PGRST116') {
+        console.error('Error fetching active subscription in webhook:', activeError);
+        throw activeError;
+    }
 
-    if (checkSubError && checkSubError.code !== 'PGRST116') throw checkSubError;
+    if (pendingSub) {
+        // Ativar assinatura pendente, calculando end_date a partir da assinatura ativa (se existir)
+        let baseDate = today;
+        if (existingActive?.end_date) {
+            const currentEndDate = startOfDay(parseISO(existingActive.end_date || startDate));
+            baseDate = isPast(currentEndDate) ? today : currentEndDate;
+        }
 
-    if (existingSub) {
-        // Extend the end date from the current end date
-        const currentEndDate = startOfDay(parseISO(existingSub.end_date || startDate));
-        const baseDate = isPast(currentEndDate) ? today : currentEndDate;
         const newEndDate = addMonths(baseDate, finalDurationMonths);
         finalEndDate = format(newEndDate, 'yyyy-MM-dd');
-        subscriptionId = existingSub.id;
+        subscriptionId = pendingSub.id;
 
-        const { error: updateError } = await supabaseAdmin
+        const { error: updatePendingError } = await supabaseAdmin
             .from('company_subscriptions')
-            .update({ 
+            .update({
                 plan_id: planId,
                 end_date: finalEndDate,
                 status: 'active',
             })
             .eq('id', subscriptionId);
 
-        if (updateError) throw updateError;
-        console.log(`Subscription ${subscriptionId} extended successfully to ${finalEndDate}.`);
-
+        if (updatePendingError) throw updatePendingError;
+        console.log(`Pending subscription ${subscriptionId} activated successfully, ending on ${finalEndDate}.`);
     } else {
-        // No active subscription, create a new one
-        const calculatedEndDate = addMonths(today, finalDurationMonths);
-        finalEndDate = format(calculatedEndDate, 'yyyy-MM-dd');
+        // Cenário de retrocompatibilidade: não existe pendente, mantém lógica antiga
+        let baseDate = today;
 
-        const { data: newSub, error: insertError } = await supabaseAdmin
-            .from('company_subscriptions')
-            .insert({
-                company_id: companyId,
-                plan_id: planId,
-                start_date: startDate,
-                end_date: finalEndDate,
-                status: 'active',
-            })
-            .select('id')
-            .single();
+        if (existingActive?.end_date) {
+            const currentEndDate = startOfDay(parseISO(existingActive.end_date || startDate));
+            baseDate = isPast(currentEndDate) ? today : currentEndDate;
+        }
 
-        if (insertError) throw insertError;
-        subscriptionId = newSub.id;
-        console.log(`New subscription ${subscriptionId} created successfully, ending on ${finalEndDate}.`);
+        const newEndDate = addMonths(baseDate, finalDurationMonths);
+        finalEndDate = format(newEndDate, 'yyyy-MM-dd');
+
+        if (existingActive) {
+            subscriptionId = existingActive.id;
+
+            const { error: updateActiveError } = await supabaseAdmin
+                .from('company_subscriptions')
+                .update({
+                    plan_id: planId,
+                    end_date: finalEndDate,
+                    status: 'active',
+                })
+                .eq('id', subscriptionId);
+
+            if (updateActiveError) throw updateActiveError;
+            console.log(`Active subscription ${subscriptionId} extended successfully to ${finalEndDate}.`);
+        } else {
+            // Nenhuma assinatura ativa: criar nova como ativa
+            const { data: newSub, error: insertError } = await supabaseAdmin
+                .from('company_subscriptions')
+                .insert({
+                    company_id: companyId,
+                    plan_id: planId,
+                    start_date: startDate,
+                    end_date: finalEndDate,
+                    status: 'active',
+                })
+                .select('id')
+                .single();
+
+            if (insertError) throw insertError;
+            subscriptionId = newSub.id;
+            console.log(`New active subscription ${subscriptionId} created successfully, ending on ${finalEndDate}.`);
+        }
     }
     
     // 4. Register Coupon Usage (if applicable)

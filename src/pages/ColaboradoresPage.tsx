@@ -10,6 +10,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Edit, Trash2, Clock, Briefcase } from 'lucide-react'; // Importar ícones
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar componentes de diálogo
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Importar componentes de tooltip
 
 interface Collaborator {
   id: string;
@@ -181,60 +182,82 @@ const ColaboradoresPage: React.FC = () => {
                       <span className="font-semibold text-gray-900">{colaborador.phone_number ? `(${colaborador.phone_number.substring(0,2)}) ${colaborador.phone_number.substring(2,7)}-${colaborador.phone_number.substring(7)}` : 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Comissão:</span>
-                      <span className="font-semibold text-gray-900">{colaborador.commission_percentage}%</span>
-                    </div>
-                    <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Status:</span>
                       <span className="font-semibold text-gray-900">{colaborador.status}</span>
                     </div>
                   </div>
-                  <div className="flex justify-center gap-2 mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="!rounded-button whitespace-nowrap"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/colaboradores/edit/${colaborador.id}`);
-                      }}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="!rounded-button whitespace-nowrap"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/colaboradores/${colaborador.id}/servicos`);
-                      }}
-                    >
-                      <Briefcase className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="!rounded-button whitespace-nowrap"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/colaboradores/${colaborador.id}/schedule`);
-                      }}
-                    >
-                      <Clock className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="!rounded-button whitespace-nowrap"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(colaborador.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex justify-center gap-2 mt-4">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="!rounded-button whitespace-nowrap"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/colaboradores/edit/${colaborador.id}`);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Editar dados do colaborador</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="!rounded-button whitespace-nowrap"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/colaboradores/${colaborador.id}/servicos`);
+                            }}
+                          >
+                            <Briefcase className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Relacionar serviços do profissional</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="!rounded-button whitespace-nowrap"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/colaboradores/${colaborador.id}/schedule`);
+                            }}
+                          >
+                            <Clock className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Configurar horários de atendimento</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="!rounded-button whitespace-nowrap"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(colaborador.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TooltipProvider>
                 </div>
               </CardContent>
             </Card>

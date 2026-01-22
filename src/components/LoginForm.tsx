@@ -18,7 +18,17 @@ const LoginForm: React.FC = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       console.error("Erro no login:", error); // Adicionado para depuração
-      showError(error.message);
+      // Traduzir mensagem de erro de credenciais inválidas para português
+      const isInvalidCredentials = 
+        error.message.toLowerCase().includes('invalid login credentials') || 
+        error.message.toLowerCase().includes('invalid') && error.message.toLowerCase().includes('credentials') ||
+        error.status === 400 || 
+        error.code === 'invalid_credentials';
+      
+      const errorMessage = isInvalidCredentials 
+        ? 'Usuário/Senha inválido'
+        : error.message;
+      showError(errorMessage);
     } else {
       // Success message handled by SessionContextProvider
       navigate('/'); // Redireciona para a rota raiz

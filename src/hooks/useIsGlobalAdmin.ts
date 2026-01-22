@@ -27,14 +27,16 @@ export function useIsGlobalAdmin() {
       setLoadingGlobalAdminCheck(true);
       try {
         console.log(`useIsGlobalAdmin: Checking type_user for user ID: ${session.user.id}`);
+        // Usar maybeSingle() para evitar erro 406
         const { data, error } = await supabase
           .from('type_user')
           .select('cod')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found"
-          throw error;
+        // Tratar erro 406 (Not Acceptable) - pode ser RLS, mas não é crítico
+        if (error && error.code !== 'PGRST116' && error.code !== 'PGRST301') {
+          console.warn('useIsGlobalAdmin: Erro ao buscar type_user (não crítico):', error);
         }
 
         const cod = (data?.cod || '').toUpperCase();

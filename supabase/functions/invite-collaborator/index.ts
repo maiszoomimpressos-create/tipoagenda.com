@@ -199,6 +199,22 @@ serve(async (req) => {
 
     console.log('Edge Function Debug (invite-collaborator): Collaborator data inserted successfully:', collaboratorData?.id);
 
+    // CRITICAL: Verificar assinatura ANTES de chamar assign_user_to_company
+    console.log('Edge Function Debug (invite-collaborator): Verificando assinatura ANTES de assign_user_to_company para company_id:', companyId);
+    const { data: subscriptionBefore, error: subCheckErrorBefore } = await supabaseAdmin
+      .from('company_subscriptions')
+      .select('id, company_id, plan_id, status, start_date, end_date')
+      .eq('company_id', companyId)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subCheckErrorBefore && subCheckErrorBefore.code !== 'PGRST116') {
+      console.error('Edge Function Error (invite-collaborator): Erro ao verificar assinatura ANTES:', subCheckErrorBefore);
+    } else {
+      console.log('Edge Function Debug (invite-collaborator): Assinatura ANTES de assign_user_to_company:', subscriptionBefore);
+    }
+
     // Assign the collaborator to the company in user_companies table
     const { error: assignRoleError } = await supabaseAdmin.rpc('assign_user_to_company', {
       p_user_id: invitedAuthUser.id,
@@ -215,6 +231,33 @@ serve(async (req) => {
     }
 
     console.log('Edge Function Debug (invite-collaborator): Collaborator assigned to company successfully.');
+
+    // CRITICAL: Verificar assinatura DEPOIS de chamar assign_user_to_company
+    console.log('Edge Function Debug (invite-collaborator): Verificando assinatura DEPOIS de assign_user_to_company para company_id:', companyId);
+    const { data: subscriptionAfter, error: subCheckErrorAfter } = await supabaseAdmin
+      .from('company_subscriptions')
+      .select('id, company_id, plan_id, status, start_date, end_date')
+      .eq('company_id', companyId)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subCheckErrorAfter && subCheckErrorAfter.code !== 'PGRST116') {
+      console.error('Edge Function Error (invite-collaborator): Erro ao verificar assinatura DEPOIS:', subCheckErrorAfter);
+    } else {
+      console.log('Edge Function Debug (invite-collaborator): Assinatura DEPOIS de assign_user_to_company:', subscriptionAfter);
+      
+      // ALERTA CRÍTICO: Se a assinatura desapareceu, logar erro crítico
+      if (subscriptionBefore && !subscriptionAfter) {
+        console.error('🚨 CRITICAL ERROR: Assinatura foi DELETADA após assign_user_to_company!');
+        console.error('🚨 Assinatura ANTES:', JSON.stringify(subscriptionBefore, null, 2));
+        console.error('🚨 Assinatura DEPOIS:', 'NÃO ENCONTRADA');
+      } else if (subscriptionBefore && subscriptionAfter && subscriptionBefore.id !== subscriptionAfter.id) {
+        console.error('🚨 CRITICAL ERROR: Assinatura foi ALTERADA após assign_user_to_company!');
+        console.error('🚨 Assinatura ANTES:', JSON.stringify(subscriptionBefore, null, 2));
+        console.error('🚨 Assinatura DEPOIS:', JSON.stringify(subscriptionAfter, null, 2));
+      }
+    }
 
     return new Response(JSON.stringify({ message: inviteOperationMessage, collaborator: collaboratorData }), {
       status: 200,

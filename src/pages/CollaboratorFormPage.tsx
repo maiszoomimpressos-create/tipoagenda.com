@@ -24,18 +24,9 @@ const collaboratorSchema = z.object({
     .regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Formato de telefone inválido (ex: (XX) XXXXX-XXXX)"),
   hire_date: z.string().min(1, "Data de contratação é obrigatória."),
   role_type_id: z.string().min(1, "Função é obrigatória.").transform(Number), // Transforma para número
-  commission_percentage: z.preprocess(
-    (val) => {
-      if (typeof val === 'string') {
-        return val.replace(',', '.');
-      }
-      return val;
-    },
-    z.string()
-      .regex(/^\d+(\.\d{1,2})?$/, "Percentual de comissão inválido. Use formato 0.00 ou 0,00")
-      .transform(Number)
-      .refine(val => !isNaN(val) && val >= 0 && val <= 100, "Percentual de comissão deve ser entre 0 e 100.")
-  ),
+  // commission_percentage removido do formulário - agora é gerenciado apenas na tela de serviços por colaborador
+  // Mantido no schema como opcional para compatibilidade com o backend
+  commission_percentage: z.number().default(0).optional(),
   status: z.enum(['Ativo', 'Inativo', 'Férias'], {
     errorMap: () => ({ message: "Status é obrigatório." })
   }),
@@ -61,6 +52,7 @@ const CollaboratorFormPage: React.FC = () => {
   const [roleTypes, setRoleTypes] = useState<RoleType[]>([]);
   const [loadingRoleTypes, setLoadingRoleTypes] = useState(true);
   const [currentCollaboratorData, setCurrentCollaboratorData] = useState<any>(null); // State to hold fetched data for editing
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null); // New state for selected file name
   const isEditing = !!collaboratorId;
 
   const {
@@ -79,7 +71,6 @@ const CollaboratorFormPage: React.FC = () => {
       phone_number: '',
       hire_date: '',
       role_type_id: undefined, // Initialize as undefined for Select
-      commission_percentage: '0.00' as any,
       status: 'Ativo',
       avatar_file: undefined,
     },
@@ -88,7 +79,6 @@ const CollaboratorFormPage: React.FC = () => {
   const phoneNumberValue = watch('phone_number');
   const roleTypeIdValue = watch('role_type_id');
   const statusValue = watch('status');
-  const commissionPercentageValue = watch('commission_percentage');
 
   const fetchRoleTypes = useCallback(async () => {
     setLoadingRoleTypes(true);
@@ -111,7 +101,7 @@ const CollaboratorFormPage: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('collaborators')
-        .select('first_name, last_name, email, phone_number, hire_date, role_type_id, commission_percentage, status, avatar_url')
+        .select('first_name, last_name, email, phone_number, hire_date, role_type_id, status, avatar_url')
         .eq('id', collaboratorId)
         .eq('company_id', primaryCompanyId)
         .single();
@@ -129,7 +119,6 @@ const CollaboratorFormPage: React.FC = () => {
           phone_number: formatPhoneNumberInput(data.phone_number || ''),
           hire_date: data.hire_date || '',
           role_type_id: data.role_type_id?.toString(), // Convert number to string here
-          commission_percentage: data.commission_percentage?.toFixed(2).replace('.', ',') as any,
           status: data.status as 'Ativo' | 'Inativo' | 'Férias',
           // avatar_file is not pre-filled for security/complexity reasons, user can re-upload
         });
@@ -184,9 +173,16 @@ const CollaboratorFormPage: React.FC = () => {
       return;
     }
 
-    let avatarUrl: string | null = null;
+      let avatarUrl: string | null = null;
     if (data.avatar_file && data.avatar_file.length > 0) {
       const file = data.avatar_file[0];
+      
+      console.log('Dados do arquivo para upload:', {
+        name: file.name,
+        size: file.size, // in bytes
+        type: file.type,
+      });
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${primaryCompanyId}-${data.email}-${Date.now()}.${fileExt}`;
       const filePath = `collaborator_avatars/${fileName}`;
@@ -196,18 +192,23 @@ const CollaboratorFormPage: React.FC = () => {
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
+          // Ajuste de contentType para evitar erro de MIME type não suportado no Supabase
+          contentType: file.type === 'image/jpeg' ? 'image/jpg' : file.type,
         });
 
       if (uploadError) {
+        console.error('Erro detalhado no upload da imagem:', uploadError);
         showError('Erro ao fazer upload da imagem: ' + uploadError.message);
         setLoading(false);
         return;
       }
+      console.log('Upload da imagem concluído com sucesso para o caminho:', filePath);
 
       const { data: publicUrlData } = supabase.storage
         .from('collaborator_avatars')
         .getPublicUrl(filePath);
       
+      console.log('URL pública da imagem:', publicUrlData.publicUrl);
       avatarUrl = publicUrlData.publicUrl;
     }
 
@@ -222,7 +223,8 @@ const CollaboratorFormPage: React.FC = () => {
           phone_number: data.phone_number.replace(/\D/g, ''),
           hire_date: data.hire_date,
           role_type_id: data.role_type_id,
-          commission_percentage: data.commission_percentage,
+          // commission_percentage não é mais editável aqui - gerenciado apenas na tela de serviços por colaborador
+          // Mantém o valor existente no banco (não atualiza)
           status: data.status,
         };
         if (avatarUrl) { // Only update avatar_url if a new file was uploaded
@@ -249,7 +251,7 @@ const CollaboratorFormPage: React.FC = () => {
             phoneNumber: data.phone_number.replace(/\D/g, ''),
             hireDate: data.hire_date,
             roleTypeId: data.role_type_id,
-            commissionPercentage: data.commission_percentage,
+            commissionPercentage: 0, // Comissão agora é gerenciada apenas na tela de serviços por colaborador
             status: data.status,
             avatarUrl: avatarUrl, // Pass the uploaded avatar URL
           }),
@@ -407,37 +409,21 @@ const CollaboratorFormPage: React.FC = () => {
                   {errors.role_type_id && <p className="text-red-500 text-xs mt-1">{errors.role_type_id.message}</p>}
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="commission_percentage" className="text-sm font-medium text-gray-700 mb-2">
-                    Percentual de Comissão (%) *
-                  </Label>
-                  <Input
-                    id="commission_percentage"
-                    type="text"
-                    placeholder="0.00"
-                    value={commissionPercentageValue}
-                    onChange={(e) => setValue('commission_percentage', e.target.value, { shouldValidate: true })}
-                    className="mt-1 border-gray-300 text-sm"
-                  />
-                  {errors.commission_percentage && <p className="text-red-500 text-xs mt-1">{errors.commission_percentage.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="status" className="text-sm font-medium text-gray-700 mb-2">
-                    Status *
-                  </Label>
-                  <Select onValueChange={(value) => setValue('status', value as 'Ativo' | 'Inativo' | 'Férias', { shouldValidate: true })} value={statusValue}>
-                    <SelectTrigger id="status" className="mt-1 border-gray-300 text-sm">
-                      <SelectValue placeholder="Selecione o status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Ativo">Ativo</SelectItem>
-                      <SelectItem value="Inativo">Inativo</SelectItem>
-                      <SelectItem value="Férias">Férias</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.status && <p className="text-red-500 text-xs mt-1">{errors.status.message}</p>}
-                </div>
+              <div>
+                <Label htmlFor="status" className="text-sm font-medium text-gray-700 mb-2">
+                  Status *
+                </Label>
+                <Select onValueChange={(value) => setValue('status', value as 'Ativo' | 'Inativo' | 'Férias', { shouldValidate: true })} value={statusValue}>
+                  <SelectTrigger id="status" className="mt-1 border-gray-300 text-sm">
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Inativo">Inativo</SelectItem>
+                    <SelectItem value="Férias">Férias</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.status && <p className="text-red-500 text-xs mt-1">{errors.status.message}</p>}
               </div>
               <div>
                 <Label htmlFor="avatar_file" className="text-sm font-medium text-gray-700 mb-2">
@@ -447,9 +433,19 @@ const CollaboratorFormPage: React.FC = () => {
                   id="avatar_file"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  {...register('avatar_file')}
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    if (files && files.length > 0) {
+                      setValue('avatar_file', files, { shouldValidate: true });
+                      setSelectedFileName(files[0].name);
+                    } else {
+                      setValue('avatar_file', undefined, { shouldValidate: false });
+                      setSelectedFileName(null);
+                    }
+                  }}
                   className="mt-2 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700 dark:file:bg-yellow-700 dark:file:text-black dark:text-gray-300 dark:border-gray-600"
                 />
+                {selectedFileName && <p className="text-sm text-gray-700 mt-2">Arquivo selecionado: <span className="font-medium">{selectedFileName}</span></p>}
                 {errors.avatar_file && <p className="text-red-500 text-xs mt-1">{errors.avatar_file.message}</p>}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
               </div>
