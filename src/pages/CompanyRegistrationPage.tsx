@@ -385,16 +385,26 @@ const CompanyRegistrationPage: React.FC = () => {
         return;
       }
 
-      // NEW: Update user's type in 'type_user' table to 'PROPRIETARIO'
+      /**
+       * ROTINA BLINDADA - Atualização de type_user
+       * 
+       * IMPORTANTE: O registro em type_user já existe (criado pelo trigger handle_new_user
+       * com cod='CLIENTE'). Aqui apenas ATUALIZAMOS para 'PROPRIETARIO'.
+       * 
+       * NÃO usar INSERT ou UPSERT - apenas UPDATE.
+       * Se o UPDATE falhar, não é crítico pois o role já está definido em user_companies.
+       */
       const { error: updateTypeError } = await supabase
         .from('type_user')
         .update({ cod: 'PROPRIETARIO', descr: 'Proprietário' })
         .eq('user_id', session.user.id);
 
       if (updateTypeError) {
-        showError('Erro ao atualizar tipo de usuário para Proprietário: ' + updateTypeError.message);
-        console.error('Error updating type_user:', updateTypeError);
-        // Continue with the flow even if this update fails, as company and role are already set
+        // Não crítico - o role já está em user_companies via assign_user_to_company
+        console.warn('[CompanyRegistration] Aviso: Falha ao atualizar type_user (não crítico):', updateTypeError);
+        // Não mostrar erro ao usuário para não confundir - o cadastro foi bem-sucedido
+      } else {
+        console.log('[CompanyRegistration] type_user atualizado com sucesso para PROPRIETARIO');
       }
     }
 

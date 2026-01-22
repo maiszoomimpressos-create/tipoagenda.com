@@ -56,13 +56,28 @@ export function useHasFeature(featureSlug: string): FeatureAccessResult {
         const featureId = featureData.id;
 
         // 2. Obter o plano da empresa primária
+        // Usar maybeSingle() para evitar erro 406 quando não há assinatura
         const { data: companySubscription, error: companySubscriptionError } = await supabase
-          .from('company_subscriptions') // Supondo que você tem uma tabela que associa empresa a um plano
+          .from('company_subscriptions')
           .select('plan_id')
           .eq('company_id', primaryCompanyId)
-          .single();
+          .order('start_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        if (companySubscriptionError || !companySubscription) {
+        if (companySubscriptionError) {
+          // Tratar erro 406 (Not Acceptable) especificamente
+          if (companySubscriptionError.code === 'PGRST301' || companySubscriptionError.status === 406) {
+            console.warn(`useHasFeature: Erro 406 ao buscar assinatura. Verificando RLS ou company_id: ${primaryCompanyId}`);
+          }
+          console.warn(`useHasFeature: Erro ao buscar assinatura para a empresa ${primaryCompanyId}:`, companySubscriptionError);
+          setHasAccess(false);
+          setLimit(null);
+          setLoading(false);
+          return;
+        }
+
+        if (!companySubscription || !companySubscription.plan_id) {
           console.warn(`useHasFeature: Nenhuma assinatura encontrada para a empresa ${primaryCompanyId}.`);
           setHasAccess(false);
           setLimit(null);

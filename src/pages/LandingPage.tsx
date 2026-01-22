@@ -48,45 +48,8 @@ const LandingPage: React.FC = () => {
     { id: 'pet', name: 'Pet Care', icon: 'fas fa-paw' }
   ];
 
-  // Redirecionamento pós-login baseado no papel do usuário
-  useEffect(() => {
-    if (sessionLoading) {
-      return;
-    }
-
-    if (!session) {
-      return;
-    }
-
-    if (loadingRoles) {
-      return;
-    }
-
-    if (isGlobalAdmin) {
-      navigate('/admin-dashboard', { replace: true });
-      return;
-    }
-
-    if (isProprietario || isCompanyAdmin) {
-      navigate('/dashboard', { replace: true });
-      return;
-    }
-
-    // Se estiver logado mas não for admin/global/proprietário e também não for cliente,
-    // encaminha para o fluxo de cadastro de empresa
-    if (!isClient) {
-      navigate('/register-company', { replace: true });
-    }
-  }, [
-    session,
-    sessionLoading,
-    loadingRoles,
-    isGlobalAdmin,
-    isProprietario,
-    isCompanyAdmin,
-    isClient,
-    navigate,
-  ]);
+  // NOTA: O redirecionamento pós-login é tratado pelo Index.tsx
+  // Esta página não deve fazer redirecionamentos automáticos
 
   // Logic to open the selection modal if the user is a client and just logged in without a target company
 

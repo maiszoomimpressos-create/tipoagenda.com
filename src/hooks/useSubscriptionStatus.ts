@@ -28,15 +28,19 @@ export function useSubscriptionStatus(): SubscriptionStatusResult {
     }
 
     if (!session?.user || !primaryCompanyId) {
+      console.log('useSubscriptionStatus: Sem usuário ou primaryCompanyId. Usuário:', session?.user?.id, 'CompanyId:', primaryCompanyId);
       setStatus('no_subscription');
       setEndDate(null);
       setLoading(false);
       return;
     }
 
+    console.log('useSubscriptionStatus: Verificando assinatura para company_id:', primaryCompanyId);
+
     setLoading(true);
     try {
       // Fetch the current active subscription
+      // Usar maybeSingle() para evitar erro 406 quando não há assinatura
       const { data: subData, error } = await supabase
         .from('company_subscriptions')
         .select('end_date, status')
@@ -44,9 +48,63 @@ export function useSubscriptionStatus(): SubscriptionStatusResult {
         .eq('status', 'active')
         .order('end_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found"
+      // Tratar erros específicos
+      if (error) {
+        // PGRST116 = "No rows found" (normal quando não há assinatura)
+        if (error.code === 'PGRST116') {
+          setStatus('no_subscription');
+          setEndDate(null);
+          setLoading(false);
+          return;
+        }
+        
+        // PGRST301 ou 406 = "Not Acceptable" (problema com RLS ou query)
+        if (error.code === 'PGRST301' || error.status === 406) {
+          console.error('useSubscriptionStatus: Erro 406 ao buscar assinatura. Verificando RLS ou company_id:', primaryCompanyId);
+          console.error('Detalhes do erro:', error);
+          // Tentar buscar sem filtro de status para diagnóstico
+          const { data: allSubs, error: allSubsError } = await supabase
+            .from('company_subscriptions')
+            .select('id, company_id, plan_id, status, end_date')
+            .eq('company_id', primaryCompanyId)
+            .order('start_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          console.log('Resultado da busca alternativa (sem filtro de status):', allSubs, allSubsError);
+          
+          if (allSubsError && allSubsError.code !== 'PGRST116') {
+            throw allSubsError;
+          }
+          
+          if (!allSubs) {
+            setStatus('no_subscription');
+            setEndDate(null);
+            setLoading(false);
+            return;
+          }
+          
+          // Se encontrou assinatura mas não está ativa, verificar se está expirada
+          if (allSubs.end_date) {
+            const today = startOfDay(new Date());
+            const expirationDate = startOfDay(parseISO(allSubs.end_date));
+            if (isBefore(expirationDate, today)) {
+              setStatus('expired');
+              setEndDate(allSubs.end_date);
+              setLoading(false);
+              return;
+            }
+          }
+          
+          setStatus('no_subscription');
+          setEndDate(null);
+          setLoading(false);
+          return;
+        }
+        
+        // Outros erros
         throw error;
       }
 

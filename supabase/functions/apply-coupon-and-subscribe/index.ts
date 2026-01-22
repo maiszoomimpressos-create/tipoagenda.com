@@ -7,8 +7,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to handle subscription creation/extension
-async function handleSubscription(supabaseAdmin: any, companyId: string, planId: string, durationMonths: number, price: number, isFreeTrial: boolean = false) {
+// Helper function to handle subscription creation/extension para fluxos sem pagamento (preço final <= 0)
+// Este helper mantém o comportamento de ativar diretamente a assinatura.
+async function handleSubscription(
+    supabaseAdmin: any,
+    companyId: string,
+    planId: string,
+    durationMonths: number,
+    price: number,
+    isFreeTrial: boolean = false
+) {
     const today = new Date();
     const startDate = format(today, 'yyyy-MM-dd');
     
@@ -235,33 +243,93 @@ serve(async (req) => {
     // --- 2. Handle Subscription Activation ---
     
     if (finalPrice <= 0) {
-        // If price is zero (e.g., 100% discount or free plan), activate immediately
-        const { subscriptionId } = await handleSubscription(supabaseAdmin, companyId, planId, finalDurationMonths, finalPrice, true);
+        // Caso 100% desconto ou plano grátis: ativa diretamente a assinatura (sem pagamento)
+        const { subscriptionId } = await handleSubscription(
+            supabaseAdmin,
+            companyId,
+            planId,
+            finalDurationMonths,
+            finalPrice,
+            true
+        );
         
-        // Register coupon usage if applicable
+        // Registrar uso do cupom (se houver)
         if (couponId) {
             const { error: usageInsertError } = await supabaseAdmin
                 .from('coupon_usages')
-                .insert({ company_id: companyId, admin_coupon_id: couponId });
-            if (usageInsertError) console.error('Failed to register coupon usage:', usageInsertError);
+                .insert({ 
+                    company_id: companyId, 
+                    admin_coupon_id: couponId,
+                    used_at: new Date().toISOString(),
+                });
+            if (usageInsertError) {
+                console.error('Failed to register coupon usage:', usageInsertError);
+                throw usageInsertError;
+            }
             
-            // Increment coupon usage count
             await supabaseAdmin.rpc('increment_coupon_usage', { coupon_id: couponId });
         }
 
-        return new Response(JSON.stringify({ message: 'Subscription activated immediately (Free Trial/Discount)', subscriptionId }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-
+        return new Response(
+            JSON.stringify({ message: 'Subscription activated immediately (Free Trial/Discount)', subscriptionId }),
+            {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+        );
     } else {
-        // If price > 0, proceed to payment gateway (Mercado Pago)
+        // Caso com pagamento: registrar assinatura PENDENTE antes de chamar o gateway
         if (!MERCADOPAGO_ACCESS_TOKEN) {
             console.error('MERCADOPAGO_ACCESS_TOKEN not set.');
             return new Response(JSON.stringify({ error: 'Payment service not configured.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
-        // --- NEW: Register payment attempt as 'initiated' ---
+        // --- 2. Garantir que exista uma assinatura pendente para esta empresa + plano ---
+        let pendingSubscriptionId: string | null = null;
+        const { data: existingPending, error: pendingError } = await supabaseAdmin
+            .from('company_subscriptions')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('plan_id', planId)
+            .eq('status', 'pending')
+            .order('start_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (pendingError) {
+            console.error('Error checking pending subscription:', pendingError);
+            throw pendingError;
+        }
+
+        if (existingPending) {
+            pendingSubscriptionId = existingPending.id;
+            console.log(`Found existing pending subscription ${pendingSubscriptionId} for company ${companyId}.`);
+        } else {
+            const today = new Date();
+            const startDate = format(today, 'yyyy-MM-dd');
+
+            const { data: newPending, error: insertPendingError } = await supabaseAdmin
+                .from('company_subscriptions')
+                .insert({
+                    company_id: companyId,
+                    plan_id: planId,
+                    start_date: startDate,
+                    end_date: null,
+                    status: 'pending',
+                })
+                .select('id')
+                .single();
+
+            if (insertPendingError) {
+                console.error('Error creating pending subscription:', insertPendingError);
+                throw insertPendingError;
+            }
+
+            pendingSubscriptionId = newPending.id;
+            console.log(`Created pending subscription ${pendingSubscriptionId} for company ${companyId}.`);
+        }
+
+        // --- 3. Registrar tentativa de pagamento como 'initiated' ---
         // Ensure amount is a valid number
         const paymentAmount = Number(finalPrice);
         if (isNaN(paymentAmount) || paymentAmount <= 0) {

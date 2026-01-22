@@ -77,28 +77,60 @@ const SubscriptionPlansPage: React.FC = () => {
         
       setAvailablePlans(activePlans);
 
-      // 2. Fetch current active subscription for the primary company
-      // Fetch the most recent subscription regardless of status to show cancellation status
+      // 2. Buscar a assinatura mais recente da empresa (independente do status)
+      // Usamos select('*') em uma única linha para evitar qualquer problema de sintaxe no parâmetro select (HTTP 406).
       const { data: subData, error: subError } = await supabase
         .from('company_subscriptions')
-        .select(`
-          id,
-          plan_id,
-          start_date,
-          end_date,
-          status
-        `)
+        .select('*')
         .eq('company_id', primaryCompanyId)
         .order('start_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (subError && subError.code !== 'PGRST116') {
-        console.error('subError:', subError);
+      if (subError) {
+        console.error('Erro ao buscar assinatura atual:', subError);
         throw subError;
       }
+
+      console.log('Resultado de company_subscriptions para company_id', primaryCompanyId, ':', subData);
+
+      // Enriquecer os dados da assinatura com as informações do plano
+      let enrichedSubscription: Subscription | null = null;
+      if (subData) {
+        // Primeiro, tentar encontrar na lista de planos ativos já carregados
+        let planForSubscription = activePlans.find(p => p.id === subData.plan_id) || null;
+        
+        // Se não encontrou nos planos ativos, buscar diretamente na tabela (pode estar inativo)
+        if (!planForSubscription && subData.plan_id) {
+          console.log('Plano não encontrado em activePlans, buscando diretamente na tabela subscription_plans para plan_id:', subData.plan_id);
+          const { data: planData, error: planError } = await supabase
+            .from('subscription_plans')
+            .select('id, name, description, price, features, duration_months, status')
+            .eq('id', subData.plan_id)
+            .single();
+          
+          if (!planError && planData) {
+            planForSubscription = {
+              id: planData.id,
+              name: planData.name,
+              description: planData.description,
+              price: planData.price,
+              features: planData.features,
+              duration_months: planData.duration_months,
+            } as Plan;
+            console.log('Plano encontrado diretamente na tabela:', planForSubscription);
+          } else {
+            console.error('Erro ao buscar plano diretamente:', planError);
+          }
+        }
+        
+        enrichedSubscription = {
+          ...(subData as any),
+          subscription_plans: planForSubscription,
+        } as Subscription;
+      }
       
-      setCurrentSubscription(subData as Subscription | null);
+      setCurrentSubscription(enrichedSubscription);
 
     } catch (error: any) {
       console.error('Erro ao carregar dados de planos/assinatura:', error);
@@ -245,55 +277,12 @@ const SubscriptionPlansPage: React.FC = () => {
             }
         }
 
-        if (finalPrice === 0) {
-            // Case: 100% discount, no payment needed
-            console.log('Plano com 100% de desconto. Ativando assinatura diretamente...');
+        // A partir daqui, TODA a lógica de adesão/ativação de plano (com ou sem pagamento)
+        // é centralizada na Edge Function `apply-coupon-and-subscribe`.
+        // Ela mesma decide se:
+        // - ativa diretamente (quando finalPrice <= 0, ex: 100% desconto), ou
+        // - encaminha para o Mercado Pago (quando finalPrice > 0).
 
-            // Create subscription
-            const endDate = addMonths(new Date(), plan.duration_months);
-            const { data: newSubscription, error: subError } = await supabase
-                .from('company_subscriptions')
-                .insert({
-                    company_id: primaryCompanyId,
-                    plan_id: plan.id,
-                    start_date: new Date().toISOString(),
-                    end_date: endDate.toISOString(),
-                    status: 'active',
-                })
-                .select()
-                .single();
-
-            if (subError) throw subError;
-
-            // Register coupon usage if a coupon was used
-            if (validatedCoupon) {
-                const { error: usageError } = await supabase
-                    .from('coupon_usages')
-                    .insert({
-                        company_id: primaryCompanyId,
-                        admin_coupon_id: validatedCoupon.id,
-                        used_at: new Date().toISOString(),
-                    });
-                if (usageError) console.error('Error logging coupon usage:', usageError);
-
-                // Increment coupon current_uses
-                const { data: updatedCoupon, error: updateCouponError } = await supabase
-                    .rpc('increment_coupon_uses', { coupon_id: validatedCoupon.id });
-
-                if (updateCouponError) {
-                    console.error('Error incrementing coupon uses:', updateCouponError);
-                } else {
-                    console.log('Coupon uses incremented:', updatedCoupon);
-                }
-            }
-
-            showSuccess(`Assinatura do plano ${plan.name} ativada com sucesso (Grátis)!`);
-            fetchSubscriptionData();
-            setLoadingData(false);
-            return; // Exit function, no need to call Edge Function
-        }
-
-        // Case: Payment needed, call Edge Function
         // Validate required fields before calling Edge Function
         if (!plan.id || !primaryCompanyId || !plan.name || plan.price === undefined || plan.price === null || plan.duration_months === undefined || plan.duration_months === null) {
             throw new Error('Dados do plano incompletos. Por favor, recarregue a página e tente novamente.');
