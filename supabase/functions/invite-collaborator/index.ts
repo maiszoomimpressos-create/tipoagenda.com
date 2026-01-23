@@ -68,30 +68,71 @@ serve(async (req) => {
     );
 
     // Check if the calling user (user.id) is an admin/proprietor of the companyId
+    console.log('Edge Function Debug (invite-collaborator): Verificando role para user_id:', user.id, 'company_id:', companyId);
+    
     const { data: userCompanyRoles, error: roleError } = await supabaseAdmin
       .from('user_companies')
       .select('role_type')
       .eq('user_id', user.id)
       .eq('company_id', companyId)
-      .single();
+      .maybeSingle();
 
-    if (roleError || !userCompanyRoles) {
-      console.error('Edge Function Error (invite-collaborator): Role check error -', roleError?.message || 'User not authorized for this company');
-      return new Response(JSON.stringify({ error: 'Forbidden: User not authorized for this company' }), {
+    if (roleError) {
+      console.error('Edge Function Error (invite-collaborator): Role check error -', roleError.message);
+      console.error('Edge Function Debug (invite-collaborator): roleError details:', JSON.stringify(roleError, null, 2));
+      return new Response(JSON.stringify({ error: 'Forbidden: User not authorized for this company - ' + roleError.message }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    if (!userCompanyRoles || !userCompanyRoles.role_type) {
+      console.error('Edge Function Error (invite-collaborator): User not found in user_companies or role_type is null');
+      console.error('Edge Function Debug (invite-collaborator): userCompanyRoles:', JSON.stringify(userCompanyRoles, null, 2));
+      return new Response(JSON.stringify({ error: 'Forbidden: User not authorized for this company - No role found' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Edge Function Debug (invite-collaborator): role_type encontrado:', userCompanyRoles.role_type);
+
     const { data: roleTypeData, error: roleTypeFetchError } = await supabaseAdmin
       .from('role_types')
       .select('description')
       .eq('id', userCompanyRoles.role_type)
-      .single();
+      .maybeSingle();
 
-    if (roleTypeFetchError || !roleTypeData || !['Proprietário', 'Admin'].includes(roleTypeData.description)) {
-      console.error('Edge Function Error (invite-collaborator): Role type description error -', roleTypeFetchError?.message || 'User does not have sufficient privileges');
-      return new Response(JSON.stringify({ error: 'Forbidden: User does not have sufficient privileges for this company' }), {
+    if (roleTypeFetchError) {
+      console.error('Edge Function Error (invite-collaborator): Role type fetch error -', roleTypeFetchError.message);
+      console.error('Edge Function Debug (invite-collaborator): roleTypeFetchError details:', JSON.stringify(roleTypeFetchError, null, 2));
+      return new Response(JSON.stringify({ error: 'Forbidden: Error checking user privileges - ' + roleTypeFetchError.message }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!roleTypeData || !roleTypeData.description) {
+      console.error('Edge Function Error (invite-collaborator): Role type not found or description is null');
+      console.error('Edge Function Debug (invite-collaborator): roleTypeData:', JSON.stringify(roleTypeData, null, 2));
+      return new Response(JSON.stringify({ error: 'Forbidden: User role type not found' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Verificação mais robusta: trim e case-insensitive
+    const roleDescription = roleTypeData.description.trim();
+    const allowedRoles = ['Proprietário', 'Admin'];
+    const hasPermission = allowedRoles.some(allowed => allowed.trim().toLowerCase() === roleDescription.toLowerCase());
+
+    console.log('Edge Function Debug (invite-collaborator): Role description:', roleDescription);
+    console.log('Edge Function Debug (invite-collaborator): Has permission:', hasPermission);
+
+    if (!hasPermission) {
+      console.error('Edge Function Error (invite-collaborator): User does not have sufficient privileges');
+      console.error('Edge Function Debug (invite-collaborator): User role:', roleDescription, 'Allowed roles:', allowedRoles);
+      return new Response(JSON.stringify({ error: `Forbidden: User does not have sufficient privileges. Current role: ${roleDescription}. Required: Proprietário or Admin` }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
