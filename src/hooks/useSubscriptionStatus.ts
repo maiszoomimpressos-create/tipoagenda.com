@@ -39,9 +39,9 @@ export function useSubscriptionStatus(): SubscriptionStatusResult {
 
     setLoading(true);
     try {
-      // Fetch the current active subscription
+      // Primeiro, tentar buscar assinatura ativa
       // Usar maybeSingle() para evitar erro 406 quando não há assinatura
-      const { data: subData, error } = await supabase
+      let { data: subData, error } = await supabase
         .from('company_subscriptions')
         .select('end_date, status')
         .eq('company_id', primaryCompanyId)
@@ -49,6 +49,24 @@ export function useSubscriptionStatus(): SubscriptionStatusResult {
         .order('end_date', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      // Se não encontrou ativa, buscar qualquer assinatura (pode estar pending ou outra)
+      if (!subData && (!error || error.code === 'PGRST116')) {
+        console.log('useSubscriptionStatus: Não encontrou assinatura ativa, buscando qualquer assinatura...');
+        const { data: anySubData, error: anySubError } = await supabase
+          .from('company_subscriptions')
+          .select('end_date, status')
+          .eq('company_id', primaryCompanyId)
+          .order('start_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (anySubData) {
+          subData = anySubData;
+          error = anySubError;
+          console.log('useSubscriptionStatus: Encontrou assinatura (status:', anySubData.status, ')');
+        }
+      }
 
       // Tratar erros específicos
       if (error) {
