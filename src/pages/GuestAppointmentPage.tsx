@@ -14,6 +14,31 @@ import { getAvailableTimeSlots } from '@/utils/appointment-scheduling'; // Impor
 import { showError, showSuccess } from '@/utils/toast';
 import { Loader2 } from 'lucide-react';
 
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function formatPhoneBR(value: string) {
+  const digits = onlyDigits(value).slice(0, 11);
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+
+  if (!digits) return '';
+  if (digits.length < 3) return `(${digits}`;
+
+  // 10 dígitos: (DD) XXXX-XXXX
+  if (digits.length <= 10) {
+    const part1 = rest.slice(0, 4);
+    const part2 = rest.slice(4, 8);
+    return `(${ddd})${part2 ? ` ${part1}-${part2}` : ` ${part1}`}`.trim();
+  }
+
+  // 11 dígitos: (DD) XXXXX-XXXX
+  const part1 = rest.slice(0, 5);
+  const part2 = rest.slice(5, 9);
+  return `(${ddd}) ${part1}-${part2}`;
+}
+
 interface Service {
   id: string;
   name: string;
@@ -212,6 +237,13 @@ const GuestAppointmentPage: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
+    const guestPhoneDigits = onlyDigits(guestPhone);
+    if (guestPhoneDigits.length !== 10 && guestPhoneDigits.length !== 11) {
+      showError('Telefone inválido. Informe DDD + número.');
+      setIsSubmitting(false);
+      return;
+    }
+
     if (!companyId || !guestName || !guestPhone || !selectedServiceId || !selectedDate || !selectedCollaboratorId || !selectedTime) {
       showError('Por favor, preencha todos os campos obrigatórios.');
       setIsSubmitting(false);
@@ -295,9 +327,12 @@ const GuestAppointmentPage: React.FC = () => {
                 type="tel"
                 placeholder="(XX) XXXXX-XXXX"
                 value={guestPhone}
-                onChange={(e) => setGuestPhone(e.target.value)}
+                onChange={(e) => setGuestPhone(formatPhoneBR(e.target.value))}
                 required
                 disabled={isSubmitting}
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={15}
               />
             </div>
           </div>

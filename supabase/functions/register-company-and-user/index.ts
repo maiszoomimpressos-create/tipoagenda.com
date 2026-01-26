@@ -72,10 +72,11 @@ serve(async (req) => {
     const proprietarioRoleId = await getProprietarioRoleId(supabaseAdmin);
 
     // 3. Create User in Auth (This triggers handle_new_user to create the profile)
+    // IMPORTANTE: email_confirm: false para exigir confirmação de email antes de habilitar o sistema
     const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
-        email_confirm: true, // Auto-confirm email for professional signups
+        email_confirm: false, // Requer confirmação de email antes de habilitar o sistema
         user_metadata: {
             first_name: firstName,
             last_name: lastName,
@@ -220,23 +221,127 @@ serve(async (req) => {
         console.warn('Failed to update user type to Proprietario:', updateTypeError.message);
     }
 
-    // 8. Generate Session Token for automatic login
-    const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email,
+    // 8. Send email confirmation with redirect to plans page
+    const siteUrl = Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co';
+    
+    console.log('Sending email confirmation to:', email);
+
+    // Gerar link de confirmação (sempre necessário para o Resend ou fallback do Supabase)
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'signup',
+      email: email,
+      options: {
+        redirectTo: `${siteUrl}/planos`,
+      },
     });
 
-    if (tokenError || !tokenData.properties?.email_otp) {
-        console.error('Token Generation Error:', tokenError?.message || 'No OTP generated.');
-        throw new Error('Failed to generate login token.');
+    if (linkError) {
+      // Tentar recovery se signup falhar, para garantir que um link seja gerado
+      const { data: recoveryData } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: email,
+        options: {
+          redirectTo: `${siteUrl}/planos`,
+        },
+      });
+      
+      if (recoveryData?.properties?.action_link) {
+        linkData.properties = { action_link: recoveryData.properties.action_link };
+      }
+    }
+
+    const confirmationLink = linkData?.properties?.action_link;
+
+    // Declarar emailSentSuccessfully fora do bloco para evitar erro de escopo
+    let emailSentSuccessfully = false;
+
+    if (!confirmationLink) {
+      console.error('Não foi possível gerar o link de confirmação para o email:', email);
+      // Continuar o processo de registro, mas sem o envio de e-mail de confirmação
+      console.warn('Registro concluído, mas o e-mail de confirmação não pôde ser gerado. O usuário pode usar o botão de reenviar.');
+    } else {
+      // Usar a mesma lógica que funciona em resend-email-confirmation
+      const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+
+      if (!RESEND_API_KEY) {
+        console.warn('RESEND_API_KEY não configurada. Email não será enviado no cadastro inicial.');
+        console.warn('Configure no Supabase: Edge Functions > register-company-and-user > Settings > Secrets.');
+      } else {
+        try {
+          const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .button { display: inline-block; padding: 12px 24px; background-color: #F59E0B; color: #000; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+                .footer { margin-top: 30px; font-size: 12px; color: #666; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h2>Confirme seu cadastro no TipoAgenda</h2>
+                <p>Olá,</p>
+                <p>Obrigado por se cadastrar no TipoAgenda! Para ativar sua conta e acessar os planos de assinatura, clique no botão abaixo:</p>
+                <p><a href="${confirmationLink}" class="button">Confirmar E-mail</a></p>
+                <p>Ou copie e cole este link no seu navegador:</p>
+                <p style="word-break: break-all; color: #0066cc;">${confirmationLink}</p>
+                <p>Este link expira em 24 horas.</p>
+                <div class="footer">
+                  <p>Se você não se cadastrou, ignore este email.</p>
+                  <p>© TipoAgenda - Todos os direitos reservados</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${RESEND_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'onboarding@resend.dev', // Domínio de teste - só envia para email da conta do Resend
+              to: email,
+              subject: 'Confirme seu cadastro no TipoAgenda',
+              html: emailHtml,
+            }),
+          });
+
+          const resendData = await resendResponse.json();
+
+          if (resendResponse.ok) {
+            emailSentSuccessfully = true;
+            console.log('Email confirmation sent successfully via Resend API to:', email);
+          } else {
+            console.error('Resend API error:', resendData);
+            
+            // Erro 403 = modo de teste, só permite enviar para email próprio
+            if (resendData.statusCode === 403 && resendData.message?.includes('testing emails')) {
+              console.warn('Resend está em modo de teste. Você só pode enviar emails para o email da sua conta do Resend.');
+            }
+          }
+        } catch (resendErr: any) {
+          console.error('Resend API exception:', resendErr.message);
+        }
+      }
+    }
+
+    if (!emailSentSuccessfully) {
+      console.warn('Registration completed, but email confirmation may not have been sent. User can use resend button.');
+      console.warn('TIP: Configure RESEND_API_KEY in Edge Function secrets for reliable email delivery.');
     }
     
-    // Returning a success message and the user's ID.
+    // Returning a success message - NO automatic login, user must confirm email first
     return new Response(JSON.stringify({ 
-        message: 'User and Company registered successfully.', 
+        message: 'User and Company registered successfully. Please check your email to confirm your account.', 
         userId: userId,
         email: email,
-        password: password, // WARNING: This is insecure, but necessary for immediate login without complex token handling.
+        requiresEmailConfirmation: true, // Flag to indicate email confirmation is required
     }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -61,7 +61,8 @@ const unifiedRegistrationSchema = z.object({
   state: z.string().min(1, "Estado é obrigatória."),
   companyLogo: z.any()
     .refine((files) => !files || files.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
-    .refine((files) => !files || files.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
+    .refine((files) => !files || files.length === 0 || files?.[0]?.type.startsWith('image/'), `Apenas arquivos de imagem são aceitos.`)
+    .refine((files) => !files || files.length === 0 || files?.[0]?.type !== 'image/gif', `Arquivos GIF não são aceitos para logos.`)
     .optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "As senhas não coincidem.",
@@ -233,6 +234,34 @@ const UnifiedRegistrationPage: React.FC = () => {
     }
   };
 
+  const convertToPng = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const pngFile = new File([blob], file.name.split('.')[0] + '.png', { type: 'image/png' });
+              resolve(pngFile);
+            } else {
+              reject(new Error('Erro ao converter imagem para PNG.'));
+            }
+          }, 'image/png');
+        };
+        img.onerror = (error) => reject(new Error('Erro ao carregar imagem para conversão.'));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = (error) => reject(new Error('Erro ao ler arquivo.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFormSubmit = async (data: UnifiedRegistrationFormValues) => {
     setLoading(true);
 
@@ -245,21 +274,31 @@ const UnifiedRegistrationPage: React.FC = () => {
     // Convert image to base64 if present
     let imageBase64: string | null = null;
     if (data.companyLogo && data.companyLogo.length > 0) {
-      const file = data.companyLogo[0];
+      const originalFile = data.companyLogo[0];
       
       // Validate file size (5MB max)
-      if (file.size > 5000000) {
+      if (originalFile.size > 5000000) {
         setError('companyLogo', { type: 'manual', message: 'Tamanho máximo da imagem é 5MB.' });
         setLoading(false);
         return;
       }
       
-      // Validate file type
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!validTypes.includes(file.type)) {
-        setError('companyLogo', { type: 'manual', message: 'Apenas .jpg, .png e .webp são aceitos.' });
-        setLoading(false);
-        return;
+      let fileToConvert = originalFile;
+      // Converte para PNG se não for PNG (formato mais universalmente aceito)
+      if (originalFile.type !== 'image/png') {
+        try {
+          fileToConvert = await convertToPng(originalFile);
+          console.log('Imagem convertida para PNG:', {
+            name: fileToConvert.name,
+            size: fileToConvert.size,
+            type: fileToConvert.type,
+          });
+        } catch (conversionError: any) {
+          console.error('Erro ao converter imagem para PNG:', conversionError);
+          showError('Erro ao converter imagem: ' + conversionError.message);
+          setLoading(false);
+          return;
+        }
       }
       
       const reader = new FileReader();
@@ -278,7 +317,7 @@ const UnifiedRegistrationPage: React.FC = () => {
           console.error('Error reading file:', error);
           resolve(null);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(fileToConvert);
       });
       
       if (!imageBase64) {
@@ -379,25 +418,17 @@ const UnifiedRegistrationPage: React.FC = () => {
         throw new Error(edgeFunctionErrorMessage);
       }
 
-      const { email, password } = response.data as { email: string, password: string };
+      const { email: registeredEmail, requiresEmailConfirmation } = response.data as { email: string, requiresEmailConfirmation?: boolean };
 
-      // 2. Log in the newly created user using the provided credentials
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (loginError) {
-        console.error("Erro no login automático:", loginError);
-        showError('Cadastro concluído, mas falha no login automático: ' + loginError.message);
-        navigate('/login');
-        return;
-      }
-
-      // SessionContextProvider handles the final redirect to /dashboard
-      showSuccess('Cadastro e empresa criados com sucesso! Você está logado.');
+      // Não fazer login automático - usuário precisa confirmar email primeiro
+      showSuccess('Cadastro realizado com sucesso! Verifique seu e-mail para confirmar sua conta.');
       
       setIsContractModalOpen(false);
       setPendingData(null);
       setPendingImageUrl(null);
-      // The navigation will be handled by SessionContextProvider -> IndexPage -> Dashboard
+      
+      // Redirecionar para página de aviso sobre confirmação de email
+      navigate(`/email-confirmation-pending?email=${encodeURIComponent(registeredEmail)}`);
     } catch (error: any) {
       console.error('Erro ao registrar usuário e empresa:', error);
       showError('Erro ao finalizar o cadastro: ' + (error.message || 'Erro desconhecido.'));
@@ -631,12 +662,12 @@ const UnifiedRegistrationPage: React.FC = () => {
               <Input
                 id="companyLogo"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
                 {...register('companyLogo')}
                 className="mt-2 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700 dark:file:bg-yellow-700 dark:file:text-black dark:text-gray-300 dark:border-gray-600"
               />
               {errors.companyLogo && <p className="text-red-500 text-xs mt-1">{errors.companyLogo.message}</p>}
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Qualquer formato de imagem será aceito e convertido automaticamente. Máximo 5MB.</p>
             </div>
 
             <Button
