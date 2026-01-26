@@ -49,6 +49,7 @@ import ContactRequestsPage from "./pages/ContactRequestsPage"; // Importar nova 
 import AdminCouponManagementPage from "./pages/AdminCouponManagementPage"; // Importar nova página
 import CouponUsageReportPage from "./pages/CouponUsageReportPage"; // Importar nova página
 import UnifiedRegistrationPage from "./pages/UnifiedRegistrationPage"; // Importar nova página
+import EmailConfirmationPendingPage from "./pages/EmailConfirmationPendingPage"; // Importar página de aviso de confirmação de email
 import AreaDeAtuacaoPage from "./pages/AreaDeAtuacaoPage"; // Importar nova página
 import PaymentAttemptsPage from "./pages/PaymentAttemptsPage"; // Importar nova página
 import ConfigPage from "./pages/ConfigPage"; // Importar nova página de configurações
@@ -76,6 +77,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Verificar se o email está confirmado
+  // No Supabase, email_confirmed_at ou confirmed_at indica se o email foi confirmado
+  const emailConfirmed = session.user.email_confirmed_at || session.user.confirmed_at;
+  
+  if (!emailConfirmed) {
+    // Redirecionar para página de aviso se email não estiver confirmado
+    return <Navigate to={`/email-confirmation-pending?email=${encodeURIComponent(session.user.email || '')}`} replace />;
   }
 
   return <>{children}</>;
@@ -144,6 +154,9 @@ const App = () => (
             
             {/* Rota de Cadastro Unificado (Nova) */}
             <Route path="/register-professional" element={<UnifiedRegistrationPage />} />
+            
+            {/* Rota de Aviso de Confirmação de Email */}
+            <Route path="/email-confirmation-pending" element={<EmailConfirmationPendingPage />} />
 
             {/* NOVAS ROTAS: Agendamento para Convidados */}
             <Route path="/guest-appointment/:companyId" element={<GuestAppointmentPage />} />

@@ -42,7 +42,8 @@ const companySchema = z.object({
   state: z.string().min(1, "Estado é obrigatória."),
   company_logo: z.any()
     .refine((files) => !files || files.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
-    .refine((files) => !files || files.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
+    .refine((files) => !files || files.length === 0 || files?.[0]?.type.startsWith('image/'), `Apenas arquivos de imagem são aceitos.`)
+    .refine((files) => !files || files.length === 0 || files?.[0]?.type !== 'image/gif', `Arquivos GIF não são aceitos para logos.`)
     .optional(),
 });
 
@@ -243,6 +244,34 @@ const CompanyRegistrationPage: React.FC = () => {
     setValue('state', '');
   };
 
+  const convertToPng = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const pngFile = new File([blob], file.name.split('.')[0] + '.png', { type: 'image/png' });
+              resolve(pngFile);
+            } else {
+              reject(new Error('Erro ao converter imagem para PNG.'));
+            }
+          }, 'image/png');
+        };
+        img.onerror = (error) => reject(new Error('Erro ao carregar imagem para conversão.'));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = (error) => reject(new Error('Erro ao ler arquivo.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFormSubmit = async (data: CompanyFormValues) => {
     setLoading(true);
     if (!session?.user) {
@@ -260,21 +289,41 @@ const CompanyRegistrationPage: React.FC = () => {
     let imageUrl: string | null = null;
 
     if (data.company_logo && data.company_logo.length > 0) {
-      const file = data.company_logo[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+      const originalFile = data.company_logo[0];
+      
+      let fileToUpload = originalFile;
+      // Converte para PNG se não for PNG (formato mais universalmente aceito)
+      if (originalFile.type !== 'image/png') {
+        try {
+          fileToUpload = await convertToPng(originalFile);
+          console.log('Imagem convertida para PNG:', {
+            name: fileToUpload.name,
+            size: fileToUpload.size,
+            type: fileToUpload.type,
+          });
+        } catch (conversionError: any) {
+          console.error('Erro ao converter imagem para PNG:', conversionError);
+          showError('Erro ao converter imagem: ' + conversionError.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const fileName = `${session.user.id}-${Date.now()}.png`;
       const filePath = `company_logos/${fileName}`;
 
+      // Remove contentType para deixar o Supabase detectar automaticamente
       const { error: uploadError } = await supabase.storage
         .from('company_logos')
-        .upload(filePath, file, {
+        .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
         });
 
       if (uploadError) {
+        console.error('Erro detalhado no upload da imagem:', uploadError);
         showError('Erro ao fazer upload da imagem: ' + uploadError.message);
-        setLoading(false); // Stop loading on upload error
+        setLoading(false);
         return;
       }
 
@@ -649,12 +698,12 @@ const CompanyRegistrationPage: React.FC = () => {
               <Input
                 id="company_logo"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
                 {...register('company_logo')}
                 className="mt-2 file:text-sm file:font-semibold file:bg-yellow-600 file:text-black file:border-none file:rounded-button file:px-4 file:py-2 file:mr-4 hover:file:bg-yellow-700 dark:file:bg-yellow-700 dark:file:text-black dark:text-gray-300 dark:border-gray-600"
               />
               {errors.company_logo && <p className="text-red-500 text-xs mt-1">{errors.company_logo.message}</p>}
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Qualquer formato de imagem será aceito e convertido automaticamente. Máximo 5MB.</p>
             </div>
             <Button
               type="submit"

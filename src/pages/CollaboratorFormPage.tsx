@@ -32,7 +32,8 @@ const collaboratorSchema = z.object({
   }),
   avatar_file: z.any()
     .refine((files) => !files || files.length === 0 || files?.[0]?.size <= 5000000, `Tamanho máximo da imagem é 5MB.`)
-    .refine((files) => !files || files.length === 0 || ['image/jpeg', 'image/png', 'image/webp'].includes(files?.[0]?.type), `Apenas .jpg, .png e .webp são aceitos.`)
+    .refine((files) => !files || files.length === 0 || files?.[0]?.type.startsWith('image/'), `Apenas arquivos de imagem são aceitos.`)
+    .refine((files) => !files || files.length === 0 || files?.[0]?.type !== 'image/gif', `Arquivos GIF não são aceitos para avatares.`)
     .optional(),
 });
 
@@ -165,6 +166,33 @@ const CollaboratorFormPage: React.FC = () => {
     setValue('phone_number', formattedValue, { shouldValidate: true });
   };
 
+  const convertToPng = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const pngFile = new File([blob], file.name.split('.')[0] + '.png', { type: 'image/png' });
+              resolve(pngFile);
+            } else {
+              reject(new Error('Erro ao converter imagem para PNG.'));
+            }
+          }, 'image/png'); // PNG não tem parâmetro de qualidade
+        };
+        img.onerror = (error) => reject(new Error('Erro ao carregar imagem para conversão.'));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = (error) => reject(new Error('Erro ao ler arquivo.'));
+      reader.readAsDataURL(file);
+    });
+  };
   const onSubmit = async (data: CollaboratorFormValues) => {
     setLoading(true);
     if (!session?.user || !primaryCompanyId) {
@@ -175,25 +203,42 @@ const CollaboratorFormPage: React.FC = () => {
 
       let avatarUrl: string | null = null;
     if (data.avatar_file && data.avatar_file.length > 0) {
-      const file = data.avatar_file[0];
+      const originalFile = data.avatar_file[0];
       
-      console.log('Dados do arquivo para upload:', {
-        name: file.name,
-        size: file.size, // in bytes
-        type: file.type,
+      console.log('Dados do arquivo original para upload:', {
+        name: originalFile.name,
+        size: originalFile.size, // in bytes
+        type: originalFile.type,
       });
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${primaryCompanyId}-${data.email}-${Date.now()}.${fileExt}`;
+      let fileToUpload = originalFile;
+      // Converte para PNG se não for PNG (formato mais universalmente aceito)
+      if (originalFile.type !== 'image/png') {
+        try {
+          fileToUpload = await convertToPng(originalFile);
+          console.log('Imagem convertida para PNG:', {
+            name: fileToUpload.name,
+            size: fileToUpload.size,
+            type: fileToUpload.type,
+          });
+        } catch (conversionError: any) {
+          console.error('Erro ao converter imagem para PNG:', conversionError);
+          showError('Erro ao converter imagem: ' + conversionError.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const fileName = `${primaryCompanyId}-${data.email}-${Date.now()}.png`;
       const filePath = `collaborator_avatars/${fileName}`;
 
+      // Remove contentType para deixar o Supabase detectar automaticamente
       const { error: uploadError } = await supabase.storage
         .from('collaborator_avatars')
-        .upload(filePath, file, {
+        .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
-          // Ajuste de contentType para evitar erro de MIME type não suportado no Supabase
-          contentType: file.type === 'image/jpeg' ? 'image/jpg' : file.type,
+          // Não especifica contentType - deixa o Supabase detectar automaticamente
         });
 
       if (uploadError) {
@@ -348,14 +393,14 @@ const CollaboratorFormPage: React.FC = () => {
                 <Label htmlFor="email" className="text-sm font-medium text-gray-700 mb-2">
                   E-mail *
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@colaborador.com"
-                  {...register('email')}
-                  className="mt-1 border-gray-300 text-sm"
-                  disabled={isEditing} // Email should not be editable after creation
-                />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@colaborador.com"
+                    {...register('email')}
+                    className="mt-1 border-gray-300 text-sm"
+                    disabled={isEditing} // Email should not be editable after creation
+                  />
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
               </div>
               <div>
@@ -432,7 +477,7 @@ const CollaboratorFormPage: React.FC = () => {
                 <Input
                   id="avatar_file"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/*"
                   onChange={(e) => {
                     const files = e.target.files;
                     if (files && files.length > 0) {
@@ -447,7 +492,7 @@ const CollaboratorFormPage: React.FC = () => {
                 />
                 {selectedFileName && <p className="text-sm text-gray-700 mt-2">Arquivo selecionado: <span className="font-medium">{selectedFileName}</span></p>}
                 {errors.avatar_file && <p className="text-red-500 text-xs mt-1">{errors.avatar_file.message}</p>}
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Apenas .jpg, .png, .webp. Máximo 5MB.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Qualquer formato de imagem será aceito e convertido automaticamente. Máximo 5MB.</p>
               </div>
               <div className="flex gap-4 pt-4">
                 <Button
