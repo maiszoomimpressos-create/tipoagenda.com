@@ -115,11 +115,11 @@ const LandingPage: React.FC = () => {
               ) : (
                 <>
                   <DropdownMenuItem onClick={() => navigate('/login')}>
-                    Login
+                    Login/Cadastro
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate('/register-professional')}>
-                    Cadastro
+                    Cadastro da Empresa
                   </DropdownMenuItem>
                 </>
               )}
