@@ -2,9 +2,11 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from 'react-router-dom';
-import { Lock, DollarSign, Clock } from 'lucide-react';
+import { Lock, DollarSign, Clock, LogOut } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { markExplicitLogout } from '@/utils/auth-state';
 
 interface SubscriptionExpiredPageProps {
   endDate: string | null;
@@ -16,6 +18,57 @@ const SubscriptionExpiredPage: React.FC<SubscriptionExpiredPageProps> = ({ endDa
   const formattedEndDate = endDate 
     ? format(parseISO(endDate), 'dd/MM/yyyy', { locale: ptBR }) 
     : 'N/A';
+
+  const handleLogout = async () => {
+    try {
+      markExplicitLogout(); // Marca que o logout foi explícito
+      
+      // Tentar fazer logout normalmente
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn('Logout error (will clear manually):', error.message);
+        }
+      } catch (signOutError: any) {
+        console.warn('SignOut failed (will clear manually):', signOutError);
+      }
+      
+      // Limpar manualmente o localStorage do Supabase para garantir que a sessão seja removida
+      try {
+        // Limpar todas as chaves relacionadas ao Supabase Auth
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('supabase') || key.includes('auth'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Limpar sessionStorage também
+        const sessionKeysToRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (key.includes('supabase') || key.includes('auth'))) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+      } catch (clearError) {
+        console.error('Error clearing storage:', clearError);
+      }
+      
+      // Forçar atualização da sessão no Supabase
+      await supabase.auth.getSession();
+      
+      // Redirecionar para a Landing Page e recarregar para garantir limpeza completa
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('Unexpected error during logout:', error);
+      // Mesmo com erro, tenta redirecionar
+      window.location.href = '/';
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
@@ -57,6 +110,15 @@ const SubscriptionExpiredPage: React.FC<SubscriptionExpiredPageProps> = ({ endDa
             onClick={() => navigate('/dashboard')}
           >
             Voltar para o Dashboard (Acesso Limitado)
+          </Button>
+          
+          <Button
+            variant="outline"
+            className="w-full !rounded-button border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            onClick={handleLogout}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sair e Voltar para o Início
           </Button>
         </CardContent>
       </Card>
