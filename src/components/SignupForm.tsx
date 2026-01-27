@@ -48,6 +48,7 @@ const SignupForm: React.FC = () => {
 
     try {
       // 1. Realizar o cadastro do usuário no Supabase Auth
+      const siteUrl = window.location.origin;
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -56,6 +57,7 @@ const SignupForm: React.FC = () => {
             first_name: firstName,
             last_name: lastName,
           },
+          emailRedirectTo: `${siteUrl}/meus-agendamentos`, // Redirecionar cliente para meus agendamentos após confirmar email
         },
       });
 

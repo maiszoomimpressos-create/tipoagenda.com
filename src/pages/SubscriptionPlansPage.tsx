@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useIsClient } from '@/hooks/useIsClient';
 import { Check, X, DollarSign, Clock, Zap, Tag, AlertTriangle, Settings } from 'lucide-react';
 import { format, parseISO, addMonths, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -35,6 +36,14 @@ const SubscriptionPlansPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { isClient, loadingClientCheck } = useIsClient();
+
+  // Redirecionar clientes para meus agendamentos (planos são apenas para profissionais)
+  useEffect(() => {
+    if (!sessionLoading && !loadingClientCheck && session && isClient) {
+      navigate('/meus-agendamentos', { replace: true });
+    }
+  }, [sessionLoading, loadingClientCheck, session, isClient, navigate]);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [loadingData, setLoadingData] = useState(true);
