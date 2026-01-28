@@ -38,13 +38,15 @@ serve(async (req) => {
       }
     );
 
-    // Fetch working schedules
+    // Fetch working schedules (sempre buscar dados atualizados)
+    console.log('get-scheduling-data: Buscando working schedules em:', new Date().toISOString());
     const { data: workingSchedules, error: wsError } = await supabaseAdmin
       .from('working_schedules')
       .select('id, day_of_week, start_time, end_time')
       .eq('collaborator_id', collaboratorId)
       .eq('company_id', companyId)
-      .eq('day_of_week', selectedDayOfWeek);
+      .eq('day_of_week', selectedDayOfWeek)
+      .order('start_time', { ascending: true });
 
     if (wsError) {
       console.error('Edge Function Error (get-scheduling-data): Error fetching working schedules:', wsError);
@@ -53,14 +55,17 @@ serve(async (req) => {
         headers: corsHeaders,
       });
     }
+    console.log('get-scheduling-data: workingSchedules encontrados:', workingSchedules?.length || 0);
 
-    // Fetch schedule exceptions
+    // Fetch schedule exceptions (sempre buscar dados atualizados)
+    console.log('get-scheduling-data: Buscando schedule exceptions em:', new Date().toISOString());
     const { data: exceptions, error: exError } = await supabaseAdmin
       .from('schedule_exceptions')
       .select('id, exception_date, is_day_off, start_time, end_time, reason')
       .eq('collaborator_id', collaboratorId)
       .eq('company_id', companyId)
-      .eq('exception_date', formattedDate);
+      .eq('exception_date', formattedDate)
+      .order('start_time', { ascending: true });
 
     if (exError) {
       console.error('Edge Function Error (get-scheduling-data): Error fetching schedule exceptions:', exError);
@@ -69,21 +74,26 @@ serve(async (req) => {
         headers: corsHeaders,
       });
     }
+    console.log('get-scheduling-data: exceptions encontradas:', exceptions?.length || 0);
 
-    // Fetch existing appointments
+    // Fetch existing appointments (SEMPRE buscar dados atualizados)
+    console.log('get-scheduling-data: Buscando appointments em:', new Date().toISOString());
     let appointmentsQuery = supabaseAdmin
       .from('appointments')
-      .select('id, appointment_time, total_duration_minutes')
+      .select('id, appointment_time, total_duration_minutes, status, created_at, updated_at')
       .eq('collaborator_id', collaboratorId)
       .eq('company_id', companyId)
       .eq('appointment_date', formattedDate)
-      .neq('status', 'cancelado');
+      .neq('status', 'cancelado')
+      .order('appointment_time', { ascending: true });
 
     if (excludeAppointmentId) {
       appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
+      console.log('get-scheduling-data: Excluindo appointment ID:', excludeAppointmentId);
     }
 
     const { data: existingAppointments, error: appError } = await appointmentsQuery;
+    console.log('get-scheduling-data: appointments encontrados:', existingAppointments?.length || 0);
 
     if (appError) {
       console.error('Edge Function Error (get-scheduling-data): Error fetching existing appointments:', appError);

@@ -138,8 +138,15 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     setLoading(true);
     const userId = session.user.id;
 
-    // Clean phone_number and cpf for database storage
+    // Validar telefone antes de limpar
     const cleanedPhoneNumber = data.phone_number.replace(/\D/g, '');
+    if (!cleanedPhoneNumber || cleanedPhoneNumber.length < 10) {
+      showError('Telefone é obrigatório e deve ter pelo menos 10 dígitos.');
+      setLoading(false);
+      return;
+    }
+
+    // Clean cpf for database storage
     const cleanedCpf = data.cpf.replace(/\D/g, '');
 
     try {
@@ -224,15 +231,17 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="phone_number" className="text-right">
-              Telefone
+              Telefone *
             </Label>
             <Input
               id="phone_number"
               type="tel"
+              placeholder="(XX) XXXXX-XXXX"
               value={phoneNumberValue}
               onChange={handlePhoneNumberChange}
               maxLength={15}
               className="col-span-3"
+              required
             />
             {errors.phone_number && <p className="col-span-4 text-red-500 text-xs text-right">{errors.phone_number.message}</p>}
           </div>

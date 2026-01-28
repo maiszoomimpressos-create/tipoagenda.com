@@ -7,7 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { markExplicitLogout } from '@/utils/auth-state';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon } from 'lucide-react'; // Importando CreditCard e ImageIcon
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon, MessageSquare } from 'lucide-react'; // Importando CreditCard, ImageIcon e MessageSquare
 import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -210,6 +210,16 @@ const AdminDashboard: React.FC = () => {
             buttonText="Ver Relatório de Pagamentos"
             buttonColor="bg-indigo-600 hover:bg-indigo-700"
             onClick={() => navigate('/admin-dashboard/payment-attempts')}
+          />
+
+          {/* NOVO CARD: Gerenciamento de Provedores WhatsApp */}
+          <ManagementCard
+            title="Provedores WhatsApp"
+            description="Configure os provedores de WhatsApp que serão usados para envio automático de mensagens."
+            icon={<MessageSquare className="h-6 w-6 text-green-600" />}
+            buttonText="Gerenciar Provedores"
+            buttonColor="bg-green-600 hover:bg-green-700"
+            onClick={() => navigate('/admin-dashboard/whatsapp-providers')}
           />
         </div>
         

@@ -60,6 +60,8 @@ import CollaboratorServicesPage from "./pages/CollaboratorServicesPage";
 import NovaTransacaoPage from "./pages/NovaTransacaoPage";
 import CompanySelectionPage from "./pages/CompanySelectionPage";
 import EditMyCompanyPage from "./pages/EditMyCompanyPage";
+import WhatsAppMessagingPage from "./pages/WhatsAppMessagingPage"; // Importar nova página de mensagens WhatsApp
+import WhatsAppProviderManagementPage from "./pages/WhatsAppProviderManagementPage"; // Importar nova página de gerenciamento de provedores WhatsApp
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsProprietario } from "./hooks/useIsProprietario";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
@@ -191,6 +193,8 @@ const App = () => (
             <Route path="/admin-dashboard/payment-attempts" element={<GlobalAdminProtectedRoute><PaymentAttemptsPage /></GlobalAdminProtectedRoute>} />
             {/* NOVA ROTA: Gerenciamento de Banners Globais */}
             <Route path="/admin-dashboard/global-banners" element={<GlobalAdminProtectedRoute><BannerManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Gerenciamento de Provedores WhatsApp */}
+            <Route path="/admin-dashboard/whatsapp-providers" element={<GlobalAdminProtectedRoute><WhatsAppProviderManagementPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
@@ -225,6 +229,7 @@ const App = () => (
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
               <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
               <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
+              <Route path="mensagens-whatsapp" element={<CompanyAdminProtectedRoute><WhatsAppMessagingPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTÃO DE MENSAGENS WHATSAPP */}
               <Route path="empresa/editar" element={<CompanyAdminProtectedRoute><EditMyCompanyPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTORES EDITAREM DADOS DA EMPRESA */}
 
               {/* Rotas de formulários específicos (protegidas) */}
