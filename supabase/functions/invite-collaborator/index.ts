@@ -89,7 +89,18 @@ serve(async (req) => {
     if (!userCompanyRoles || !userCompanyRoles.role_type) {
       console.error('Edge Function Error (invite-collaborator): User not found in user_companies or role_type is null');
       console.error('Edge Function Debug (invite-collaborator): userCompanyRoles:', JSON.stringify(userCompanyRoles, null, 2));
-      return new Response(JSON.stringify({ error: 'Forbidden: User not authorized for this company - No role found' }), {
+      console.error('Edge Function Debug (invite-collaborator): user_id:', user.id, 'company_id:', companyId);
+      
+      // Verifica se o usuário existe em user_companies para outras empresas (para debug)
+      const { data: allUserCompanies } = await supabaseAdmin
+        .from('user_companies')
+        .select('company_id, role_type')
+        .eq('user_id', user.id);
+      console.error('Edge Function Debug (invite-collaborator): Todas as empresas do usuário:', JSON.stringify(allUserCompanies, null, 2));
+      
+      return new Response(JSON.stringify({ 
+        error: `Você não tem permissão para criar colaboradores nesta empresa. Verifique se você é Proprietário ou Admin da empresa (ID: ${companyId}).` 
+      }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -121,10 +132,14 @@ serve(async (req) => {
       });
     }
 
-    // Verificação mais robusta: trim e case-insensitive
-    const roleDescription = roleTypeData.description.trim();
-    const allowedRoles = ['Proprietário', 'Admin'];
-    const hasPermission = allowedRoles.some(allowed => allowed.trim().toLowerCase() === roleDescription.toLowerCase());
+    // Verificação mais robusta: trim, normalize e case-insensitive
+    const roleDescription = roleTypeData.description.trim().toLowerCase();
+    const allowedRoles = ['proprietário', 'admin', 'proprietario']; // Inclui variações
+    const hasPermission = allowedRoles.some(allowed => {
+      const normalizedAllowed = allowed.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+      const normalizedRole = roleDescription.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+      return normalizedAllowed === normalizedRole;
+    });
 
     console.log('Edge Function Debug (invite-collaborator): Role description:', roleDescription);
     console.log('Edge Function Debug (invite-collaborator): Has permission:', hasPermission);
@@ -132,7 +147,9 @@ serve(async (req) => {
     if (!hasPermission) {
       console.error('Edge Function Error (invite-collaborator): User does not have sufficient privileges');
       console.error('Edge Function Debug (invite-collaborator): User role:', roleDescription, 'Allowed roles:', allowedRoles);
-      return new Response(JSON.stringify({ error: `Forbidden: User does not have sufficient privileges. Current role: ${roleDescription}. Required: Proprietário or Admin` }), {
+      return new Response(JSON.stringify({ 
+        error: `Você não tem permissão para criar colaboradores. Seu papel atual: "${roleDescription}". É necessário ser "Proprietário" ou "Admin" da empresa.` 
+      }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

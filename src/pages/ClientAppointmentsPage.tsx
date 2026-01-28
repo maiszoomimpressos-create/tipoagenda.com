@@ -11,6 +11,7 @@ import { format, parse, addMinutes, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { getTargetCompanyId, setTargetCompanyId, clearTargetCompanyId } from '@/utils/storage'; // Import storage utils
 
 interface Appointment {
@@ -102,6 +103,9 @@ const ClientAppointmentsPage: React.FC = () => {
   }, [session?.user.email, session?.user.user_metadata.phone_number]);
 
 
+  const [orderBy, setOrderBy] = useState<'appointment_date' | 'appointment_time'>('appointment_date');
+  const [orderAscending, setOrderAscending] = useState<boolean>(false); // false = descending
+
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || !session?.user) {
       return;
@@ -133,8 +137,8 @@ const ClientAppointmentsPage: React.FC = () => {
           companies(name)
         `)
         .eq('client_id', clientId) // Filter by the client's ID
-        .order('appointment_date', { ascending: false })
-        .order('appointment_time', { ascending: false });
+        .order(orderBy, { ascending: orderAscending })
+        .order('appointment_time', { ascending: orderAscending });
 
       if (error) {
         throw error;
@@ -235,13 +239,40 @@ const ClientAppointmentsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Meus Agendamentos</h1>
-        <Button
-          className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
-          onClick={handleNewAppointmentClick}
-        >
-          <i className="fas fa-plus mr-2"></i>
-          Novo Agendamento
-        </Button>
+        <div className="flex items-center gap-4">
+          <Select onValueChange={(value: 'appointment_date' | 'appointment_time') => { setOrderBy(value); fetchAppointments(); }} value={orderBy}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Ordenar por</SelectLabel>
+                <SelectItem value="appointment_date">Data do Agendamento</SelectItem>
+                <SelectItem value="appointment_time">Hora do Agendamento</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select onValueChange={(value: string) => { setOrderAscending(value === 'asc'); fetchAppointments(); }} value={orderAscending ? 'asc' : 'desc'}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Ordem" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Ordem</SelectLabel>
+                <SelectItem value="asc">Crescente</SelectItem>
+                <SelectItem value="desc">Decrescente</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Button
+            className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+            onClick={handleNewAppointmentClick}
+          >
+            <i className="fas fa-plus mr-2"></i>
+            Novo Agendamento
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4">

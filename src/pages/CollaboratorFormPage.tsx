@@ -56,6 +56,8 @@ const CollaboratorFormPage: React.FC = () => {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null); // New state for selected file name
   const isEditing = !!collaboratorId;
 
+  console.log('Estados de carregamento/sessão:', { loading, sessionLoading, loadingPrimaryCompany, loadingRoleTypes });
+
   const {
     register,
     handleSubmit,
@@ -194,6 +196,7 @@ const CollaboratorFormPage: React.FC = () => {
     });
   };
   const onSubmit = async (data: CollaboratorFormValues) => {
+    console.log('Dados do formulário no onSubmit:', data);
     setLoading(true);
     if (!session?.user || !primaryCompanyId) {
       showError('Erro de autenticação ou empresa primária não encontrada.');
@@ -272,6 +275,9 @@ const CollaboratorFormPage: React.FC = () => {
           // Mantém o valor existente no banco (não atualiza)
           status: data.status,
         };
+
+        console.log('Dados de atualização do colaborador para Supabase:', { updateData, collaboratorId, primaryCompanyId });
+
         if (avatarUrl) { // Only update avatar_url if a new file was uploaded
           updateData.avatar_url = avatarUrl;
         } else if (data.avatar_file && data.avatar_file.length === 0 && currentCollaboratorData?.avatar_url) {
@@ -279,14 +285,31 @@ const CollaboratorFormPage: React.FC = () => {
           updateData.avatar_url = null;
         }
 
-        const { error: updateError } = await supabase
+        const { data: updatedRows, error: updateError } = await supabase
           .from('collaborators')
           .update(updateData)
           .eq('id', collaboratorId)
-          .eq('company_id', primaryCompanyId);
+          .eq('company_id', primaryCompanyId)
+          .select('id');
+
+        console.log('Resultado do UPDATE do colaborador:', { updatedRows, updateError });
+
+        // Em alguns cenários (RLS/where não bate), o Supabase pode não retornar erro, mas também não atualiza nenhuma linha.
+        if (!updateError && (!updatedRows || updatedRows.length === 0)) {
+          showError('Não foi possível salvar: sem permissão para atualizar este colaborador ou colaborador não encontrado para esta empresa.');
+          setLoading(false);
+          return;
+        }
+
         error = updateError;
       } else {
         // Call Edge Function to invite and register new collaborator
+        console.log('Chamando Edge Function invite-collaborator com:', {
+          companyId: primaryCompanyId,
+          user_id: session.user.id,
+          email: data.email
+        });
+        
         const response = await supabase.functions.invoke('invite-collaborator', {
           body: JSON.stringify({
             companyId: primaryCompanyId,
@@ -307,13 +330,49 @@ const CollaboratorFormPage: React.FC = () => {
         });
 
         if (response.error) {
-          // Extract the specific error message from the Edge Function's response
-          let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
-          if (response.error.context && response.error.context.data && response.error.context.data.error) {
-            edgeFunctionErrorMessage = response.error.context.data.error;
-          } else if (response.error.message) {
-            edgeFunctionErrorMessage = response.error.message;
+          console.error('Erro completo da Edge Function (invite-collaborator):', response);
+
+          // Tenta extrair a mensagem real retornada pela Edge Function
+          let edgeFunctionErrorMessage = 'Erro ao salvar colaborador. Verifique suas permissões.';
+
+          // Tenta múltiplas formas de extrair a mensagem de erro
+          try {
+            // Forma 1: response.error.context.data.error (mais comum no Supabase)
+            if ((response as any).error?.context?.data?.error) {
+              edgeFunctionErrorMessage = (response as any).error.context.data.error;
+            }
+            // Forma 2: response.error.message
+            else if (response.error.message) {
+              edgeFunctionErrorMessage = response.error.message;
+            }
+            // Forma 3: Tentar ler o body da resposta HTTP diretamente (se disponível)
+            else {
+              const rawResponse: any = (response as any).error?.context?.response;
+              if (rawResponse) {
+                try {
+                  // Tenta ler como texto primeiro
+                  if (typeof rawResponse.text === 'function') {
+                    const text = await rawResponse.text();
+                    try {
+                      const parsed = JSON.parse(text);
+                      if (parsed.error) {
+                        edgeFunctionErrorMessage = parsed.error;
+                      }
+                    } catch {
+                      // Se não for JSON, usa o texto como mensagem
+                      if (text) edgeFunctionErrorMessage = text;
+                    }
+                  }
+                } catch (e) {
+                  // Ignora erro de parsing
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Falha ao extrair mensagem de erro da Edge Function:', e);
           }
+
+          console.error('Mensagem de erro extraída da Edge Function:', edgeFunctionErrorMessage);
           throw new Error(edgeFunctionErrorMessage);
         }
       }
