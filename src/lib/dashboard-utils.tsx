@@ -90,6 +90,7 @@ export const menuItems = [
   { id: 'estoque', label: 'Estoque', icon: 'fas fa-boxes', path: '/estoque' },
   { id: 'relatorios', label: 'Relatórios', icon: 'fas fa-chart-bar', path: '/relatorios' },
   { id: 'fidelidade', label: 'Fidelidade', icon: 'fas fa-gift', path: '/fidelidade' },
+  { id: 'mensagens-whatsapp', label: 'Mensagens WhatsApp', icon: 'fas fa-comments', path: '/mensagens-whatsapp', roles: ['Proprietário'] },
   { id: 'planos', label: 'Planos', icon: 'fas fa-gem', path: '/planos' },
   { id: 'config', label: 'Configurações', icon: 'fas fa-cog', path: '/config', roles: ['Proprietário'] },
 ];

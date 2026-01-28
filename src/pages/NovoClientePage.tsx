@@ -274,6 +274,7 @@ const NovoClientePage: React.FC = () => {
                     onChange={handlePhoneNumberChange}
                     maxLength={15}
                     className="mt-1 border-gray-300 text-sm"
+                    required
                   />
                   {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone.message}</p>}
                 </div>

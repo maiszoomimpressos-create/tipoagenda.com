@@ -266,13 +266,14 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
     setTotalPriceCalculated(price);
   }, [selectedServiceIds, services]);
 
-  // Effect to fetch available time slots
+  // Effect to fetch available time slots (sempre buscar dados atualizados)
   useEffect(() => {
     const fetchSlots = async () => {
       if (selectedCollaboratorId && selectedDate && totalDurationMinutes > 0 && companyId) {
         setLoading(true);
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
+          console.log('ClientAppointmentForm: Buscando slots atualizados em:', new Date().toISOString());
           const slots = await getAvailableTimeSlots(
             supabase,
             companyId,
@@ -280,7 +281,18 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
             selectedDate,
             totalDurationMinutes
           );
-          setAvailableTimeSlots(slots);
+          console.log('ClientAppointmentForm: Slots recebidos do backend:', slots);
+          // `slots` vem como horários de início (HH:mm). Vamos montar "HH:mm às HH:mm" para exibição.
+          const formattedSlots = slots.map((startTime) => {
+            const [hour, minute] = startTime.split(':').map(Number);
+            const startDateTime = new Date(selectedDate);
+            startDateTime.setHours(hour, minute, 0, 0);
+
+            const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
+            return `${format(startDateTime, 'HH:mm')} às ${format(endDateTime, 'HH:mm')}`;
+          });
+          console.log('ClientAppointmentForm: Slots formatados para exibição:', formattedSlots);
+          setAvailableTimeSlots(formattedSlots);
         } catch (error: any) {
           console.error('Erro ao buscar horários disponíveis:', error);
           showError('Erro ao buscar horários disponíveis: ' + error.message);
@@ -316,90 +328,96 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
     }
 
     try {
-      // O appointmentTime já vem no formato "HH:mm" dos botões
-      const startTimeForDb = data.appointmentTime.includes(' ') 
-        ? data.appointmentTime.split(' ')[0] 
-        : data.appointmentTime;
+      // Re-validar slots disponíveis antes de enviar (para evitar race conditions)
+      if (data.collaboratorId && data.appointmentDate && totalDurationMinutes > 0) {
+        try {
+          const refreshedSlots = await getAvailableTimeSlots(
+            supabase,
+            companyId,
+            data.collaboratorId,
+            new Date(data.appointmentDate),
+            totalDurationMinutes
+          );
+          
+          // Formatar slots como "HH:mm às HH:mm"
+          const formattedRefreshedSlots = refreshedSlots.map((startTime) => {
+            const [hour, minute] = startTime.split(':').map(Number);
+            const startDateTime = new Date(data.appointmentDate);
+            startDateTime.setHours(hour, minute, 0, 0);
+            const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
+            return `${format(startDateTime, 'HH:mm')} às ${format(endDateTime, 'HH:mm')}`;
+          });
+          
+          // Verificar se o slot selecionado ainda está disponível
+          if (!formattedRefreshedSlots.includes(data.appointmentTime)) {
+            // Atualizar lista de slots disponíveis
+            setAvailableTimeSlots(formattedRefreshedSlots);
+            setValue('appointmentTime', '');
+            showError('O horário selecionado não está mais disponível. Por favor, escolha outro horário da lista atualizada.');
+            setLoading(false);
+            return;
+          }
+        } catch (refreshError) {
+          console.warn('Erro ao re-validar slots (continuando mesmo assim):', refreshError);
+          // Continua mesmo se a re-validação falhar
+        }
+      }
+      
+      // Extrair apenas o horário de início do slot selecionado (ex: "22:00" de "22:00 às 22:30")
+      const startTimeForDb = data.appointmentTime.includes(' às ') 
+        ? data.appointmentTime.split(' às ')[0].trim()
+        : data.appointmentTime.includes(' ')
+        ? data.appointmentTime.split(' ')[0].trim()
+        : data.appointmentTime.trim();
+      
+      console.log('ClientAppointmentForm: Criando agendamento diretamente no banco');
+      console.log('ClientAppointmentForm: appointmentTime original:', data.appointmentTime);
+      console.log('ClientAppointmentForm: startTimeForDb extraído:', startTimeForDb);
+      console.log('ClientAppointmentForm: totalDurationMinutes:', totalDurationMinutes);
       
       // Extract only the first name from the full client name
       const clientFirstName = clientContext.clientName.split(' ')[0];
 
-      const requestBody = {
-        clientId: clientContext.clientId,
-        clientNickname: clientFirstName,
-        collaboratorId: data.collaboratorId,
-        serviceIds: data.serviceIds,
-        appointmentDate: data.appointmentDate,
-        appointmentTime: startTimeForDb,
-        totalDurationMinutes: totalDurationMinutes,
-        totalPriceCalculated: totalPriceCalculated,
-        observations: data.observations || '',
-        companyId: companyId,
-      };
+      // Criar agendamento diretamente no banco (mesma lógica do NovoAgendamentoPage)
+      // 1. Criar o registro principal em appointments
+      const { data: appointmentData, error: appointmentError } = await supabase
+        .from('appointments')
+        .insert({
+          company_id: companyId,
+          client_id: clientContext.clientId,
+          client_nickname: clientFirstName,
+          collaborator_id: data.collaboratorId,
+          appointment_date: data.appointmentDate,
+          appointment_time: startTimeForDb,
+          total_duration_minutes: totalDurationMinutes,
+          total_price: totalPriceCalculated,
+          observations: data.observations || '',
+          created_by_user_id: session.user.id,
+          status: 'pendente', // Default status for new client appointments
+        })
+        .select()
+        .single();
 
-      console.log('Enviando dados para book-appointment:', requestBody);
-
-      const response = await supabase.functions.invoke('book-appointment', {
-        body: JSON.stringify(requestBody),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
-
-      console.log('Resposta da Edge Function:', response);
-
-      if (response.error) {
-        console.error('Erro completo da Edge Function:', JSON.stringify(response.error, null, 2));
-        let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
-        
-        // Tenta extrair a mensagem de erro de diferentes formatos de resposta
-        try {
-          // Primeiro tenta pegar do contexto
-          if (response.error.context?.data) {
-            const errorData = response.error.context.data;
-            if (typeof errorData === 'string') {
-              try {
-                const parsed = JSON.parse(errorData);
-                edgeFunctionErrorMessage = parsed.error || parsed.message || edgeFunctionErrorMessage;
-              } catch {
-                edgeFunctionErrorMessage = errorData;
-              }
-            } else if (errorData.error) {
-              edgeFunctionErrorMessage = errorData.error;
-            } else if (errorData.message) {
-              edgeFunctionErrorMessage = errorData.message;
-            }
-          }
-          
-          // Se não encontrou, tenta pegar da mensagem direta
-          if (edgeFunctionErrorMessage === 'Erro desconhecido da Edge Function.' && response.error.message) {
-            edgeFunctionErrorMessage = response.error.message;
-          }
-          
-          // Tenta pegar do data se existir
-          if (edgeFunctionErrorMessage === 'Erro desconhecido da Edge Function.' && response.data) {
-            if (typeof response.data === 'string') {
-              try {
-                const parsed = JSON.parse(response.data);
-                edgeFunctionErrorMessage = parsed.error || parsed.message || edgeFunctionErrorMessage;
-              } catch {
-                edgeFunctionErrorMessage = response.data;
-              }
-            } else if (response.data.error) {
-              edgeFunctionErrorMessage = response.data.error;
-            }
-          }
-        } catch (parseError) {
-          console.error('Erro ao parsear mensagem de erro:', parseError);
-        }
-        
-        throw new Error(edgeFunctionErrorMessage);
+      if (appointmentError) {
+        console.error('Erro ao criar agendamento:', appointmentError);
+        throw appointmentError;
       }
 
-      // Verifica se a resposta tem dados válidos
-      if (!response.data) {
-        throw new Error('Resposta vazia da Edge Function');
+      // 2. Vincular serviços ao agendamento na tabela appointment_services
+      const appointmentServicesToInsert = data.serviceIds.map((serviceId: string) => ({
+        appointment_id: appointmentData.id,
+        service_id: serviceId,
+      }));
+
+      const { error: servicesLinkError } = await supabase
+        .from('appointment_services')
+        .insert(appointmentServicesToInsert);
+
+      if (servicesLinkError) {
+        console.error('Erro ao vincular serviços ao agendamento:', servicesLinkError);
+        // Tentar remover o agendamento criado se a vinculação falhar
+        await supabase.from('appointments').delete().eq('id', appointmentData.id);
+        throw servicesLinkError;
       }
 
       showSuccess('Agendamento criado com sucesso!');
@@ -597,10 +615,9 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
                     {availableTimeSlots.map((timeSlot) => {
-                      // Parse o horário inicial e calcula o horário final
-                      const startTime = parse(timeSlot, 'HH:mm', new Date());
-                      const endTime = addMinutes(startTime, totalDurationMinutes);
-                      const timeRange = `${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')}`;
+                      // timeSlot já vem no formato "HH:mm às HH:mm"
+                      // Extrair apenas o horário de início para salvar no campo
+                      const startTimeStr = timeSlot.split(' às ')[0];
                       const isSelected = selectedAppointmentTime === timeSlot;
 
                       return (
@@ -615,7 +632,7 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
                               : 'border-gray-300 hover:border-yellow-500 hover:bg-yellow-50 bg-white'
                           }`}
                         >
-                          {timeRange}
+                          {timeSlot}
                         </Button>
                       );
                     })}

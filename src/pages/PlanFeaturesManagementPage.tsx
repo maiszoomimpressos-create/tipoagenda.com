@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Feature {
   id: string;
@@ -18,6 +20,7 @@ interface Feature {
   slug: string;
   description: string | null;
   is_active: boolean;
+  company_flag_name: string | null;
 }
 
 interface PlanFeature {
@@ -45,6 +48,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
   const [featureToDelete, setFeatureToDelete] = useState<PlanFeature | null>(null);
   const [featureName, setFeatureName] = useState(''); // Novo estado para o nome da funcionalidade
   const [featureDescription, setFeatureDescription] = useState<string | null>(null); // Novo estado para a descrição
+  const [companyFlagName, setCompanyFlagName] = useState<string>(''); // Estado para o flag da empresa
 
   const fetchPlanDetails = useCallback(async () => {
     if (!planId) return;
@@ -78,14 +82,16 @@ const PlanFeaturesManagementPage: React.FC = () => {
             name,
             slug,
             description,
-            is_active
+            is_active,
+            company_flag_name
           )
         `)
         .eq('plan_id', planId);
 
       if (error) throw error;
       console.log('fetchPlanFeatures: Raw data from Supabase:', data); // DEBUG LOG
-      setPlanFeatures(data as PlanFeature[]);
+      // O Supabase retorna features como objeto, não array
+      setPlanFeatures(data as unknown as PlanFeature[]);
     } catch (error: any) {
       console.error('Erro ao carregar funcionalidades do plano:', error);
       showError('Erro ao carregar funcionalidades do plano.');
@@ -122,6 +128,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
     setFeatureName('');
     setFeatureDescription('');
     setFeatureLimit(null);
+    setCompanyFlagName('none');
     setIsModalOpen(true);
   };
 
@@ -132,6 +139,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
     setFeatureName(planFeature.features.name); // Preencher o nome da funcionalidade
     setFeatureDescription(planFeature.features.description || ''); // Preencher a descrição (garantir string vazia se for null)
     setFeatureLimit(planFeature.feature_limit);
+    setCompanyFlagName(planFeature.features.company_flag_name || 'none');
     setIsModalOpen(true);
   };
 
@@ -148,7 +156,7 @@ const PlanFeaturesManagementPage: React.FC = () => {
       // 1. Tentar encontrar uma funcionalidade existente pelo nome
       const { data: existingFeature, error: fetchFeatureError } = await supabase
         .from('features')
-        .select('id, description')
+        .select('id, description, company_flag_name')
         .eq('name', featureName.trim())
         .single();
 
@@ -160,26 +168,43 @@ const PlanFeaturesManagementPage: React.FC = () => {
         featureIdToAssociate = existingFeature.id;
         // Se estiver editando uma funcionalidade e o nome mudou, ou a descrição mudou
         if (editingPlanFeature && editingPlanFeature.feature_id === existingFeature.id) {
-          // Apenas atualiza a descrição se ela mudou
+          // Atualiza descrição e flag se mudaram
+          const updates: { description?: string; company_flag_name?: string | null } = {};
           if (existingFeature.description !== featureDescription) {
+            updates.description = featureDescription;
+          }
+          const flagValue = (companyFlagName === 'none' || !companyFlagName.trim()) ? null : companyFlagName.trim();
+          if (existingFeature.company_flag_name !== flagValue) {
+            updates.company_flag_name = flagValue;
+          }
+          if (Object.keys(updates).length > 0) {
             const { error: updateFeatureError } = await supabase
               .from('features')
-              .update({ description: featureDescription })
+              .update(updates)
               .eq('id', existingFeature.id);
             if (updateFeatureError) throw updateFeatureError;
           }
         } else if (!editingPlanFeature) {
-          // Se estiver adicionando e a funcionalidade já existe, apenas a associa
-          // Não precisamos fazer nada aqui, o ID já está em featureIdToAssociate
+          // Se estiver adicionando e a funcionalidade já existe, atualiza o flag se necessário
+          const flagValue = (companyFlagName === 'none' || !companyFlagName.trim()) ? null : companyFlagName.trim();
+          if (existingFeature.company_flag_name !== flagValue) {
+            const { error: updateFeatureError } = await supabase
+              .from('features')
+              .update({ company_flag_name: flagValue })
+              .eq('id', existingFeature.id);
+            if (updateFeatureError) throw updateFeatureError;
+          }
         }
       } else {
         // 2. Se a funcionalidade não existe, criar uma nova
+        const flagValue = (companyFlagName === 'none' || !companyFlagName.trim()) ? null : companyFlagName.trim();
         const { data: newFeature, error: createFeatureError } = await supabase
           .from('features')
           .insert({
             name: featureName.trim(),
             slug: featureName.trim().toLowerCase().replace(/\s/g, '-'),
             description: featureDescription,
+            company_flag_name: flagValue,
             is_active: true,
           })
           .select('id')
@@ -320,8 +345,15 @@ const PlanFeaturesManagementPage: React.FC = () => {
             <div className="space-y-4">
               {planFeatures.map((pf) => (
                 <div key={pf.feature_id} className="flex items-center justify-between p-3 border rounded-md">
-                  <div>
-                    <p className="font-medium">{pf.features.name}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{pf.features.name}</p>
+                      {pf.features.company_flag_name && (
+                        <Badge variant="secondary" className="text-xs">
+                          Controla: {pf.features.company_flag_name}
+                        </Badge>
+                      )}
+                    </div>
                     {pf.feature_limit !== null && (
                       <p className="text-sm text-gray-500">Limite: {pf.feature_limit}</p>
                     )}
@@ -376,6 +408,23 @@ const PlanFeaturesManagementPage: React.FC = () => {
                 placeholder="Uma breve descrição sobre a funcionalidade."
                 disabled={creatingNewFeature}
               />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="company-flag" className="text-right">Controla Flag da Empresa</Label>
+              <Select
+                value={companyFlagName || 'none'}
+                onValueChange={(value) => setCompanyFlagName(value === 'none' ? '' : value)}
+                disabled={creatingNewFeature}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione o flag (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum (apenas descritiva)</SelectItem>
+                  <SelectItem value="whatsapp_messaging_enabled">whatsapp_messaging_enabled</SelectItem>
+                  {/* Adicione mais flags conforme necessário */}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="limit" className="text-right">Limite (opcional)</Label>

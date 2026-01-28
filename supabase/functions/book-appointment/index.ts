@@ -23,27 +23,31 @@ async function getAvailableTimeSlotsBackend(
   const today = startOfDay(new Date());
   const selectedDateStart = startOfDay(date);
 
-  // 1. Fetch working schedules for the selected day
+  // 1. Fetch working schedules for the selected day (sempre buscar dados atualizados)
   const { data: workingSchedules, error: wsError } = await supabase
     .from('working_schedules')
     .select('id, day_of_week, start_time, end_time')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
-    .eq('day_of_week', selectedDayOfWeek);
+    .eq('day_of_week', selectedDayOfWeek)
+    .order('start_time', { ascending: true }); // Ordenar para garantir consistência
     
   console.log('getAvailableTimeSlotsBackend: workingSchedules fetched:', workingSchedules, 'error:', wsError);
+  console.log('getAvailableTimeSlotsBackend: Timestamp da busca:', new Date().toISOString());
 
   if (wsError) throw wsError;
 
-  // 2. Fetch schedule exceptions for the selected date
+  // 2. Fetch schedule exceptions for the selected date (sempre buscar dados atualizados)
   const { data: exceptions, error: exError } = await supabase
     .from('schedule_exceptions')
     .select('id, exception_date, is_day_off, start_time, end_time, reason')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
-    .eq('exception_date', format(date, 'yyyy-MM-dd'));
+    .eq('exception_date', format(date, 'yyyy-MM-dd'))
+    .order('start_time', { ascending: true }); // Ordenar para garantir consistência
 
   console.log('getAvailableTimeSlotsBackend: exceptions fetched:', exceptions, 'error:', exError);
+  console.log('getAvailableTimeSlotsBackend: Timestamp da busca de exceptions:', new Date().toISOString());
 
   if (exError) throw exError;
 
@@ -96,14 +100,15 @@ async function getAvailableTimeSlotsBackend(
     return [];
   }
 
-  // 3. Fetch existing appointments for the selected date and collaborator
+  // 3. Fetch existing appointments for the selected date and collaborator (SEMPRE buscar dados atualizados)
   let appointmentsQuery = supabase
     .from('appointments')
-    .select('id, appointment_time, total_duration_minutes')
+    .select('id, appointment_time, total_duration_minutes, status, created_at, updated_at')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('appointment_date', format(date, 'yyyy-MM-dd'))
-    .neq('status', 'cancelado');
+    .neq('status', 'cancelado')
+    .order('appointment_time', { ascending: true }); // Ordenar para garantir consistência
 
   if (excludeAppointmentId) {
     appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
@@ -112,6 +117,8 @@ async function getAvailableTimeSlotsBackend(
 
   const { data: existingAppointments, error: appError } = await appointmentsQuery;
   console.log('getAvailableTimeSlotsBackend: existingAppointments fetched:', existingAppointments, 'error:', appError);
+  console.log('getAvailableTimeSlotsBackend: Timestamp da busca de appointments:', new Date().toISOString());
+  console.log('getAvailableTimeSlotsBackend: Total de appointments encontrados:', existingAppointments?.length || 0);
 
   if (appError) throw appError;
 
@@ -150,11 +157,22 @@ async function getAvailableTimeSlotsBackend(
   for (const workingInterval of effectiveWorkingIntervals) {
     let currentTime = workingInterval.start;
 
+    // Se for hoje, ajustar para começar do próximo slot após o horário atual
     if (selectedDateStart.getTime() === today.getTime()) {
       const now = new Date();
-      const nextSlotAfterNow = setMinutes(setHours(now, now.getHours()), Math.ceil(now.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+      // Criar data/hora do slot atual na data selecionada
+      const currentSlotDateTime = new Date(selectedDateStart);
+      currentSlotDateTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      
+      // Calcular próximo slot alinhado
+      const nextSlotAfterNow = setMinutes(
+        setHours(currentSlotDateTime, currentSlotDateTime.getHours()), 
+        Math.ceil(currentSlotDateTime.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes
+      );
+      
       if (isBefore(currentTime, nextSlotAfterNow)) {
         currentTime = nextSlotAfterNow;
+        console.log('getAvailableTimeSlotsBackend: Ajustado currentTime para próximo slot após agora:', format(currentTime, 'HH:mm'));
       }
     }
     console.log('getAvailableTimeSlotsBackend: Starting iteration for workingInterval:', { start: workingInterval.start.toISOString(), end: workingInterval.end.toISOString(), initialCurrentTime: currentTime.toISOString() });
@@ -164,33 +182,76 @@ async function getAvailableTimeSlotsBackend(
       const slotEnd = addMinutes(slotStart, requiredDuration);
 
       let isSlotFree = true;
+      let shouldAdvance = true;
+      let nextTime = addMinutes(currentTime, slotIntervalMinutes);
       
-      // Check against past time for current day
-      if (selectedDateStart.getTime() === today.getTime() && isBefore(slotStart, new Date())) {
-        isSlotFree = false;
-        console.log('Slot ignored (in past):', format(slotStart, 'HH:mm'));
+      // Check against past time for current day (usar a data selecionada, não a data atual)
+      if (selectedDateStart.getTime() === today.getTime()) {
+        const now = new Date();
+        // Criar data/hora do slot na data selecionada para comparação correta
+        const slotDateTime = new Date(selectedDateStart);
+        slotDateTime.setHours(slotStart.getHours(), slotStart.getMinutes(), slotStart.getSeconds(), slotStart.getMilliseconds());
+        
+        if (isBefore(slotDateTime, now)) {
+          isSlotFree = false;
+          console.log('getAvailableTimeSlotsBackend: Slot ignored (in past):', format(slotStart, 'HH:mm'), 'slotDateTime:', slotDateTime.toISOString(), 'now:', now.toISOString());
+          // Avançar para o próximo slot após o horário atual
+          const nextSlotAfterNow = setMinutes(
+            setHours(now, now.getHours()), 
+            Math.ceil(now.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes
+          );
+          // Converter para a data selecionada
+          const nextSlotOnSelectedDate = new Date(selectedDateStart);
+          nextSlotOnSelectedDate.setHours(nextSlotAfterNow.getHours(), nextSlotAfterNow.getMinutes(), 0, 0);
+          if (isBefore(currentTime, nextSlotOnSelectedDate)) {
+            nextTime = nextSlotOnSelectedDate;
+          }
+        } else {
+          // Slot não está no passado, verificar conflitos
+          for (const busy of mergedBusyIntervals) {
+            if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
+              isSlotFree = false;
+              console.log('getAvailableTimeSlotsBackend: Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
+              // Avançar para depois do busy interval, alinhado ao slotIntervalMinutes
+              const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+              if (isBefore(currentTime, busyEndAligned)) {
+                nextTime = busyEndAligned;
+              }
+              break;
+            }
+          }
+        }
       } else {
+        // Não é hoje, apenas verificar conflitos com busy intervals
         for (const busy of mergedBusyIntervals) {
           if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
             isSlotFree = false;
-            console.log('Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
+            console.log('getAvailableTimeSlotsBackend: Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
+            // Avançar para depois do busy interval, alinhado ao slotIntervalMinutes
             const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
-            currentTime = isAfter(currentTime, busyEndAligned) ? currentTime : busyEndAligned;
+            if (isBefore(currentTime, busyEndAligned)) {
+              nextTime = busyEndAligned;
+            }
             break;
           }
         }
       }
 
       if (isSlotFree) {
-        availableSlots.push(`${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`);
-        console.log('Slot added:', format(slotStart, 'HH:mm'));
+        const slotString = `${format(slotStart, 'HH:mm')} às ${format(slotEnd, 'HH:mm')}`;
+        availableSlots.push(slotString);
+        console.log('getAvailableTimeSlotsBackend: Slot added:', slotString);
       }
-      currentTime = addMinutes(currentTime, slotIntervalMinutes); // Always advance currentTime
-      console.log('Advanced currentTime to:', format(currentTime, 'HH:mm'));
+      
+      // Sempre avançar currentTime para o próximo slot
+      currentTime = nextTime;
+      console.log('getAvailableTimeSlotsBackend: Advanced currentTime to:', format(currentTime, 'HH:mm'));
     }
   }
-  console.log('getAvailableTimeSlotsBackend End - Final availableSlots:', availableSlots);
-  return Array.from(new Set(availableSlots)).sort();
+    console.log('getAvailableTimeSlotsBackend End - Final availableSlots:', availableSlots);
+    const uniqueSlots = Array.from(new Set(availableSlots)).sort();
+    console.log('getAvailableTimeSlotsBackend End - Unique slots count:', uniqueSlots.length);
+    return uniqueSlots;
 }
 
 
@@ -279,11 +340,32 @@ serve(async (req) => {
     
     // 2. Re-verify time slot availability on the backend to prevent race conditions
     const parsedAppointmentDate = parse(appointmentDate, 'yyyy-MM-dd', new Date());
-    const startTimeForDb = appointmentTime.split(' ')[0]; // "HH:MM"
+    
+    // Extrair horário de início de forma robusta (pode vir como "HH:mm" ou "HH:mm às HH:mm")
+    let startTimeForDb: string;
+    if (appointmentTime.includes(' às ')) {
+      startTimeForDb = appointmentTime.split(' às ')[0].trim();
+    } else if (appointmentTime.includes(' ')) {
+      startTimeForDb = appointmentTime.split(' ')[0].trim();
+    } else {
+      startTimeForDb = appointmentTime.trim();
+    }
+    
+    // Validar formato HH:mm
+    if (!/^\d{2}:\d{2}$/.test(startTimeForDb)) {
+      console.error('book-appointment: Invalid time format received:', appointmentTime, 'extracted:', startTimeForDb);
+      return new Response(JSON.stringify({ error: 'Formato de horário inválido.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     const endTimeForDb = format(addMinutes(parse(startTimeForDb, 'HH:mm', parsedAppointmentDate), totalDurationMinutes), 'HH:mm');
     const requestedSlot = `${startTimeForDb} às ${endTimeForDb}`;
 
     console.log('book-appointment: Re-validating requestedSlot:', requestedSlot);
+    console.log('book-appointment: Original appointmentTime:', appointmentTime);
+    console.log('book-appointment: Extracted startTimeForDb:', startTimeForDb);
     console.log('book-appointment: Parameters for getAvailableTimeSlotsBackend:', { companyId, collaboratorId, parsedAppointmentDate: parsedAppointmentDate.toISOString(), totalDurationMinutes });
 
     const availableSlots = await getAvailableTimeSlotsBackend(
@@ -295,10 +377,65 @@ serve(async (req) => {
     );
 
     console.log('book-appointment: Available slots from backend (re-validation):', availableSlots);
+    console.log('book-appointment: Requested slot format:', requestedSlot);
+    console.log('book-appointment: Slot comparison check:', {
+      requestedSlot,
+      availableSlotsCount: availableSlots.length,
+      isIncluded: availableSlots.includes(requestedSlot),
+      firstFewSlots: availableSlots.slice(0, 5),
+    });
 
-    if (!availableSlots.includes(requestedSlot)) {
-      console.warn('book-appointment: Requested slot not available during re-validation.', { requestedSlot, availableSlots });
-      return new Response(JSON.stringify({ error: 'O horário selecionado não está mais disponível. Por favor, escolha outro horário.' }), {
+    // Comparação mais robusta: normalizar strings antes de comparar
+    const normalizedRequestedSlot = requestedSlot.trim().toLowerCase();
+    const normalizedAvailableSlots = availableSlots.map(s => s.trim().toLowerCase());
+    let isSlotAvailable = normalizedAvailableSlots.includes(normalizedRequestedSlot);
+    
+    // Se não encontrou por string exata, tenta comparar por horário de início e duração
+    if (!isSlotAvailable) {
+      const requestedStartTime = startTimeForDb;
+      const requestedEndTime = endTimeForDb;
+      
+      // Verificar se algum slot disponível tem o mesmo horário de início e duração
+      for (const slot of availableSlots) {
+        const slotParts = slot.split(' às ');
+        if (slotParts.length === 2) {
+          const slotStart = slotParts[0].trim();
+          const slotEnd = slotParts[1].trim();
+          
+          if (slotStart === requestedStartTime && slotEnd === requestedEndTime) {
+            isSlotAvailable = true;
+            console.log('book-appointment: Slot encontrado por comparação de horários:', { slot, requestedStartTime, requestedEndTime });
+            break;
+          }
+        }
+      }
+    }
+
+    if (!isSlotAvailable) {
+      // Log detalhado para debug
+      const debugInfo = {
+        requestedSlot,
+        normalizedRequestedSlot,
+        startTimeForDb,
+        endTimeForDb,
+        totalDurationMinutes,
+        availableSlotsCount: availableSlots.length,
+        availableSlots: availableSlots.slice(0, 10), // Primeiros 10 slots
+        normalizedAvailableSlots: normalizedAvailableSlots.slice(0, 10),
+        requestedSlotLength: requestedSlot.length,
+        firstAvailableSlotLength: availableSlots[0]?.length,
+        requestedSlotChars: Array.from(requestedSlot).map(c => ({ char: c, code: c.charCodeAt(0) })),
+        firstAvailableSlotChars: availableSlots[0] ? Array.from(availableSlots[0]).map((c: string) => ({ char: c, code: c.charCodeAt(0) })) : null,
+      };
+      
+      console.error('book-appointment: Requested slot not available during re-validation.', JSON.stringify(debugInfo, null, 2));
+      
+      return new Response(JSON.stringify({ 
+        error: 'O horário selecionado não está mais disponível. Por favor, escolha outro horário.',
+        requestedSlot,
+        availableSlotsCount: availableSlots.length,
+        availableSlots: availableSlots.slice(0, 5), // Primeiros 5 slots para o usuário ver
+      }), {
         status: 409, // Conflict
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

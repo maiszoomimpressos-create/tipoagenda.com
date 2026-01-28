@@ -77,6 +77,22 @@ async function handleSubscription(
         console.log(`New subscription ${subscriptionId} created successfully, ending on ${finalEndDate}.`);
     }
     
+    // Sincronizar flags da empresa baseado nas funcionalidades do plano
+    try {
+        const { error: syncError } = await supabaseAdmin.rpc('sync_company_flags_from_plan', {
+            p_company_id: companyId,
+            p_plan_id: planId
+        });
+        if (syncError) {
+            console.error(`Erro ao sincronizar flags (não crítico):`, syncError);
+        } else {
+            console.log(`Flags sincronizados para empresa ${companyId} com plano ${planId}`);
+        }
+    } catch (syncErr: any) {
+        console.error(`Erro ao sincronizar flags (não crítico):`, syncErr);
+        // Não lança erro para não quebrar o fluxo de assinatura
+    }
+    
     return { subscriptionId, finalEndDate };
 }
 

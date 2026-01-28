@@ -170,6 +170,21 @@ serve(async (req) => {
 
         if (updatePendingError) throw updatePendingError;
         console.log(`Pending subscription ${subscriptionId} activated successfully, ending on ${finalEndDate}.`);
+        
+        // Sincronizar flags da empresa baseado nas funcionalidades do plano
+        try {
+            const { error: syncError } = await supabaseAdmin.rpc('sync_company_flags_from_plan', {
+                p_company_id: companyId,
+                p_plan_id: planId
+            });
+            if (syncError) {
+                console.error(`Erro ao sincronizar flags (não crítico):`, syncError);
+            } else {
+                console.log(`Flags sincronizados para empresa ${companyId} com plano ${planId}`);
+            }
+        } catch (syncErr: any) {
+            console.error(`Erro ao sincronizar flags (não crítico):`, syncErr);
+        }
     } else {
         // Cenário de retrocompatibilidade: não existe pendente, mantém lógica antiga
         let baseDate = today;
@@ -196,6 +211,21 @@ serve(async (req) => {
 
             if (updateActiveError) throw updateActiveError;
             console.log(`Active subscription ${subscriptionId} extended successfully to ${finalEndDate}.`);
+            
+            // Sincronizar flags da empresa baseado nas funcionalidades do plano
+            try {
+                const { error: syncError } = await supabaseAdmin.rpc('sync_company_flags_from_plan', {
+                    p_company_id: companyId,
+                    p_plan_id: planId
+                });
+                if (syncError) {
+                    console.error(`Erro ao sincronizar flags (não crítico):`, syncError);
+                } else {
+                    console.log(`Flags sincronizados para empresa ${companyId} com plano ${planId}`);
+                }
+            } catch (syncErr: any) {
+                console.error(`Erro ao sincronizar flags (não crítico):`, syncErr);
+            }
         } else {
             // Nenhuma assinatura ativa: criar nova como ativa
             const { data: newSub, error: insertError } = await supabaseAdmin
@@ -213,6 +243,21 @@ serve(async (req) => {
             if (insertError) throw insertError;
             subscriptionId = newSub.id;
             console.log(`New active subscription ${subscriptionId} created successfully, ending on ${finalEndDate}.`);
+            
+            // Sincronizar flags da empresa baseado nas funcionalidades do plano
+            try {
+                const { error: syncError } = await supabaseAdmin.rpc('sync_company_flags_from_plan', {
+                    p_company_id: companyId,
+                    p_plan_id: planId
+                });
+                if (syncError) {
+                    console.error(`Erro ao sincronizar flags (não crítico):`, syncError);
+                } else {
+                    console.log(`Flags sincronizados para empresa ${companyId} com plano ${planId}`);
+                }
+            } catch (syncErr: any) {
+                console.error(`Erro ao sincronizar flags (não crítico):`, syncErr);
+            }
         }
     }
     

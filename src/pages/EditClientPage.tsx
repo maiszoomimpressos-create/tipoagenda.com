@@ -329,6 +329,7 @@ const EditClientPage: React.FC = () => {
                     onChange={handlePhoneNumberChange}
                     maxLength={15}
                     className="mt-1 border-gray-300 text-sm"
+                    required
                   />
                   {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
                 </div>
