@@ -12,6 +12,7 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useCompanyDetails } from '@/hooks/useCompanyDetails'; // Importar o novo hook
 import SubscriptionExpiredPage from '@/pages/SubscriptionExpiredPage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Zap, Menu, Bell } from 'lucide-react';
@@ -29,6 +30,7 @@ const MainApplication: React.FC = () => {
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { isClient, loadingClientCheck } = useIsClient();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { companyDetails, loading: loadingCompanyDetails } = useCompanyDetails(primaryCompanyId); // Usar o novo hook
   
   // Novo: Status da Assinatura
   const { status: subscriptionStatus, endDate, loading: loadingSubscription } = useSubscriptionStatus();
@@ -56,6 +58,10 @@ const MainApplication: React.FC = () => {
     .filter(item => {
       // Filtrar itens com restrição de roles
       if (item.roles && item.roles.length > 0) {
+        // Se o item for 'Mensagens WhatsApp', filtrar com a nova condição
+        if (item.id === 'mensagens-whatsapp') {
+          return isProprietario && companyDetails?.whatsapp_messaging_enabled;
+        }
         // Se o item requer 'Proprietário', mostrar apenas para proprietários
         if (item.roles.includes('Proprietário')) {
           return isProprietario;
@@ -84,7 +90,7 @@ const MainApplication: React.FC = () => {
   }
 
   // Se o usuário está carregando a sessão ou os status, exibe loading
-  if (sessionLoading || loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingSubscription) {
+  if (sessionLoading || loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingSubscription || loadingCompanyDetails) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando aplicação...</p>
