@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient'; // Certifique-se de que este caminho está correto
+import { supabase } from '@/integrations/supabase/client';
 
 interface CompanyDetails {
   id: string;
