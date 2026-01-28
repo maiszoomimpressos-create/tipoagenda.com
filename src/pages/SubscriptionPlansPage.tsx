@@ -268,7 +268,7 @@ const SubscriptionPlansPage: React.FC = () => {
     // Recalcular isExpired e isCanceled dentro da função para garantir valores atuais
     const subscriptionIsCanceled = currentSubscription?.status === 'canceled';
     const subscriptionIsExpired = currentSubscription?.end_date ? isPast(parseISO(currentSubscription.end_date)) : false;
-    const hasActiveSubscription = currentSubscription && !subscriptionIsExpired && !subscriptionIsCanceled && currentSubscription.status === 'active';
+    const hasActiveSubscription = currentSubscription && !subscriptionIsExpired && currentSubscription.status === 'active';
 
     if (hasActiveSubscription) {
         showError('Você já possui uma assinatura ativa. Cancele a atual antes de mudar.');
