@@ -64,6 +64,8 @@ type MessagingProviderRow = {
   auth_token: string | null;
   payload_template: any;
   content_type?: string | null; // 'json' ou 'form-data'
+  user_id: string | null;
+  queue_id: string | null;
 };
 
 type MessageSendLogRow = {
@@ -210,7 +212,23 @@ async function sendViaProvider(
   toPhone: string,
   text: string,
 ): Promise<{ ok: boolean; status: number; responseBody: any }> {
-  const payloadTemplate = provider.payload_template || {};
+  // Criar cópia do payload_template e incluir user_id e queue_id automaticamente
+  const payloadTemplate = { ...(provider.payload_template || {}) };
+  
+  // Incluir user_id e queue_id do provedor (valores do provedor têm prioridade sobre o template)
+  // Se o provedor tiver valores configurados, eles substituem os do template
+  if (provider.user_id) {
+    payloadTemplate.userId = provider.user_id;
+  } else if (!payloadTemplate.userId) {
+    payloadTemplate.userId = '';
+  }
+  
+  if (provider.queue_id) {
+    payloadTemplate.queueId = provider.queue_id;
+  } else if (!payloadTemplate.queueId) {
+    payloadTemplate.queueId = '';
+  }
+  
   const contentType = provider.content_type || 'json';
 
   const headers: Record<string, string> = {};
