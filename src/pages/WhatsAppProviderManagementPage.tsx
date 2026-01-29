@@ -32,6 +32,8 @@ interface MessagingProvider {
   auth_token: string | null;
   payload_template: any;
   content_type?: string | null;
+  user_id: string | null;
+  queue_id: string | null;
   is_active: boolean;
 }
 
@@ -52,6 +54,8 @@ const WhatsAppProviderManagementPage: React.FC = () => {
     auth_token: '',
     payload_template: '{"to": "{phone}", "message": "{text}"}',
     content_type: 'json' as 'json' | 'form-data',
+    user_id: '',
+    queue_id: '',
     is_active: true,
   });
 
@@ -91,6 +95,8 @@ const WhatsAppProviderManagementPage: React.FC = () => {
         ? provider.payload_template 
         : JSON.stringify(provider.payload_template, null, 2),
       content_type: (provider.content_type as 'json' | 'form-data') || 'json',
+      user_id: provider.user_id || '',
+      queue_id: provider.queue_id || '',
       is_active: provider.is_active,
     });
   };
@@ -105,13 +111,15 @@ const WhatsAppProviderManagementPage: React.FC = () => {
       auth_token: '',
       payload_template: '{"to": "{phone}", "message": "{text}"}',
       content_type: 'json',
+      user_id: '',
+      queue_id: '',
       is_active: true,
     });
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.base_url.trim()) {
-      showError('Preencha todos os campos obrigatórios.');
+    if (!formData.name.trim() || !formData.base_url.trim() || !formData.user_id.trim() || !formData.queue_id.trim()) {
+      showError('Preencha todos os campos obrigatórios (Nome, URL, ID do Usuário e ID da Fila).');
       return;
     }
 
@@ -139,6 +147,8 @@ const WhatsAppProviderManagementPage: React.FC = () => {
             auth_token: formData.auth_token.trim() || null,
             payload_template: payloadTemplateJson,
             content_type: formData.content_type,
+            user_id: formData.user_id.trim() || null,
+            queue_id: formData.queue_id.trim() || null,
             is_active: formData.is_active,
           })
           .eq('id', editingProvider.id);
@@ -158,6 +168,8 @@ const WhatsAppProviderManagementPage: React.FC = () => {
             auth_token: formData.auth_token.trim() || null,
             payload_template: payloadTemplateJson,
             content_type: formData.content_type,
+            user_id: formData.user_id.trim() || null,
+            queue_id: formData.queue_id.trim() || null,
             is_active: formData.is_active,
           });
 
@@ -297,6 +309,33 @@ const WhatsAppProviderManagementPage: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>ID do Usuário/Atendente *</Label>
+                  <Input
+                    value={formData.user_id}
+                    onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                    placeholder="ID do usuário/atendente"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Campo obrigatório para envio de mensagens via API
+                  </p>
+                </div>
+                <div>
+                  <Label>ID da Fila *</Label>
+                  <Input
+                    value={formData.queue_id}
+                    onChange={(e) => setFormData({ ...formData, queue_id: e.target.value })}
+                    placeholder="ID da fila"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Campo obrigatório para envio de mensagens via API
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <Label>Tipo de Conteúdo *</Label>
                 <Select
@@ -324,15 +363,12 @@ const WhatsAppProviderManagementPage: React.FC = () => {
                   rows={6}
                   className="font-mono text-sm"
                   placeholder={formData.content_type === 'form-data' 
-                    ? '{"number": "{phone}", "body": "{text}", "userId": "", "queueId": "", "status": "pending"}'
-                    : '{"to": "{phone}", "message": "{text}"}'
+                    ? '{"number": "{phone}", "body": "{text}", "status": "pending", "sendSignature": false, "closeTicket": false}'
+                    : '{"number": "{phone}", "body": "{text}", "status": "pending"}'
                   }
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.content_type === 'form-data' 
-                    ? 'Use {"{phone}"} para o telefone e {"{text}"} para o texto. Campos vazios podem ser "" ou omitidos. Deve ser um JSON válido.'
-                    : 'Use {"{phone}"} para o telefone e {"{text}"} para o texto da mensagem. Deve ser um JSON válido.'
-                  }
+                  Use {"{phone}"} para o telefone e {"{text}"} para o texto da mensagem. Os campos userId e queueId serão incluídos automaticamente a partir dos valores configurados acima. Deve ser um JSON válido.
                 </p>
               </div>
 
@@ -381,6 +417,8 @@ const WhatsAppProviderManagementPage: React.FC = () => {
                     auth_token: '',
                     payload_template: '{"to": "{phone}", "message": "{text}"}',
                     content_type: 'json',
+                    user_id: '',
+                    queue_id: '',
                     is_active: true,
                   });
                 }}

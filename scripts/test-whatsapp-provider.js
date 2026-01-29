@@ -80,8 +80,21 @@ async function testProvider() {
       // Usar FormData nativo (Node.js 18+)
       const formData = new FormData();
 
-      // Processar o template como objeto
-      const payloadTemplate = provider.payload_template || {};
+      // Processar o template como objeto e incluir user_id e queue_id automaticamente
+      const payloadTemplate = { ...(provider.payload_template || {}) };
+      
+      // Incluir user_id e queue_id do provedor (valores do provedor têm prioridade sobre o template)
+      if (provider.user_id) {
+        payloadTemplate.userId = provider.user_id;
+      } else if (!payloadTemplate.userId) {
+        payloadTemplate.userId = '';
+      }
+      
+      if (provider.queue_id) {
+        payloadTemplate.queueId = provider.queue_id;
+      } else if (!payloadTemplate.queueId) {
+        payloadTemplate.queueId = '';
+      }
       
       for (const [key, value] of Object.entries(payloadTemplate)) {
         let fieldValue;
@@ -113,7 +126,21 @@ async function testProvider() {
       // Usar application/json (padrão)
       headers['Content-Type'] = 'application/json';
 
-      const payloadTemplate = provider.payload_template || {};
+      // Criar cópia do payload_template e incluir user_id e queue_id automaticamente
+      const payloadTemplate = { ...(provider.payload_template || {}) };
+      
+      // Incluir user_id e queue_id do provedor (valores do provedor têm prioridade sobre o template)
+      if (provider.user_id) {
+        payloadTemplate.userId = provider.user_id;
+      } else if (!payloadTemplate.userId) {
+        payloadTemplate.userId = '';
+      }
+      
+      if (provider.queue_id) {
+        payloadTemplate.queueId = provider.queue_id;
+      } else if (!payloadTemplate.queueId) {
+        payloadTemplate.queueId = '';
+      }
       
       // Substituir placeholders básicos no JSON do payload
       const payloadString = JSON.stringify(payloadTemplate)

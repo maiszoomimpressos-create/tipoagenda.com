@@ -119,6 +119,8 @@ const ClientAppointmentsPage: React.FC = () => {
       setClientContext(clientData); // Armazena o contexto do cliente
 
       // 2. Fetch all appointments for this client across all companies
+      console.log('fetchAppointments: orderBy', orderBy);
+      console.log('fetchAppointments: orderAscending', orderAscending);
       const { data, error } = await supabase
         .from('appointments')
         .select(`
@@ -156,7 +158,7 @@ const ClientAppointmentsPage: React.FC = () => {
     } finally {
       setLoadingAppointments(false);
     }
-  }, [session, sessionLoading, createClientProfileIfMissing]);
+  }, [session, sessionLoading, createClientProfileIfMissing, orderBy, orderAscending]);
 
   useEffect(() => {
     fetchAppointments();
