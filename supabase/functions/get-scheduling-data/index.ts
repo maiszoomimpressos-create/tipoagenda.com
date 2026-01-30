@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import { format } from 'https://esm.sh/date-fns@3.6.0';
+import { format, parse, getDay } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,9 +23,21 @@ serve(async (req) => {
       });
     }
 
-    const date = new Date(rawDate);
+    // Parse date from YYYY-MM-DD string to avoid timezone issues
+    // Se vier como ISO string, parse como ISO. Se vier como YYYY-MM-DD, parse como YYYY-MM-DD
+    let date: Date;
+    if (typeof rawDate === 'string' && rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // É formato YYYY-MM-DD, parse diretamente
+      date = parse(rawDate, 'yyyy-MM-dd', new Date());
+    } else {
+      // É ISO string ou outro formato, converter
+      date = new Date(rawDate);
+    }
+    
     const formattedDate = format(date, 'yyyy-MM-dd');
-    const selectedDayOfWeek = date.getDay(); // 0 for Sunday, 1 for Monday, etc.
+    const selectedDayOfWeek = getDay(date); // 0 for Sunday, 1 for Monday, etc.
+    
+    console.log('get-scheduling-data: Received date:', rawDate, 'parsed:', formattedDate, 'dayOfWeek:', selectedDayOfWeek);
 
     // Create a Supabase client with the service role key for admin operations
     const supabaseAdmin = createClient(

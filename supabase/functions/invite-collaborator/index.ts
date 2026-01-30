@@ -43,14 +43,39 @@ serve(async (req) => {
       });
     }
 
-    const { companyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl } = await req.json();
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (parseError: any) {
+      console.error('Edge Function Error (invite-collaborator): Failed to parse request body:', parseError.message);
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body: ' + parseError.message }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { companyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl } = requestData;
 
     console.log('Edge Function Debug (invite-collaborator): Received data:', { companyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl });
     console.log('Edge Function Debug (invite-collaborator): Authenticated user ID:', user.id);
 
-    if (!companyId || !firstName || !lastName || !email || !phoneNumber || !hireDate || !roleTypeId || commissionPercentage === undefined || !status) {
-      console.error('Edge Function Error (invite-collaborator): Missing required collaborator data');
-      return new Response(JSON.stringify({ error: 'Missing required collaborator data' }), {
+    // Validação detalhada com mensagens específicas
+    const missingFields: string[] = [];
+    if (!companyId) missingFields.push('companyId');
+    if (!firstName) missingFields.push('firstName');
+    if (!lastName) missingFields.push('lastName');
+    if (!email) missingFields.push('email');
+    if (!phoneNumber) missingFields.push('phoneNumber');
+    if (!hireDate) missingFields.push('hireDate');
+    if (!roleTypeId && roleTypeId !== 0) missingFields.push('roleTypeId');
+    if (commissionPercentage === undefined || commissionPercentage === null) missingFields.push('commissionPercentage');
+    if (!status) missingFields.push('status');
+
+    if (missingFields.length > 0) {
+      console.error('Edge Function Error (invite-collaborator): Missing required collaborator data:', missingFields);
+      return new Response(JSON.stringify({ 
+        error: `Dados obrigatórios faltando: ${missingFields.join(', ')}` 
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -158,63 +183,209 @@ serve(async (req) => {
     let invitedAuthUser = null;
     let inviteOperationError = null;
     let inviteOperationMessage = '';
+    let emailSent = false;
+    let emailError: string | null = null;
 
-    // Check if a user with this email already exists in auth.users
-    const { data: { users: existingAuthUsers }, error: fetchExistingUserError } = await supabaseAdmin.auth.admin.listUsers({
-      email: email,
+    // Função para gerar senha temporária segura
+    const generateTemporaryPassword = (): string => {
+      const length = 12;
+      const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*';
+      let password = '';
+      // Garantir pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial
+      password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
+      password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+      password += '0123456789'[Math.floor(Math.random() * 10)];
+      password += '!@#$%&*'[Math.floor(Math.random() * 7)];
+      // Preencher o resto
+      for (let i = password.length; i < length; i++) {
+        password += charset[Math.floor(Math.random() * charset.length)];
+      }
+      // Embaralhar
+      return password.split('').sort(() => Math.random() - 0.5).join('');
+    };
+
+    // REMOVIDO: Verificação prévia de usuário existente - causa falsos positivos
+    // Vamos tentar criar diretamente e tratar o erro se o usuário já existir
+    const normalizedEmail = email.trim().toLowerCase();
+    console.log('Edge Function Debug (invite-collaborator): Tentando criar novo usuário com email:', normalizedEmail);
+    console.log('Edge Function Debug (invite-collaborator): Email original recebido:', email);
+    
+    // Gerar senha temporária
+    const temporaryPassword = generateTemporaryPassword();
+    console.log('Edge Function Debug (invite-collaborator): Senha temporária gerada (primeiros 3 caracteres):', temporaryPassword.substring(0, 3) + '***');
+    
+    // Tentar criar usuário diretamente - se já existir, o Supabase retornará erro específico
+    const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail, // Normalizar email
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        phone_number: phoneNumber,
+        hire_date: hireDate,
+        role_type_id: roleTypeId,
+        commission_percentage: commissionPercentage,
+        status: status,
+        avatar_url: avatarUrl || null,
+        is_temporary_password: true,
+      },
     });
 
-    if (fetchExistingUserError) {
-      console.error('Edge Function Error (invite-collaborator): Error checking for existing user -', fetchExistingUserError.message);
-      return new Response(JSON.stringify({ error: 'Error checking for existing user: ' + fetchExistingUserError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const existingAuthUser = existingAuthUsers.length > 0 ? existingAuthUsers[0] : null;
-
-    if (existingAuthUser) {
-      // User already exists, send a magic link or password reset link
-      console.log('Edge Function Debug (invite-collaborator): User already exists, sending magic link.');
-      const { error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink', // Sends a link to sign in or set password
-        email: email,
-        options: {
-          redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`, // Redirect to signup to set password
-        },
-      });
-
-      if (magicLinkError) {
-        inviteOperationError = magicLinkError;
-        inviteOperationMessage = 'Erro ao enviar link mágico para colaborador existente: ' + magicLinkError.message;
-      } else {
-        invitedAuthUser = existingAuthUser;
-        inviteOperationMessage = 'Link de acesso enviado com sucesso para o e-mail do colaborador existente.';
+    if (createUserError) {
+      // Verificar se o erro é porque o usuário já existe
+      const errorMessage = (createUserError.message || '').toLowerCase();
+      const errorStatus = createUserError.status || 0;
+      
+      const isUserExistsError = errorMessage.includes('already registered') || 
+                                errorMessage.includes('user already exists') ||
+                                errorMessage.includes('already exists') ||
+                                errorMessage.includes('duplicate') ||
+                                errorStatus === 422 ||
+                                errorStatus === 400;
+      
+      if (isUserExistsError) {
+        console.log('Edge Function Debug (invite-collaborator): Usuário já existe (erro do Supabase).');
+        return new Response(JSON.stringify({ 
+          error: 'Já existe um usuário cadastrado com este e-mail. Por favor, use outro e-mail.' 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
+      
+      // Outro tipo de erro na criação
+      console.error('Edge Function Error (invite-collaborator): Error creating user:', createUserError);
+      inviteOperationError = createUserError;
+      inviteOperationMessage = 'Erro ao criar usuário para colaborador: ' + createUserError.message;
     } else {
-      // User does not exist, proceed with inviteUserByEmail
-      console.log('Edge Function Debug (invite-collaborator): User does not exist, inviting new user.');
-      const { data: newInvitedUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          phone_number: phoneNumber,
-          hire_date: hireDate,
-          role_type_id: roleTypeId,
-          commission_percentage: commissionPercentage,
-          status: status,
-          avatar_url: avatarUrl,
-        },
-        redirectTo: `${Deno.env.get('SITE_URL') || 'https://tegyiuktrmcqxkbjxqoc.supabase.co'}/signup`,
-      });
-
-      if (inviteError) {
-        inviteOperationError = inviteError;
-        inviteOperationMessage = 'Erro ao convidar novo colaborador: ' + inviteError.message;
+      // Usuário criado com sucesso
+      invitedAuthUser = newUser.user;
+      inviteOperationMessage = 'Colaborador criado com sucesso. Email com credenciais será enviado.';
+      console.log('Edge Function Debug (invite-collaborator): Usuário criado com sucesso:', invitedAuthUser.id);
+      
+      // Criar registro em type_user com cod 'COLABORADOR'
+      const { error: typeUserError } = await supabaseAdmin
+        .from('type_user')
+        .upsert({
+          user_id: invitedAuthUser.id,
+          cod: 'COLABORADOR',
+          descr: 'Colaborador',
+        }, {
+          onConflict: 'user_id',
+        });
+      
+      if (typeUserError) {
+        console.error('Edge Function Error (invite-collaborator): Error creating type_user:', typeUserError);
+        // Não falha o processo, apenas loga o erro
+      }
+      
+      // Enviar email com credenciais - DIRETO VIA RESEND API (igual ao cadastro de empresa)
+      const siteUrl = Deno.env.get('SITE_URL') || 'https://tipoagenda.com';
+      const loginUrl = `${siteUrl}/login`;
+      
+      console.log('Edge Function Debug (invite-collaborator): Enviando email de boas-vindas para:', email);
+      
+      const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+      
+      if (!RESEND_API_KEY) {
+        console.warn('Edge Function Warning (invite-collaborator): RESEND_API_KEY não configurada. Email não será enviado.');
+        console.warn('Edge Function Warning (invite-collaborator): Configure no Supabase: Edge Functions > invite-collaborator > Settings > Secrets.');
+        emailError = 'RESEND_API_KEY não configurada';
       } else {
-        invitedAuthUser = newInvitedUser.user;
-        inviteOperationMessage = 'Convite enviado com sucesso para o novo colaborador.';
+        try {
+          const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .button { display: inline-block; padding: 12px 24px; background-color: #F59E0B; color: #000; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+                .credentials { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .footer { margin-top: 30px; font-size: 12px; color: #666; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h2>Bem-vindo ao TipoAgenda!</h2>
+                <p>Olá ${firstName} ${lastName},</p>
+                <p>Você foi cadastrado como colaborador no sistema TipoAgenda. Utilize as credenciais abaixo para acessar o sistema:</p>
+                
+                <div class="credentials">
+                  <p><strong>E-mail:</strong> ${normalizedEmail}</p>
+                  <p><strong>Senha temporária:</strong> <code style="background-color: #fff; padding: 2px 4px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace;">${temporaryPassword}</code></p>
+                </div>
+                
+                <p><strong>Importante:</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                  <li>Use o e-mail <strong>exatamente</strong> como mostrado acima (em minúsculas)</li>
+                  <li>Copie a senha temporária com cuidado, incluindo todos os caracteres especiais</li>
+                  <li>Ao fazer o primeiro login, você será solicitado a alterar sua senha por uma senha de sua escolha</li>
+                </ul>
+                
+                <p><a href="${loginUrl}" class="button">Acessar Sistema</a></p>
+                
+                <p>Ou copie e cole este link no seu navegador:</p>
+                <p style="word-break: break-all; color: #0066cc;">${loginUrl}</p>
+                
+                <div class="footer">
+                  <p>Se você não foi cadastrado, entre em contato com o administrador do sistema.</p>
+                  <p>© TipoAgenda - Todos os direitos reservados</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${RESEND_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'TipoAgenda <noreply@tipoagenda.com>',
+              to: normalizedEmail, // Usar email normalizado
+              subject: 'Bem-vindo ao TipoAgenda - Credenciais de Acesso',
+              html: emailHtml,
+            }),
+          });
+
+          const resendData = await resendResponse.json();
+
+          if (resendResponse.ok) {
+            emailSent = true;
+            console.log('Edge Function Debug (invite-collaborator): Email de boas-vindas enviado com sucesso via Resend API para:', email);
+          } else {
+            emailError = `Resend API error: ${JSON.stringify(resendData)}`;
+            console.error('Edge Function Error (invite-collaborator): Resend API error:', resendData);
+            
+            if (resendData.statusCode === 403 && resendData.message?.includes('testing emails')) {
+              console.warn('Edge Function Warning (invite-collaborator): Resend está em modo de teste. Você só pode enviar emails para o email da sua conta do Resend.');
+            }
+          }
+        } catch (resendErr: any) {
+          emailError = `Resend API exception: ${resendErr.message}`;
+          console.error('Edge Function Error (invite-collaborator): Resend API exception:', resendErr.message);
+        }
+      }
+      
+      // Se o email falhou, logar mas não bloquear o processo
+      if (!emailSent) {
+        console.warn('Edge Function Warning (invite-collaborator): Colaborador criado, mas email NÃO foi enviado. Erro:', emailError);
+        console.warn('Edge Function Warning (invite-collaborator): Credenciais do colaborador:', {
+          email: normalizedEmail,
+          temporaryPassword: temporaryPassword,
+        });
+      } else {
+        // Log das credenciais para debug (apenas se email foi enviado)
+        console.log('Edge Function Debug (invite-collaborator): Email enviado com sucesso. Credenciais:', {
+          email: normalizedEmail,
+          temporaryPasswordLength: temporaryPassword.length,
+          passwordStartsWith: temporaryPassword.substring(0, 2) + '***',
+        });
       }
     }
 
@@ -317,7 +488,17 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ message: inviteOperationMessage, collaborator: collaboratorData }), {
+    // Incluir informação sobre o email na resposta
+    const responseMessage = emailSent 
+      ? inviteOperationMessage 
+      : `${inviteOperationMessage} ATENÇÃO: O email não foi enviado. Verifique os logs.`;
+    
+    return new Response(JSON.stringify({ 
+      message: responseMessage, 
+      collaborator: collaboratorData,
+      emailSent: emailSent,
+      emailError: emailError || null,
+    }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

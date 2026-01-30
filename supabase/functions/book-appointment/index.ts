@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import { format, addMinutes, parse, getDay, startOfDay, isBefore, isAfter, setHours, setMinutes } from 'https://esm.sh/date-fns@3.6.0';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
+import { format, addMinutes, parse, getDay, startOfDay, isBefore, isAfter, setHours, setMinutes } from "https://esm.sh/date-fns@3.6.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,9 +19,11 @@ async function getAvailableTimeSlotsBackend(
 ): Promise<string[]> {
   console.log('getAvailableTimeSlotsBackend Start:', { companyId, collaboratorId, date: date.toISOString(), requiredDuration });
   const availableSlots: string[] = [];
-  const selectedDayOfWeek = getDay(date);
+  // Normalizar a data para garantir que está no início do dia - PRESERVAR A DATA ORIGINAL
+  const normalizedDate = startOfDay(date);
+  const selectedDayOfWeek = getDay(normalizedDate);
   const today = startOfDay(new Date());
-  const selectedDateStart = startOfDay(date);
+  const selectedDateStart = normalizedDate;
 
   // 1. Fetch working schedules for the selected day (sempre buscar dados atualizados)
   const { data: workingSchedules, error: wsError } = await supabase
@@ -43,7 +45,7 @@ async function getAvailableTimeSlotsBackend(
     .select('id, exception_date, is_day_off, start_time, end_time, reason')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
-    .eq('exception_date', format(date, 'yyyy-MM-dd'))
+    .eq('exception_date', format(normalizedDate, 'yyyy-MM-dd'))
     .order('start_time', { ascending: true }); // Ordenar para garantir consistência
 
   console.log('getAvailableTimeSlotsBackend: exceptions fetched:', exceptions, 'error:', exError);
@@ -62,8 +64,13 @@ async function getAvailableTimeSlotsBackend(
       }
       const startTimeStr = schedule.start_time.substring(0, 5);
       const endTimeStr = schedule.end_time.substring(0, 5);
-      const start = parse(startTimeStr, 'HH:mm', date);
-      const end = parse(endTimeStr, 'HH:mm', date);
+      // Criar datas na data normalizada correta, garantindo que não mude devido a timezone
+      const start = new Date(normalizedDate);
+      const [startHour, startMinute] = startTimeStr.split(':').map(Number);
+      start.setHours(startHour, startMinute, 0, 0);
+      const end = new Date(normalizedDate);
+      const [endHour, endMinute] = endTimeStr.split(':').map(Number);
+      end.setHours(endHour, endMinute, 0, 0);
       return { start, end };
     }).filter(Boolean) as Array<{ start: Date; end: Date }>;
   }
@@ -81,8 +88,14 @@ async function getAvailableTimeSlotsBackend(
           console.warn('getAvailableTimeSlotsBackend: Invalid exception times, skipping:', exception);
           // Invalid exception times, skip
         } else {
-          const exceptionStart = parse(exception.start_time.substring(0, 5), 'HH:mm', date);
-          const exceptionEnd = parse(exception.end_time.substring(0, 5), 'HH:mm', date);
+          const exceptionTimeStr = exception.start_time.substring(0, 5);
+          const exceptionEndTimeStr = exception.end_time.substring(0, 5);
+          const exceptionStart = new Date(normalizedDate);
+          const [exStartHour, exStartMinute] = exceptionTimeStr.split(':').map(Number);
+          exceptionStart.setHours(exStartHour, exStartMinute, 0, 0);
+          const exceptionEnd = new Date(normalizedDate);
+          const [exEndHour, exEndMinute] = exceptionEndTimeStr.split(':').map(Number);
+          exceptionEnd.setHours(exEndHour, exEndMinute, 0, 0);
           busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
           console.log('getAvailableTimeSlotsBackend: Added exception busy interval:', { start: exceptionStart.toISOString(), end: exceptionEnd.toISOString() });
         }
@@ -106,7 +119,7 @@ async function getAvailableTimeSlotsBackend(
     .select('id, appointment_time, total_duration_minutes, status, created_at, updated_at')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
-    .eq('appointment_date', format(date, 'yyyy-MM-dd'))
+    .eq('appointment_date', format(normalizedDate, 'yyyy-MM-dd'))
     .neq('status', 'cancelado')
     .order('appointment_time', { ascending: true }); // Ordenar para garantir consistência
 
@@ -123,16 +136,19 @@ async function getAvailableTimeSlotsBackend(
   if (appError) throw appError;
 
   if (existingAppointments) {
+    console.log(`getAvailableTimeSlotsBackend: Processing ${existingAppointments.length} existing appointments for date ${format(normalizedDate, 'yyyy-MM-dd')}`);
     existingAppointments.forEach(app => {
       if (!app || typeof app.appointment_time !== 'string') {
         console.warn('getAvailableTimeSlotsBackend: Invalid appointment entry, skipping:', app);
         return;
       }
       const appStartTimeStr = app.appointment_time.substring(0, 5);
-      const appStartTime = parse(appStartTimeStr, 'HH:mm', date);
+      const appStartTime = new Date(normalizedDate);
+      const [appHour, appMinute] = appStartTimeStr.split(':').map(Number);
+      appStartTime.setHours(appHour, appMinute, 0, 0);
       const appEndTime = addMinutes(appStartTime, app.total_duration_minutes);
+      console.log(`getAvailableTimeSlotsBackend: Adding busy interval from appointment: ${appStartTimeStr} (${format(appStartTime, 'yyyy-MM-dd HH:mm:ss')}) to ${format(appEndTime, 'HH:mm')} (${format(appEndTime, 'yyyy-MM-dd HH:mm:ss')})`);
       busyIntervals.push({ start: appStartTime, end: appEndTime });
-      console.log('getAvailableTimeSlotsBackend: Added existing appointment busy interval:', { start: appStartTime.toISOString(), end: appEndTime.toISOString() });
     });
   }
   console.log('getAvailableTimeSlotsBackend: All raw busyIntervals (from exceptions and appointments):', busyIntervals.map(b => ({ start: b.start.toISOString(), end: b.end.toISOString() })));
@@ -209,7 +225,20 @@ async function getAvailableTimeSlotsBackend(
         } else {
           // Slot não está no passado, verificar conflitos
           for (const busy of mergedBusyIntervals) {
-            if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
+            // Verificar se estão na mesma data antes de comparar
+            const slotDate = format(slotStart, 'yyyy-MM-dd');
+            const busyDate = format(busy.start, 'yyyy-MM-dd');
+            
+            if (slotDate !== busyDate) {
+              continue; // Não comparar se não estiverem na mesma data
+            }
+            
+            const slotStartTime = slotStart.getTime();
+            const slotEndTime = slotEnd.getTime();
+            const busyStartTime = busy.start.getTime();
+            const busyEndTime = busy.end.getTime();
+            
+            if (slotStartTime < busyEndTime && slotEndTime > busyStartTime) {
               isSlotFree = false;
               console.log('getAvailableTimeSlotsBackend: Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
               // Avançar para depois do busy interval, alinhado ao slotIntervalMinutes
@@ -224,15 +253,33 @@ async function getAvailableTimeSlotsBackend(
       } else {
         // Não é hoje, apenas verificar conflitos com busy intervals
         for (const busy of mergedBusyIntervals) {
-          if (isBefore(slotStart, busy.end) && isAfter(slotEnd, busy.start)) {
+          // Verificar se estão na mesma data antes de comparar
+          const slotDate = format(slotStart, 'yyyy-MM-dd');
+          const busyDate = format(busy.start, 'yyyy-MM-dd');
+          
+          if (slotDate !== busyDate) {
+            console.log(`getAvailableTimeSlotsBackend: Skipping comparison - slot date (${slotDate}) != busy date (${busyDate})`);
+            continue; // Não comparar se não estiverem na mesma data
+          }
+          
+          const slotStartTime = slotStart.getTime();
+          const slotEndTime = slotEnd.getTime();
+          const busyStartTime = busy.start.getTime();
+          const busyEndTime = busy.end.getTime();
+          
+          console.log(`getAvailableTimeSlotsBackend: Comparing slot ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')} (${slotStartTime}-${slotEndTime}) with busy ${format(busy.start, 'HH:mm')}-${format(busy.end, 'HH:mm')} (${busyStartTime}-${busyEndTime})`);
+          
+          if (slotStartTime < busyEndTime && slotEndTime > busyStartTime) {
             isSlotFree = false;
-            console.log('getAvailableTimeSlotsBackend: Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
+            console.log('getAvailableTimeSlotsBackend: ❌ Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
             // Avançar para depois do busy interval, alinhado ao slotIntervalMinutes
             const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
             if (isBefore(currentTime, busyEndAligned)) {
               nextTime = busyEndAligned;
             }
             break;
+          } else {
+            console.log(`getAvailableTimeSlotsBackend: ✅ No overlap: slot ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')} is free`);
           }
         }
       }
@@ -339,7 +386,8 @@ serve(async (req) => {
     }
     
     // 2. Re-verify time slot availability on the backend to prevent race conditions
-    const parsedAppointmentDate = parse(appointmentDate, 'yyyy-MM-dd', new Date());
+    // Normalizar a data para garantir que está no início do dia - PRESERVAR A DATA ORIGINAL
+    const parsedAppointmentDate = startOfDay(parse(appointmentDate, 'yyyy-MM-dd', new Date()));
     
     // Extrair horário de início de forma robusta (pode vir como "HH:mm" ou "HH:mm às HH:mm")
     let startTimeForDb: string;
@@ -360,7 +408,12 @@ serve(async (req) => {
       });
     }
     
-    const endTimeForDb = format(addMinutes(parse(startTimeForDb, 'HH:mm', parsedAppointmentDate), totalDurationMinutes), 'HH:mm');
+    // Criar data/hora de início na data normalizada correta
+    const startDateTime = new Date(parsedAppointmentDate);
+    const [startHour, startMinute] = startTimeForDb.split(':').map(Number);
+    startDateTime.setHours(startHour, startMinute, 0, 0);
+    const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
+    const endTimeForDb = format(endDateTime, 'HH:mm');
     const requestedSlot = `${startTimeForDb} às ${endTimeForDb}`;
 
     console.log('book-appointment: Re-validating requestedSlot:', requestedSlot);
