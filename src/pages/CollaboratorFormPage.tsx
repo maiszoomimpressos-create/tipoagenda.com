@@ -85,16 +85,31 @@ const CollaboratorFormPage: React.FC = () => {
 
   const fetchRoleTypes = useCallback(async () => {
     setLoadingRoleTypes(true);
+    // Definir apenas as funções permitidas: Gerente e Colaborador
+    const allowedRoles = ['Gerente', 'Colaborador'];
+    
+    // Buscar apenas os IDs dessas funções específicas do banco
     const { data, error } = await supabase
       .from('role_types')
       .select('id, description')
-      .order('description', { ascending: true });
+      .in('description', allowedRoles);
 
     if (error) {
       showError('Erro ao carregar tipos de função: ' + error.message);
       console.error('Error fetching role types:', error);
+      setRoleTypes([]);
     } else if (data) {
-      setRoleTypes(data);
+      // Filtrar e ordenar apenas as funções permitidas
+      const filteredRoles = data
+        .filter(role => allowedRoles.includes(role.description))
+        .sort((a, b) => {
+          // Ordenar: Gerente primeiro, depois Colaborador
+          const order = ['Gerente', 'Colaborador'];
+          return order.indexOf(a.description) - order.indexOf(b.description);
+        });
+      setRoleTypes(filteredRoles);
+    } else {
+      setRoleTypes([]);
     }
     setLoadingRoleTypes(false);
   }, []);

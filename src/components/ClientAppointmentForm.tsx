@@ -274,10 +274,15 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           console.log('ClientAppointmentForm: Buscando slots atualizados em:', new Date().toISOString());
-          // Normalizar a data para garantir que está no início do dia
-          const normalizedSelectedDate = selectedDate ? startOfDay(selectedDate) : undefined;
+          // Normalizar a data para garantir que está no início do dia - usar componentes locais
+          const normalizedSelectedDate = selectedDate ? (() => {
+            const year = selectedDate.getFullYear();
+            const month = selectedDate.getMonth();
+            const day = selectedDate.getDate();
+            return new Date(year, month, day, 0, 0, 0, 0);
+          })() : undefined;
           console.log('ClientAppointmentForm: selectedDate:', selectedDate, 'formatted:', selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'null');
-          console.log('ClientAppointmentForm: normalizedSelectedDate:', normalizedSelectedDate, 'formatted:', normalizedSelectedDate ? format(normalizedSelectedDate, 'yyyy-MM-dd') : 'null');
+          console.log('ClientAppointmentForm: normalizedSelectedDate:', normalizedSelectedDate, 'formatted:', normalizedSelectedDate ? format(normalizedSelectedDate, 'yyyy-MM-dd') : 'null', 'ISO:', normalizedSelectedDate?.toISOString());
           if (!normalizedSelectedDate) return;
           const slots = await getAvailableTimeSlots(
             supabase,
@@ -337,25 +342,43 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
       // Re-validar slots disponíveis antes de enviar (para evitar race conditions)
       if (data.collaboratorId && data.appointmentDate && totalDurationMinutes > 0) {
         try {
+          // Normalizar a data da mesma forma que foi normalizada antes
+          const appointmentDateObj = parse(data.appointmentDate, 'yyyy-MM-dd', new Date());
+          const normalizedAppointmentDate = (() => {
+            const year = appointmentDateObj.getFullYear();
+            const month = appointmentDateObj.getMonth();
+            const day = appointmentDateObj.getDate();
+            return new Date(year, month, day, 0, 0, 0, 0);
+          })();
+          
+          console.log('Re-validando slots - appointmentDate:', data.appointmentDate, 'normalized:', format(normalizedAppointmentDate, 'yyyy-MM-dd'));
+          
           const refreshedSlots = await getAvailableTimeSlots(
             supabase,
             companyId,
             data.collaboratorId,
-            new Date(data.appointmentDate),
+            normalizedAppointmentDate,
             totalDurationMinutes
           );
           
-          // Formatar slots como "HH:mm às HH:mm"
+          console.log('Re-validação - refreshedSlots recebidos:', refreshedSlots);
+          
+          // Formatar slots como "HH:mm às HH:mm" (mesmo formato usado na exibição)
           const formattedRefreshedSlots = refreshedSlots.map((startTime) => {
             const [hour, minute] = startTime.split(':').map(Number);
-            const startDateTime = new Date(data.appointmentDate);
+            const startDateTime = new Date(normalizedAppointmentDate);
             startDateTime.setHours(hour, minute, 0, 0);
             const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
             return `${format(startDateTime, 'HH:mm')} às ${format(endDateTime, 'HH:mm')}`;
           });
           
+          console.log('Re-validação - formattedRefreshedSlots:', formattedRefreshedSlots);
+          console.log('Re-validação - slot selecionado pelo usuário:', data.appointmentTime);
+          console.log('Re-validação - slot está na lista?', formattedRefreshedSlots.includes(data.appointmentTime));
+          
           // Verificar se o slot selecionado ainda está disponível
           if (!formattedRefreshedSlots.includes(data.appointmentTime)) {
+            console.warn('Re-validação: Slot não encontrado na lista atualizada');
             // Atualizar lista de slots disponíveis
             setAvailableTimeSlots(formattedRefreshedSlots);
             setValue('appointmentTime', '');
@@ -592,8 +615,14 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
                   selected={selectedDate}
                   onSelect={(date) => {
                     // Normalizar a data imediatamente ao selecionar para evitar problemas de timezone
-                    const normalizedDate = date ? startOfDay(date) : undefined;
-                    console.log('ClientAppointmentForm: Date selected:', date, 'normalized:', normalizedDate, 'formatted:', normalizedDate ? format(normalizedDate, 'yyyy-MM-dd') : 'null');
+                    // Usar componentes locais para preservar a data correta
+                    const normalizedDate = date ? (() => {
+                      const year = date.getFullYear();
+                      const month = date.getMonth();
+                      const day = date.getDate();
+                      return new Date(year, month, day, 0, 0, 0, 0);
+                    })() : undefined;
+                    console.log('ClientAppointmentForm: Date selected:', date, 'normalized:', normalizedDate, 'formatted:', normalizedDate ? format(normalizedDate, 'yyyy-MM-dd') : 'null', 'ISO:', normalizedDate?.toISOString());
                     setSelectedDate(normalizedDate);
                     setValue('appointmentDate', normalizedDate ? format(normalizedDate, 'yyyy-MM-dd') : '', { shouldValidate: true });
                   }}

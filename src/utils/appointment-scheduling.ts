@@ -23,6 +23,15 @@ interface Appointment {
   total_duration_minutes: number;
 }
 
+// Função helper para normalizar data sem problemas de timezone
+function normalizeDate(date: Date): Date {
+  // Criar nova data usando componentes locais para evitar problemas de timezone
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  return new Date(year, month, day, 0, 0, 0, 0);
+}
+
 export async function getAvailableTimeSlots(
   supabase: SupabaseClient,
   companyId: string,
@@ -34,10 +43,10 @@ export async function getAvailableTimeSlots(
 ): Promise<string[]> {
   const availableSlots: string[] = [];
   // Normalizar a data para garantir que está no início do dia - PRESERVAR A DATA ORIGINAL
-  // Usar startOfDay do date-fns que preserva a data correta
-  const normalizedDate = startOfDay(date);
+  // Usar função customizada para evitar problemas de timezone
+  const normalizedDate = normalizeDate(date);
   const selectedDayOfWeek = getDay(normalizedDate); // 0 for Sunday, 1 for Monday, etc.
-  const today = startOfDay(new Date());
+  const today = normalizeDate(new Date());
   const selectedDateStart = normalizedDate;
 
   console.log('--- getAvailableTimeSlots Start ---');
@@ -47,14 +56,18 @@ export async function getAvailableTimeSlots(
     date: format(date, 'yyyy-MM-dd'), 
     dateISO: date.toISOString(),
     dateTime: date.getTime(),
+    dateComponents: { year: date.getFullYear(), month: date.getMonth(), day: date.getDate() },
     normalizedDate: format(normalizedDate, 'yyyy-MM-dd'),
     normalizedDateISO: normalizedDate.toISOString(),
+    normalizedDateComponents: { year: normalizedDate.getFullYear(), month: normalizedDate.getMonth(), day: normalizedDate.getDate() },
     requiredDuration, 
     slotIntervalMinutes, 
     excludeAppointmentId 
   });
 
   // Fetch all scheduling data from Edge Function to bypass RLS
+  const dateString = format(normalizedDate, 'yyyy-MM-dd');
+  console.log('Sending to Edge Function - dateString:', dateString, 'normalizedDate:', format(normalizedDate, 'yyyy-MM-dd HH:mm:ss'), 'ISO:', normalizedDate.toISOString());
   const response = await fetch(`${supabaseUrl}/functions/v1/get-scheduling-data`, {
     method: 'POST',
     headers: {
@@ -64,7 +77,7 @@ export async function getAvailableTimeSlots(
     body: JSON.stringify({
       companyId,
       collaboratorId,
-      date: format(normalizedDate, 'yyyy-MM-dd'), // Pass date as YYYY-MM-DD string to avoid timezone issues
+      date: dateString, // Pass date as YYYY-MM-DD string to avoid timezone issues
       excludeAppointmentId,
     }),
   });
@@ -95,12 +108,15 @@ export async function getAvailableTimeSlots(
       const startTimeStr = schedule.start_time.substring(0, 5);
       const endTimeStr = schedule.end_time.substring(0, 5);
       // Criar datas na data normalizada correta, garantindo que não mude devido a timezone
-      const start = new Date(normalizedDate);
+      // Usar componentes da data normalizada diretamente
+      const year = normalizedDate.getFullYear();
+      const month = normalizedDate.getMonth();
+      const day = normalizedDate.getDate();
       const [startHour, startMinute] = startTimeStr.split(':').map(Number);
-      start.setHours(startHour, startMinute, 0, 0);
-      const end = new Date(normalizedDate);
+      const start = new Date(year, month, day, startHour, startMinute, 0, 0);
       const [endHour, endMinute] = endTimeStr.split(':').map(Number);
-      end.setHours(endHour, endMinute, 0, 0);
+      const end = new Date(year, month, day, endHour, endMinute, 0, 0);
+      console.log(`Created working interval: ${format(start, 'yyyy-MM-dd HH:mm')} to ${format(end, 'yyyy-MM-dd HH:mm')} (normalizedDate was: ${format(normalizedDate, 'yyyy-MM-dd')}, components: year=${year}, month=${month}, day=${day})`);
       return { start, end };
     }).filter(Boolean) as Array<{ start: Date; end: Date }>; // Filter out any nulls
   }
@@ -121,12 +137,13 @@ export async function getAvailableTimeSlots(
         } else {
           const exceptionTimeStr = exception.start_time.substring(0, 5);
           const exceptionEndTimeStr = exception.end_time.substring(0, 5);
-          const exceptionStart = new Date(normalizedDate);
+          const year = normalizedDate.getFullYear();
+          const month = normalizedDate.getMonth();
+          const day = normalizedDate.getDate();
           const [exStartHour, exStartMinute] = exceptionTimeStr.split(':').map(Number);
-          exceptionStart.setHours(exStartHour, exStartMinute, 0, 0);
-          const exceptionEnd = new Date(normalizedDate);
+          const exceptionStart = new Date(year, month, day, exStartHour, exStartMinute, 0, 0);
           const [exEndHour, exEndMinute] = exceptionEndTimeStr.split(':').map(Number);
-          exceptionEnd.setHours(exEndHour, exEndMinute, 0, 0);
+          const exceptionEnd = new Date(year, month, day, exEndHour, exEndMinute, 0, 0);
           busyIntervals.push({ start: exceptionStart, end: exceptionEnd });
           console.log('Exception: Specific busy interval added:', `${format(exceptionStart, 'HH:mm')}-${format(exceptionEnd, 'HH:mm')}`);
         }
@@ -151,16 +168,18 @@ export async function getAvailableTimeSlots(
 
   // Add existing appointments to busy intervals
   if (existingAppointments) {
-    console.log(`Processing ${existingAppointments.length} existing appointments for date ${format(date, 'yyyy-MM-dd')}`);
+    console.log(`Processing ${existingAppointments.length} existing appointments for date ${format(normalizedDate, 'yyyy-MM-dd')}`);
     existingAppointments.forEach(app => {
       if (!app || typeof app.appointment_time !== 'string') {
         console.warn(`Invalid appointment entry found (ID: ${app?.id || 'unknown'}). Expected appointment_time to be a string. Skipping.`);
         return;
       }
       const appStartTimeStr = app.appointment_time.substring(0, 5);
-      const appStartTime = new Date(normalizedDate);
+      const year = normalizedDate.getFullYear();
+      const month = normalizedDate.getMonth();
+      const day = normalizedDate.getDate();
       const [appHour, appMinute] = appStartTimeStr.split(':').map(Number);
-      appStartTime.setHours(appHour, appMinute, 0, 0);
+      const appStartTime = new Date(year, month, day, appHour, appMinute, 0, 0);
       const appEndTime = addMinutes(appStartTime, app.total_duration_minutes);
       console.log(`  Adding busy interval from appointment: ${appStartTimeStr} (${format(appStartTime, 'yyyy-MM-dd HH:mm:ss')}) to ${format(appEndTime, 'HH:mm')} (${format(appEndTime, 'yyyy-MM-dd HH:mm:ss')})`);
       busyIntervals.push({ start: appStartTime, end: appEndTime });
@@ -192,16 +211,29 @@ export async function getAvailableTimeSlots(
     let currentTime = workingInterval.start;
 
     // Adjust start time if it's today and before current time
-    if (selectedDateStart.getTime() === today.getTime()) {
+    const selectedDateStr = format(selectedDateStart, 'yyyy-MM-dd');
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const selectedYear = selectedDateStart.getFullYear();
+    const selectedMonth = selectedDateStart.getMonth();
+    const selectedDay = selectedDateStart.getDate();
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDay = today.getDate();
+    const isToday = selectedYear === todayYear && selectedMonth === todayMonth && selectedDay === todayDay;
+    console.log(`Comparing dates: selectedDateStr=${selectedDateStr} (${selectedYear}-${selectedMonth}-${selectedDay}), todayStr=${todayStr} (${todayYear}-${todayMonth}-${todayDay}), isToday=${isToday}`);
+    
+    if (isToday) {
       const now = new Date();
       const nextSlotAfterNow = setMinutes(setHours(now, now.getHours()), Math.ceil(now.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
       // Criar data/hora do próximo slot na data selecionada para comparação correta
-      const nextSlotOnSelectedDate = new Date(selectedDateStart);
+      const nextSlotOnSelectedDate = new Date(selectedDateStart.getTime());
       nextSlotOnSelectedDate.setHours(nextSlotAfterNow.getHours(), nextSlotAfterNow.getMinutes(), 0, 0);
       if (isBefore(currentTime, nextSlotOnSelectedDate)) {
         currentTime = nextSlotOnSelectedDate;
         console.log(`Adjusted currentTime for today: ${format(currentTime, 'HH:mm')} (Date: ${format(currentTime, 'yyyy-MM-dd')})`);
       }
+    } else {
+      console.log(`Not today, starting from working interval start: ${format(currentTime, 'HH:mm')} (Date: ${format(currentTime, 'yyyy-MM-dd')})`);
     }
     console.log(`Processing working interval: ${format(workingInterval.start, 'HH:mm')}-${format(workingInterval.end, 'HH:mm')} (Date: ${format(workingInterval.start, 'yyyy-MM-dd')})`);
     console.log(`Starting from currentTime: ${format(currentTime, 'HH:mm')} (Date: ${format(currentTime, 'yyyy-MM-dd')})`);

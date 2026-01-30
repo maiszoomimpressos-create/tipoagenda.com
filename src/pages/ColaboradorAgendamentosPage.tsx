@@ -13,6 +13,8 @@ import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, end
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface Appointment {
   id: string;
@@ -42,6 +44,7 @@ const ColaboradorAgendamentosPage: React.FC = () => {
   const [collaboratorId, setCollaboratorId] = useState<string | null>(null);
   const [finalizingAppointmentId, setFinalizingAppointmentId] = useState<string | null>(null);
   const [isFinalizeDialogOpen, setIsFinalizeDialogOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>('dinheiro');
 
   // Buscar ID do colaborador baseado no user_id
   const fetchCollaboratorId = useCallback(async () => {
@@ -168,6 +171,7 @@ const ColaboradorAgendamentosPage: React.FC = () => {
     }
 
     setFinalizingAppointmentId(appointmentId);
+    setPaymentMethod('dinheiro'); // Reset para padrão
     setIsFinalizeDialogOpen(true);
   };
 
@@ -184,6 +188,7 @@ const ColaboradorAgendamentosPage: React.FC = () => {
         body: JSON.stringify({
           appointmentId: finalizingAppointmentId,
           collaboratorId: collaboratorId,
+          paymentMethod: paymentMethod, // Adicionar forma de pagamento
         }),
         headers: {
           'Content-Type': 'application/json',
@@ -201,9 +206,18 @@ const ColaboradorAgendamentosPage: React.FC = () => {
         throw new Error(errorMessage);
       }
 
-      showSuccess('Serviço finalizado com sucesso!');
+      // Verificar resposta de sucesso
+      const responseData = response.data;
+      let successMessage = 'Serviço finalizado com sucesso!';
+      
+      if (responseData?.commission && responseData.commission > 0) {
+        successMessage = `Serviço finalizado com sucesso! Comissão de R$ ${responseData.commission.toFixed(2).replace('.', ',')} gerada.`;
+      }
+
+      showSuccess(successMessage);
       setIsFinalizeDialogOpen(false);
       setFinalizingAppointmentId(null);
+      setPaymentMethod('dinheiro'); // Reset
       fetchAppointments(); // Atualizar lista
     } catch (error: any) {
       console.error('Erro ao finalizar serviço:', error);
@@ -335,7 +349,7 @@ const ColaboradorAgendamentosPage: React.FC = () => {
       </div>
 
       <Dialog open={isFinalizeDialogOpen} onOpenChange={setIsFinalizeDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Finalizar Serviço</DialogTitle>
             <DialogDescription>
@@ -347,12 +361,33 @@ const ColaboradorAgendamentosPage: React.FC = () => {
               </ul>
             </DialogDescription>
           </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2">
+                Forma de Pagamento *
+              </Label>
+              <Select onValueChange={setPaymentMethod} value={paymentMethod}>
+                <SelectTrigger id="paymentMethod" className="w-full">
+                  <SelectValue placeholder="Selecione a forma de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="pix">Pix</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
                 setIsFinalizeDialogOpen(false);
                 setFinalizingAppointmentId(null);
+                setPaymentMethod('dinheiro');
               }}
             >
               Cancelar

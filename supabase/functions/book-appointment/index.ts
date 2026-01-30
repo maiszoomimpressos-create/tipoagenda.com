@@ -116,7 +116,7 @@ async function getAvailableTimeSlotsBackend(
   // 3. Fetch existing appointments for the selected date and collaborator (SEMPRE buscar dados atualizados)
   let appointmentsQuery = supabase
     .from('appointments')
-    .select('id, appointment_time, total_duration_minutes, status, created_at, updated_at')
+    .select('id, appointment_time, total_duration_minutes, status, created_at')
     .eq('collaborator_id', collaboratorId)
     .eq('company_id', companyId)
     .eq('appointment_date', format(normalizedDate, 'yyyy-MM-dd'))
