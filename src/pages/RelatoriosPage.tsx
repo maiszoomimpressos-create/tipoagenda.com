@@ -171,7 +171,7 @@ const RelatoriosPage: React.FC = () => {
           <CardContent>
             <div className="space-y-4">
               {collaborators.length === 0 ? (
-                <p className="text-gray-600">Nenhum colaborador com agendamentos concluídos no período.</p>
+                <p className="text-gray-600">Nenhum colaborador com comissões geradas no período.</p>
               ) : (
                 collaborators.map((colaborador) => (
                   <div key={colaborador.id} className="p-3 bg-gray-50 rounded-lg">

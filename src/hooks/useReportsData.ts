@@ -158,51 +158,129 @@ async function fetchMetrics(companyId: string, range: DateRange) {
   const cancellationsCount = appointmentsData.filter(a => a.status === 'cancelado').length;
 
   // Collaborator Performance (Appointments Count and Revenue)
-  const collabPerformanceMap = new Map<string, { appointments: number, revenue: number }>();
+  const collabPerformanceMap = new Map<string, { appointments: number, revenue: number, commission: number }>();
   const serviceCommissionsByCollaborator: { [collaboratorId: string]: ServiceCommissionDetail[] } = {};
 
-  // Fetch collaborator commission rates
-  const { data: collaboratorsData, error: collabsError } = await supabase
-    .from('collaborators')
-    .select('id, commission_percentage')
-    .eq('company_id', companyId);
-
-  if (collabsError) throw collabsError;
-
-  const collabCommissionRates: { [id: string]: number } = {};
-  collaboratorsData.forEach(c => {
-    collabCommissionRates[c.id] = c.commission_percentage || 0;
+  // 4. Buscar comissões reais de cash_movements (transaction_type = 'despesa' e appointment_id não null)
+  console.log('[DEBUG Relatório] Buscando comissões:', {
+    companyId,
+    startDateDb,
+    endDateDb,
+    transaction_type: 'despesa',
   });
 
+  const { data: commissionMovements, error: commissionError } = await supabase
+    .from('cash_movements')
+    .select(`
+      id,
+      appointment_id,
+      total_amount,
+      transaction_date,
+      appointments!inner(
+        id,
+        collaborator_id,
+        appointment_date,
+        appointment_services(
+          service_id,
+          services(name, price)
+        )
+      )
+    `)
+    .eq('company_id', companyId)
+    .eq('transaction_type', 'despesa')
+    .not('appointment_id', 'is', null)
+    .gte('transaction_date', startDateDb)
+    .lte('transaction_date', endDateDb);
 
-  completedAppointments.forEach(app => {
-    const collabId = app.collaborator_id;
-    if (!collabId) return; // Skip if no collaborator
+  // DEBUG: Log do resultado da busca
+  console.log('[DEBUG Relatório] Resultado da busca de comissões:', {
+    count: commissionMovements?.length || 0,
+    data: commissionMovements,
+    error: commissionError,
+  });
 
-    const current = collabPerformanceMap.get(collabId) || { appointments: 0, revenue: 0 };
-    current.appointments += 1;
-    current.revenue += app.total_price;
-    collabPerformanceMap.set(collabId, current);
+  if (commissionError) {
+    console.error('[DEBUG Relatório] Erro ao buscar comissões:', commissionError);
+    throw commissionError;
+  }
 
-    // Calculate service commissions
-    if (appointmentServiceDetails[app.id]) {
+  // Processar comissões reais
+  if (commissionMovements && commissionMovements.length > 0) {
+    console.log('[DEBUG Relatório] Processando', commissionMovements.length, 'comissões encontradas');
+    
+    commissionMovements.forEach((cm: any) => {
+      const appointment = cm.appointments;
+      if (!appointment || !appointment.collaborator_id) {
+        console.warn('[DEBUG Relatório] Comissão sem appointment ou collaborator_id:', cm);
+        return;
+      }
+
+      const collabId = appointment.collaborator_id;
+      const appointmentDate = appointment.appointment_date || cm.transaction_date;
+      const totalCommission = parseFloat(cm.total_amount) || 0;
+
+      console.log('[DEBUG Relatório] Processando comissão:', {
+        cash_movement_id: cm.id,
+        appointment_id: cm.appointment_id,
+        collaborator_id: collabId,
+        total_amount: totalCommission,
+        appointment_date: appointmentDate,
+      });
+
+      // Inicializar mapas se necessário
+      if (!collabPerformanceMap.has(collabId)) {
+        collabPerformanceMap.set(collabId, { appointments: 0, revenue: 0, commission: 0 });
+      }
       if (!serviceCommissionsByCollaborator[collabId]) {
         serviceCommissionsByCollaborator[collabId] = [];
       }
 
-      appointmentServiceDetails[app.id].forEach(detail => {
-        const serviceName = serviceDetails[detail.serviceId]?.name || 'Serviço Desconhecido';
-        const commissionPercentage = collabCommissionRates[collabId] || 0;
-        const serviceCommission = detail.servicePrice * (commissionPercentage / 100);
+      // Atualizar comissão total do colaborador
+      const collabMetrics = collabPerformanceMap.get(collabId)!;
+      collabMetrics.commission += totalCommission;
 
-        serviceCommissionsByCollaborator[collabId].push({
-          serviceId: detail.serviceId,
-          serviceName: serviceName,
-          commission: serviceCommission,
-          appointmentDate: detail.appointmentDate, // Incluir a data do agendamento
+      // Distribuir comissão proporcionalmente entre os serviços do agendamento
+      const appointmentServices = appointment.appointment_services || [];
+      if (appointmentServices.length > 0) {
+        // Calcular total de preços dos serviços para distribuição proporcional
+        const totalServicePrice = appointmentServices.reduce((sum: number, as: any) => {
+          const servicePrice = as.services?.price || serviceDetails[as.service_id]?.price || 0;
+          return sum + servicePrice;
+        }, 0);
+
+        // Distribuir comissão proporcionalmente
+        appointmentServices.forEach((as: any) => {
+          const serviceId = as.service_id;
+          const serviceName = as.services?.name || serviceDetails[serviceId]?.name || 'Serviço Desconhecido';
+          const servicePrice = as.services?.price || serviceDetails[serviceId]?.price || 0;
+          
+          // Calcular comissão proporcional ao preço do serviço
+          const serviceCommission = totalServicePrice > 0 
+            ? (totalCommission * servicePrice) / totalServicePrice 
+            : totalCommission / appointmentServices.length;
+
+          if (serviceCommission > 0) {
+            serviceCommissionsByCollaborator[collabId].push({
+              serviceId: serviceId,
+              serviceName: serviceName,
+              commission: serviceCommission,
+              appointmentDate: appointmentDate,
+            });
+          }
         });
-      });
-    }
+      }
+    });
+  }
+
+  // Processar agendamentos para contagem e receita
+  completedAppointments.forEach(app => {
+    const collabId = app.collaborator_id;
+    if (!collabId) return; // Skip if no collaborator
+
+    const current = collabPerformanceMap.get(collabId) || { appointments: 0, revenue: 0, commission: 0 };
+    current.appointments += 1;
+    current.revenue += app.total_price;
+    collabPerformanceMap.set(collabId, current);
   });
 
   return {
@@ -264,18 +342,20 @@ export function useReportsData(dateRangeKey: DateRangeKey = 'last_month') {
 
       if (collabNamesError) throw collabNamesError;
 
-      const collaboratorPerformance: CollaboratorPerformance[] = collabNames.map(collab => {
-        const metrics = currentMetrics.collabPerformanceMap.get(collab.id) || { appointments: 0, revenue: 0 };
-        const commission = metrics.revenue * (collab.commission_percentage / 100);
-        
-        return {
-          id: collab.id,
-          name: `${collab.first_name} ${collab.last_name}`,
-          appointments: metrics.appointments,
-          revenue: metrics.revenue,
-          commission: commission,
-        };
-      }).sort((a, b) => b.revenue - a.revenue); // Sort by revenue descending
+      const collaboratorPerformance: CollaboratorPerformance[] = collabNames
+        .map(collab => {
+          const metrics = currentMetrics.collabPerformanceMap.get(collab.id) || { appointments: 0, revenue: 0, commission: 0 };
+          
+          return {
+            id: collab.id,
+            name: `${collab.first_name} ${collab.last_name}`,
+            appointments: metrics.appointments,
+            revenue: metrics.revenue,
+            commission: metrics.commission || 0, // Usar comissão real do map
+          };
+        })
+        .filter(collab => collab.commission > 0) // Filtrar apenas colaboradores com comissão > 0
+        .sort((a, b) => b.commission - a.commission); // Sort by commission descending
 
       setCollaborators(collaboratorPerformance);
 

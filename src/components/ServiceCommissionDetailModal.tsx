@@ -143,14 +143,23 @@ export const ServiceCommissionDetailModal: React.FC<ServiceCommissionDetailModal
             {filteredCommissions.length === 0 ? (
               <p className="text-gray-600 text-center">Nenhum serviço com comissão encontrado para os filtros selecionados.</p>
             ) : (
-              <ul className="space-y-1">
-                {filteredCommissions.map((serviceDetail, index) => (
-                  <li key={index} className="flex justify-between text-sm text-gray-700">
-                    <span>${serviceDetail.serviceName} ({format(parseISO(serviceDetail.appointmentDate), 'dd/MM/yyyy')})</span>
-                    <span className="font-medium">R$ ${serviceDetail.commission.toFixed(2).replace('.', ',')}</span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="space-y-1">
+                  {filteredCommissions.map((serviceDetail, index) => (
+                    <li key={index} className="flex justify-between text-sm text-gray-700">
+                      <span>{serviceDetail.serviceName} ({format(parseISO(serviceDetail.appointmentDate), 'dd/MM/yyyy')})</span>
+                      <span className="font-medium">R$ {serviceDetail.commission.toFixed(2).replace('.', ',')}</span>
+                    </li>
+                  ))}
+                </ul>
+                {/* Rodapé com soma total */}
+                <div className="border-t pt-2 mt-2 flex justify-between items-center font-bold text-gray-900">
+                  <span>Total:</span>
+                  <span className="text-yellow-600">
+                    R$ {filteredCommissions.reduce((sum, detail) => sum + detail.commission, 0).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </div>

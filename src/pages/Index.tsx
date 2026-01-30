@@ -8,7 +8,8 @@
  * 1. Proprietário -> /dashboard (MÁXIMA PRIORIDADE)
  * 2. Global Admin -> /admin-dashboard
  * 3. Company Admin -> /dashboard
- * 4. Cliente -> /meus-agendamentos
+ * 4. Colaborador -> /colaborador/agendamentos
+ * 5. Cliente -> /meus-agendamentos
  * 
  * Usuários sem sessão ou sem role definido permanecem na LandingPage.
  */
@@ -19,6 +20,7 @@ import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useIsCollaborator } from '@/hooks/useIsCollaborator';
 import LandingPage from './LandingPage';
 
 const IndexPage: React.FC = () => {
@@ -28,7 +30,8 @@ const IndexPage: React.FC = () => {
   const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { isClient, loadingClientCheck } = useIsClient();
-  const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck;
+  const { isCollaborator, loading: loadingCollaboratorCheck } = useIsCollaborator();
+  const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingCollaboratorCheck;
   const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
@@ -78,7 +81,15 @@ const IndexPage: React.FC = () => {
       return;
     }
 
-    // PRIORIDADE 4: Cliente
+    // PRIORIDADE 4: Colaborador
+    if (isCollaborator === true) {
+      console.log('[IndexPage] COLABORADOR detectado - redirecionando para /colaborador/agendamentos');
+      hasRedirectedRef.current = true;
+      navigate('/colaborador/agendamentos', { replace: true });
+      return;
+    }
+
+    // PRIORIDADE 5: Cliente
     if (isClient === true) {
       console.log('[IndexPage] Cliente detectado - redirecionando para /meus-agendamentos');
       hasRedirectedRef.current = true;
@@ -90,7 +101,7 @@ const IndexPage: React.FC = () => {
     // Não redirecionar automaticamente - deixar na LandingPage
     console.log('[IndexPage] Usuário logado mas sem role definido - permanecendo na LandingPage');
     hasRedirectedRef.current = false;
-  }, [session, sessionLoading, loadingRoles, isGlobalAdmin, isProprietario, isCompanyAdmin, isClient, navigate]);
+  }, [session, sessionLoading, loadingRoles, isGlobalAdmin, isProprietario, isCompanyAdmin, isClient, isCollaborator, navigate]);
 
   // Reset do flag quando a sessão mudar
   useEffect(() => {
@@ -119,7 +130,7 @@ const IndexPage: React.FC = () => {
   }
 
   // Se usuário está logado e tem outro papel definido, aguardar redirecionamento
-  if (session && !loadingRoles && (isGlobalAdmin || isCompanyAdmin || isClient)) {
+  if (session && !loadingRoles && (isGlobalAdmin || isCompanyAdmin || isClient || isCollaborator)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Redirecionando...</p>

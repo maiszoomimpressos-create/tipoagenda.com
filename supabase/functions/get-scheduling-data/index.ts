@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.46.0';
-import { format, parse, getDay } from 'https://esm.sh/date-fns@3.6.0';
+import { format, getDay } from 'https://esm.sh/date-fns@3.6.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,8 +27,9 @@ serve(async (req) => {
     // Se vier como ISO string, parse como ISO. Se vier como YYYY-MM-DD, parse como YYYY-MM-DD
     let date: Date;
     if (typeof rawDate === 'string' && rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // É formato YYYY-MM-DD, parse diretamente
-      date = parse(rawDate, 'yyyy-MM-dd', new Date());
+      // É formato YYYY-MM-DD, criar data diretamente para evitar problemas de timezone
+      const [year, month, day] = rawDate.split('-').map(Number);
+      date = new Date(year, month - 1, day, 0, 0, 0, 0); // month é 0-indexed
     } else {
       // É ISO string ou outro formato, converter
       date = new Date(rawDate);
@@ -37,7 +38,7 @@ serve(async (req) => {
     const formattedDate = format(date, 'yyyy-MM-dd');
     const selectedDayOfWeek = getDay(date); // 0 for Sunday, 1 for Monday, etc.
     
-    console.log('get-scheduling-data: Received date:', rawDate, 'parsed:', formattedDate, 'dayOfWeek:', selectedDayOfWeek);
+    console.log('get-scheduling-data: Received date:', rawDate, 'parsed:', formattedDate, 'dayOfWeek:', selectedDayOfWeek, 'date object:', date.toISOString());
 
     // Create a Supabase client with the service role key for admin operations
     const supabaseAdmin = createClient(
@@ -92,7 +93,7 @@ serve(async (req) => {
     console.log('get-scheduling-data: Buscando appointments em:', new Date().toISOString());
     let appointmentsQuery = supabaseAdmin
       .from('appointments')
-      .select('id, appointment_time, total_duration_minutes, status, created_at, updated_at')
+      .select('id, appointment_time, total_duration_minutes, status, created_at')
       .eq('collaborator_id', collaboratorId)
       .eq('company_id', companyId)
       .eq('appointment_date', formattedDate)

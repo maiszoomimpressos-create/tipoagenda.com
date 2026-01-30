@@ -41,7 +41,7 @@ serve(async (req) => {
       });
     }
 
-    const { appointmentId, collaboratorId } = await req.json();
+    const { appointmentId, collaboratorId, paymentMethod } = await req.json();
 
     if (!appointmentId || !collaboratorId) {
       return new Response(JSON.stringify({ error: 'Missing required data: appointmentId and collaboratorId are required' }), {
@@ -49,6 +49,12 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Validar paymentMethod se fornecido
+    const validPaymentMethods = ['dinheiro', 'cartao_credito', 'cartao_debito', 'pix'];
+    const finalPaymentMethod = paymentMethod && validPaymentMethods.includes(paymentMethod) 
+      ? paymentMethod 
+      : 'dinheiro'; // Default para dinheiro se não fornecido ou inválido
 
     // Create admin client
     const supabaseAdmin = createClient(
@@ -79,7 +85,18 @@ serve(async (req) => {
     // Buscar o agendamento e verificar se pertence ao colaborador
     const { data: appointmentData, error: appointmentError } = await supabaseAdmin
       .from('appointments')
-      .select('id, collaborator_id, company_id, status, total_price, appointment_services(service_id, commission_type, commission_value)')
+      .select(`
+        id, 
+        collaborator_id, 
+        company_id, 
+        status, 
+        total_price, 
+        appointment_date,
+        appointment_services(
+          service_id, 
+          services(price, name)
+        )
+      `)
       .eq('id', appointmentId)
       .eq('collaborator_id', collaboratorId)
       .eq('company_id', collaboratorData.company_id)
@@ -108,10 +125,13 @@ serve(async (req) => {
       });
     }
 
-    // 1. Atualizar status do agendamento para 'concluido'
+    // 1. Atualizar status do agendamento para 'concluido' e salvar payment_method
     const { error: updateError } = await supabaseAdmin
       .from('appointments')
-      .update({ status: 'concluido' })
+      .update({ 
+        status: 'concluido',
+        payment_method: finalPaymentMethod 
+      })
       .eq('id', appointmentId);
 
     if (updateError) {
@@ -145,19 +165,17 @@ serve(async (req) => {
       }
 
       if (collaboratorService) {
-        // Buscar preço do serviço no agendamento
-        const { data: serviceData, error: serviceError } = await supabaseAdmin
-          .from('services')
-          .select('price')
-          .eq('id', serviceId)
-          .single();
+        // Buscar preço do serviço no agendamento_services (já vem no JOIN)
+        const appointmentService = appointmentServices.find((as: any) => as.service_id === serviceId);
+        const servicePrice = appointmentService?.services?.price 
+          ? parseFloat(appointmentService.services.price) 
+          : 0;
 
-        if (serviceError || !serviceData) {
-          console.warn(`Service ${serviceId} not found, skipping commission calculation`);
+        if (servicePrice === 0) {
+          console.warn(`Service ${serviceId} price not found in appointment_services, skipping commission calculation`);
           continue;
         }
 
-        const servicePrice = parseFloat(serviceData.price) || 0;
         let commission = 0;
 
         if (collaboratorService.commission_type === 'PERCENT') {
@@ -192,6 +210,11 @@ serve(async (req) => {
 
     // Se não existe recebimento, criar um (valor total do agendamento)
     if (!existingReceipt) {
+      // Buscar data do agendamento para usar como transaction_date
+      const appointmentDate = appointmentData.appointment_date 
+        ? new Date(appointmentData.appointment_date).toISOString()
+        : new Date().toISOString();
+
       const { error: receiptError } = await supabaseAdmin
         .from('cash_movements')
         .insert({
@@ -199,9 +222,10 @@ serve(async (req) => {
           appointment_id: appointmentId,
           user_id: user.id,
           total_amount: appointmentData.total_price,
-          payment_method: 'dinheiro', // Default, pode ser ajustado depois
+          payment_method: finalPaymentMethod, // Usar a forma de pagamento escolhida
           transaction_type: 'recebimento',
-          observations: `Recebimento do agendamento ${appointmentId} finalizado pelo colaborador`,
+          transaction_date: appointmentDate,
+          observations: `Recebimento do agendamento ${appointmentId} finalizado pelo colaborador. Forma de pagamento: ${finalPaymentMethod}`,
         });
 
       if (receiptError) {
@@ -212,6 +236,11 @@ serve(async (req) => {
 
     // 4. Criar registro de comissão no cash_movements (se houver comissão)
     if (totalCommission > 0) {
+      // Buscar data do agendamento para usar como transaction_date
+      const appointmentDate = appointmentData.appointment_date 
+        ? new Date(appointmentData.appointment_date).toISOString()
+        : new Date().toISOString();
+
       const { error: commissionError } = await supabaseAdmin
         .from('cash_movements')
         .insert({
@@ -221,6 +250,7 @@ serve(async (req) => {
           total_amount: totalCommission,
           payment_method: 'dinheiro', // Comissão é sempre em dinheiro
           transaction_type: 'despesa', // Comissão é uma despesa para a empresa
+          transaction_date: appointmentDate, // Usar data do agendamento
           observations: `Comissão do colaborador pelo agendamento ${appointmentId}. Detalhes: ${commissionDetails.map(c => `Serviço ${c.serviceId}: R$ ${c.commission.toFixed(2)} (${c.type})`).join(', ')}`,
         });
 

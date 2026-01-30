@@ -42,9 +42,10 @@ interface AppointmentDetails {
   total_duration_minutes: number;
   status: string;
   client_nickname: string | null;
+  collaborator_id: string | null;
   clients: { name: string } | null;
   collaborators: { first_name: string; last_name: string } | null;
-  appointment_services: { services: Service | null }[];
+  appointment_services: { service_id: string; services: Service | null }[];
 }
 
 interface ProductSale {
@@ -85,9 +86,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           total_duration_minutes,
           status,
           client_nickname,
+          collaborator_id,
           clients(name),
           collaborators(first_name, last_name),
           appointment_services(
+            service_id,
             services(name, price)
           )
         `)
@@ -203,7 +206,140 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       if (appUpdateError) throw appUpdateError;
 
-      // 2. Insert Transaction into cash_movements (antiga caixa_movimentacoes)
+      // 2. Calcular e gravar comissões do colaborador (se houver)
+      let totalCommission = 0;
+      const commissionDetails: Array<{ serviceId: string; commission: number; type: string }> = [];
+
+      if (appointmentDetails.collaborator_id && appointmentDetails.appointment_services.length > 0) {
+        // Para cada serviço do agendamento, buscar e calcular a comissão
+        for (const appointmentService of appointmentDetails.appointment_services) {
+          if (!appointmentService.service_id || !appointmentService.services) continue;
+
+          const serviceId = appointmentService.service_id;
+          const servicePrice = appointmentService.services.price || 0;
+
+          // Buscar comissão configurada em collaborator_services
+          // DEBUG: Log dos IDs antes da busca
+          console.log('[DEBUG Comissão] Buscando comissão:', {
+            collaborator_id: appointmentDetails.collaborator_id,
+            service_id: serviceId,
+            collaborator_id_type: typeof appointmentDetails.collaborator_id,
+            service_id_type: typeof serviceId,
+          });
+
+          const { data: collaboratorService, error: csError } = await supabase
+            .from('collaborator_services')
+            .select('commission_type, commission_value')
+            .eq('collaborator_id', appointmentDetails.collaborator_id)
+            .eq('service_id', serviceId)
+            .eq('active', true)
+            .maybeSingle();
+
+          // DEBUG: Log do resultado da busca
+          console.log('[DEBUG Comissão] Resultado da busca:', {
+            found: !!collaboratorService,
+            data: collaboratorService,
+            error: csError,
+            servicePrice,
+          });
+
+          if (csError && csError.code !== 'PGRST116') {
+            console.warn(`Erro ao buscar comissão para serviço ${serviceId}:`, csError);
+            continue;
+          }
+
+          if (collaboratorService) {
+            let commission = 0;
+
+            if (collaboratorService.commission_type === 'PERCENT') {
+              commission = servicePrice * (parseFloat(collaboratorService.commission_value.toString()) / 100);
+            } else if (collaboratorService.commission_type === 'FIXED') {
+              commission = parseFloat(collaboratorService.commission_value.toString());
+            }
+
+            // DEBUG: Log do cálculo
+            console.log('[DEBUG Comissão] Cálculo:', {
+              commission_type: collaboratorService.commission_type,
+              commission_value: collaboratorService.commission_value,
+              servicePrice,
+              calculatedCommission: commission,
+            });
+
+            if (commission > 0) {
+              totalCommission += commission;
+              commissionDetails.push({
+                serviceId,
+                commission,
+                type: collaboratorService.commission_type,
+              });
+            }
+          } else {
+            console.warn(`[DEBUG Comissão] Nenhuma comissão configurada para colaborador ${appointmentDetails.collaborator_id} e serviço ${serviceId}`);
+          }
+        }
+
+        // Gravar comissão em cash_movements como despesa (se houver comissão)
+        if (totalCommission > 0) {
+          // Buscar data do agendamento para usar como transaction_date
+          const { data: appointmentData } = await supabase
+            .from('appointments')
+            .select('appointment_date')
+            .eq('id', appointmentId)
+            .single();
+
+          // Usar data do agendamento ou data atual como fallback
+          const transactionDate = appointmentData?.appointment_date 
+            ? new Date(appointmentData.appointment_date).toISOString()
+            : new Date().toISOString();
+
+          const commissionData = {
+            company_id: companyId,
+            appointment_id: appointmentId,
+            user_id: session.user.id,
+            total_amount: totalCommission,
+            payment_method: 'dinheiro', // Comissão é sempre em dinheiro
+            transaction_type: 'despesa', // Comissão é uma despesa para a empresa
+            transaction_date: transactionDate, // CRÍTICO: Adicionar transaction_date
+            observations: `Comissão do colaborador pelo agendamento ${appointmentId}. Detalhes: ${commissionDetails.map(c => `Serviço ${c.serviceId}: R$ ${c.commission.toFixed(2)} (${c.type})`).join(', ')}`,
+          };
+
+          // DEBUG: Log do objeto que será gravado
+          console.log('[DEBUG Comissão] Objeto a ser gravado:', {
+            ...commissionData,
+            total_amount_type: typeof commissionData.total_amount,
+            appointment_id_type: typeof commissionData.appointment_id,
+            collaborator_id: appointmentDetails.collaborator_id,
+          });
+
+          const { data: insertedData, error: commissionError } = await supabase
+            .from('cash_movements')
+            .insert(commissionData)
+            .select()
+            .single();
+
+          if (commissionError) {
+            console.error('[DEBUG Comissão] Erro ao gravar comissão:', commissionError);
+            // Não falha o processo, mas loga o erro
+          } else {
+            console.log('[DEBUG Comissão] Comissão gravada com sucesso:', {
+              id: insertedData?.id,
+              total_amount: insertedData?.total_amount,
+              transaction_date: insertedData?.transaction_date,
+              appointment_id: insertedData?.appointment_id,
+            });
+            console.log(`Comissão de R$ ${totalCommission.toFixed(2)} gravada com sucesso para o agendamento ${appointmentId}`);
+          }
+        } else {
+          console.warn('[DEBUG Comissão] Total de comissão é zero, não será gravado. Detalhes:', {
+            totalCommission,
+            commissionDetails,
+            collaborator_id: appointmentDetails.collaborator_id,
+            services_count: appointmentDetails.appointment_services.length,
+          });
+        }
+      }
+
+      // 3. Insert Transaction into cash_movements (antiga caixa_movimentacoes)
       const { data: transactionData, error: transactionError } = await supabase
         .from('cash_movements')
         .insert({
@@ -221,7 +357,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (transactionError) throw transactionError;
       const transactionId = transactionData.id;
 
-      // 3. Insert Products Sold into transaction_products (antiga transacao_produtos) and update inventory
+      // 4. Insert Products Sold into transaction_products (antiga transacao_produtos) and update inventory
       if (productsSold.length > 0) {
         const transactionProductsToInsert = productsSold.map(p => ({
           transaction_id: transactionId,
@@ -236,7 +372,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         if (prodInsertError) throw prodInsertError;
 
-        // 4. Update Product Inventory (Decrement quantity)
+        // 5. Update Product Inventory (Decrement quantity)
         for (const product of productsSold) {
           const newQuantity = product.stock_quantity - product.quantity;
           const { error: inventoryUpdateError } = await supabase
@@ -252,7 +388,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }
       }
 
-      showSuccess('Checkout concluído e transação registrada com sucesso!');
+      let successMessage = 'Checkout concluído e transação registrada com sucesso!';
+      if (totalCommission > 0) {
+        successMessage += ` Comissão de R$ ${totalCommission.toFixed(2).replace('.', ',')} calculada e registrada.`;
+      }
+      showSuccess(successMessage);
       onCheckoutComplete();
       onClose();
     } catch (error: any) {
