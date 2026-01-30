@@ -5,9 +5,11 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { Link, useNavigate } from 'react-router-dom';
+import { useSession } from '@/components/SessionContextProvider';
 
 const LoginForm: React.FC = () => {
   const navigate = useNavigate();
+  const { session } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,7 +17,12 @@ const LoginForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    // Normalizar email (trim + toLowerCase) para garantir consistência
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+      email: normalizedEmail, 
+      password 
+    });
     if (error) {
       console.error("Erro no login:", error); // Adicionado para depuração
       // Traduzir mensagem de erro de credenciais inválidas para português
@@ -30,8 +37,14 @@ const LoginForm: React.FC = () => {
         : error.message;
       showError(errorMessage);
     } else {
-      // Success message handled by SessionContextProvider
-      navigate('/'); // Redireciona para a rota raiz
+      // Verificar se o usuário tem senha temporária
+      if (data?.user?.user_metadata?.is_temporary_password === true) {
+        // Redirecionar para página de troca de senha
+        navigate('/change-password?temporary=true', { replace: true });
+      } else {
+        // Success message handled by SessionContextProvider
+        navigate('/'); // Redireciona para a rota raiz
+      }
     }
     setLoading(false);
   };

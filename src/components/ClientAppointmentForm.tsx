@@ -274,18 +274,24 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
         setValue('appointmentTime', ''); // Clear selected time when inputs change
         try {
           console.log('ClientAppointmentForm: Buscando slots atualizados em:', new Date().toISOString());
+          // Normalizar a data para garantir que está no início do dia
+          const normalizedSelectedDate = selectedDate ? startOfDay(selectedDate) : undefined;
+          console.log('ClientAppointmentForm: selectedDate:', selectedDate, 'formatted:', selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'null');
+          console.log('ClientAppointmentForm: normalizedSelectedDate:', normalizedSelectedDate, 'formatted:', normalizedSelectedDate ? format(normalizedSelectedDate, 'yyyy-MM-dd') : 'null');
+          if (!normalizedSelectedDate) return;
           const slots = await getAvailableTimeSlots(
             supabase,
             companyId,
             selectedCollaboratorId,
-            selectedDate,
+            normalizedSelectedDate,
             totalDurationMinutes
           );
           console.log('ClientAppointmentForm: Slots recebidos do backend:', slots);
           // `slots` vem como horários de início (HH:mm). Vamos montar "HH:mm às HH:mm" para exibição.
           const formattedSlots = slots.map((startTime) => {
             const [hour, minute] = startTime.split(':').map(Number);
-            const startDateTime = new Date(selectedDate);
+            // Usar a data normalizada para criar os horários
+            const startDateTime = new Date(normalizedSelectedDate);
             startDateTime.setHours(hour, minute, 0, 0);
 
             const endDateTime = addMinutes(startDateTime, totalDurationMinutes);
@@ -585,8 +591,11 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => {
-                    setSelectedDate(date);
-                    setValue('appointmentDate', date ? format(date, 'yyyy-MM-dd') : '', { shouldValidate: true });
+                    // Normalizar a data imediatamente ao selecionar para evitar problemas de timezone
+                    const normalizedDate = date ? startOfDay(date) : undefined;
+                    console.log('ClientAppointmentForm: Date selected:', date, 'normalized:', normalizedDate, 'formatted:', normalizedDate ? format(normalizedDate, 'yyyy-MM-dd') : 'null');
+                    setSelectedDate(normalizedDate);
+                    setValue('appointmentDate', normalizedDate ? format(normalizedDate, 'yyyy-MM-dd') : '', { shouldValidate: true });
                   }}
                   initialFocus
                   locale={ptBR}

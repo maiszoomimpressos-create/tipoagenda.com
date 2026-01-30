@@ -66,7 +66,10 @@ import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsProprietario } from "./hooks/useIsProprietario";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
 import { useIsClient } from "./hooks/useIsClient";
+import { useIsCollaborator } from "./hooks/useIsCollaborator";
 import ContractList from "./components/ContractList";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
+import ColaboradorAgendamentosPage from "./pages/ColaboradorAgendamentosPage";
 
 const queryClient = new QueryClient();
 
@@ -139,6 +142,21 @@ const ClientProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childre
   return <>{children}</>;
 };
 
+const CollaboratorProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isCollaborator, loading: loadingCollaboratorCheck } = useIsCollaborator();
+  const { loading: sessionLoading } = useSession();
+
+  if (sessionLoading || loadingCollaboratorCheck) {
+    return <div className="min-h-screen flex items-center justify-center">Verificando permissões de colaborador...</div>;
+  }
+
+  if (!isCollaborator) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -153,6 +171,7 @@ const App = () => (
             <Route path="/login" element={<AuthPage />} />
             <Route path="/signup" element={<AuthPage />} />
             <Route path="/reset-password" element={<AuthPage />} />
+            <Route path="/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
             
             {/* Rota de Cadastro Unificado (Nova) */}
             <Route path="/register-professional" element={<UnifiedRegistrationPage />} />
@@ -206,6 +225,9 @@ const App = () => (
               <Route path="agendar/:companyId" element={<ClientProtectedRoute><ClientAppointmentPage /></ClientProtectedRoute>} />
               <Route path="meus-agendamentos" element={<ClientProtectedRoute><ClientAppointmentsPage /></ClientProtectedRoute>} />
               <Route path="selecionar-empresa" element={<ClientProtectedRoute><CompanySelectionPage /></ClientProtectedRoute>} />
+
+              {/* Rotas de Colaborador (protegidas por CollaboratorProtectedRoute) */}
+              <Route path="colaborador/agendamentos" element={<CollaboratorProtectedRoute><ColaboradorAgendamentosPage /></CollaboratorProtectedRoute>} />
 
               {/* Rotas do Dashboard (protegidas) */}
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
