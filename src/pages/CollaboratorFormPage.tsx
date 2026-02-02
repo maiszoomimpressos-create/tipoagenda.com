@@ -85,34 +85,56 @@ const CollaboratorFormPage: React.FC = () => {
 
   const fetchRoleTypes = useCallback(async () => {
     setLoadingRoleTypes(true);
-    // Definir apenas as funções permitidas: Gerente e Colaborador
-    const allowedRoles = ['Gerente', 'Colaborador'];
     
-    // Buscar apenas os IDs dessas funções específicas do banco
-    const { data, error } = await supabase
-      .from('role_types')
-      .select('id, description')
-      .in('description', allowedRoles);
+    try {
+      // Buscar todos os role_types onde apresentar = true
+      const { data: visibleRoles, error: visibleError } = await supabase
+        .from('role_types')
+        .select('id, description')
+        .eq('apresentar', true)
+        .order('description', { ascending: true });
 
-    if (error) {
+      if (visibleError) {
+        throw visibleError;
+      }
+
+      let rolesToShow = visibleRoles || [];
+
+      // Se estiver editando e o colaborador tem um role_type_id que não está visível,
+      // adicionar esse role_type à lista para não perder o valor ao editar
+      if (isEditing && currentCollaboratorData?.role_type_id) {
+        const currentRoleId = currentCollaboratorData.role_type_id;
+        const isCurrentRoleInList = rolesToShow.some(role => role.id === currentRoleId);
+
+        if (!isCurrentRoleInList) {
+          // Buscar o role_type atual mesmo que apresentar = false
+          const { data: currentRole, error: currentRoleError } = await supabase
+            .from('role_types')
+            .select('id, description')
+            .eq('id', currentRoleId)
+            .maybeSingle();
+
+          if (!currentRoleError && currentRole) {
+            // Adicionar o role atual no início da lista
+            rolesToShow = [currentRole, ...rolesToShow];
+          }
+        }
+      }
+
+      // Ordenar alfabeticamente por description
+      const sortedRoles = rolesToShow.sort((a, b) => 
+        a.description.localeCompare(b.description, 'pt-BR')
+      );
+      
+      setRoleTypes(sortedRoles);
+    } catch (error: any) {
       showError('Erro ao carregar tipos de função: ' + error.message);
       console.error('Error fetching role types:', error);
       setRoleTypes([]);
-    } else if (data) {
-      // Filtrar e ordenar apenas as funções permitidas
-      const filteredRoles = data
-        .filter(role => allowedRoles.includes(role.description))
-        .sort((a, b) => {
-          // Ordenar: Gerente primeiro, depois Colaborador
-          const order = ['Gerente', 'Colaborador'];
-          return order.indexOf(a.description) - order.indexOf(b.description);
-        });
-      setRoleTypes(filteredRoles);
-    } else {
-      setRoleTypes([]);
+    } finally {
+      setLoadingRoleTypes(false);
     }
-    setLoadingRoleTypes(false);
-  }, []);
+  }, [isEditing, currentCollaboratorData]);
 
   const fetchCollaborator = useCallback(async () => {
     if (collaboratorId && primaryCompanyId) {
@@ -145,9 +167,12 @@ const CollaboratorFormPage: React.FC = () => {
     }
   }, [collaboratorId, primaryCompanyId, reset, navigate]);
 
+  // Buscar role types quando não estiver editando ou quando currentCollaboratorData estiver disponível
   useEffect(() => {
-    fetchRoleTypes();
-  }, [fetchRoleTypes]);
+    if (!isEditing || currentCollaboratorData) {
+      fetchRoleTypes();
+    }
+  }, [fetchRoleTypes, isEditing, currentCollaboratorData]);
 
   useEffect(() => {
     if (!session && !loadingPrimaryCompany) {
@@ -319,15 +344,15 @@ const CollaboratorFormPage: React.FC = () => {
         error = updateError;
       } else {
         // Call Edge Function to invite and register new collaborator
+        // SEGURANÇA: Não enviar companyId - será capturado automaticamente no backend
         console.log('Chamando Edge Function invite-collaborator com:', {
-          companyId: primaryCompanyId,
           user_id: session.user.id,
           email: data.email
         });
         
         const response = await supabase.functions.invoke('invite-collaborator', {
           body: JSON.stringify({
-            companyId: primaryCompanyId,
+            // companyId removido - será capturado automaticamente no backend do usuário logado
             firstName: data.first_name,
             lastName: data.last_name,
             email: data.email,

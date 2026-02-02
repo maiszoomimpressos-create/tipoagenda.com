@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Link, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
 import UserDropdownMenu from './UserDropdownMenu';
-import { menuItems } from '@/lib/dashboard-utils';
+import { menuItems as staticMenuItems } from '@/lib/dashboard-utils';
+import { useMenuItems } from '@/hooks/useMenuItems';
 import { useIsClient } from '@/hooks/useIsClient';
 import { useIsProprietario } from '@/hooks/useIsProprietario';
 import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
+import { useIsCollaborator } from '@/hooks/useIsCollaborator';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useCompanyDetails } from '@/hooks/useCompanyDetails'; // Importar o novo hook
@@ -29,6 +31,7 @@ const MainApplication: React.FC = () => {
   const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { isClient, loadingClientCheck } = useIsClient();
+  const { isCollaborator, loading: loadingCollaboratorCheck } = useIsCollaborator();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const { companyDetails, loading: loadingCompanyDetails } = useCompanyDetails(primaryCompanyId); // Usar o novo hook
   
@@ -46,17 +49,57 @@ const MainApplication: React.FC = () => {
   // Rotas que não devem ter sidebar, mesmo para Proprietários/Admins
   const excludedPaths = ['/', '/login', '/signup', '/reset-password', '/profile', '/register-company', '/agendar', '/meus-agendamentos', '/admin-dashboard'];
   
-  // Define se estamos em uma rota de aplicação que deve ter sidebar (para Proprietários/Admins)
-  const isAppPath = isProprietarioOrCompanyAdmin && 
+  // Buscar menus dinamicamente baseado no plano e permissões
+  const { menuItems: dynamicMenuItems, loading: loadingMenus } = useMenuItems();
+  
+  // Define se estamos em uma rota de aplicação que deve ter sidebar
+  // Sidebar aparece para: 
+  // - Proprietários/Admins (sempre)
+  // - Colaboradores (se tiver menus dinâmicos OU ainda está carregando menus)
+  const hasMenusForCollaborator = isCollaborator && (dynamicMenuItems.length > 0 || loadingMenus);
+  const isAppPath = (isProprietarioOrCompanyAdmin || hasMenusForCollaborator) && 
     !excludedPaths.some(path => location.pathname.startsWith(path) && location.pathname.length === path.length);
+  
+  console.log('[MainApplication] Sidebar visibility:', {
+    isProprietarioOrCompanyAdmin,
+    isCollaborator,
+    dynamicMenuItemsCount: dynamicMenuItems.length,
+    loadingMenus,
+    hasMenusForCollaborator,
+    isAppPath,
+    currentPath: location.pathname
+  });
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
   };
 
-  const finalMenuItems = menuItems
+  // Usar menus dinâmicos se disponíveis, caso contrário usar estáticos (fallback)
+  const menuItemsToUse = dynamicMenuItems.length > 0 
+    ? dynamicMenuItems.map(menu => ({
+        id: menu.menu_key,
+        label: menu.label,
+        icon: menu.icon,
+        path: menu.path,
+      }))
+    : staticMenuItems;
+
+  console.log('[MainApplication] Menus para renderizar:', {
+    dynamicMenuItemsCount: dynamicMenuItems.length,
+    menuItemsToUseCount: menuItemsToUse.length,
+    menuKeys: menuItemsToUse.map(m => m.id),
+    dynamicMenuItems: dynamicMenuItems.map(m => ({ key: m.menu_key, label: m.label, path: m.path }))
+  });
+
+  const finalMenuItems = menuItemsToUse
     .filter(item => {
-      // Filtrar itens com restrição de roles
+      // Se estamos usando menus dinâmicos, já foram filtrados pelo hook
+      if (dynamicMenuItems.length > 0) {
+        // Apenas aplicar transformações de path se necessário
+        return true;
+      }
+      
+      // Filtrar itens estáticos com restrição de roles (comportamento antigo)
       if (item.roles && item.roles.length > 0) {
         // Se o item for 'Mensagens WhatsApp', filtrar com a nova condição
         if (item.id === 'mensagens-whatsapp') {
@@ -75,8 +118,25 @@ const MainApplication: React.FC = () => {
       return true;
     })
     .map(item => {
-      if (item.id === 'agendamentos' && primaryCompanyId) {
-        return { ...item, path: `/agendamentos/${primaryCompanyId}` };
+      // Aplicar transformações de path (ex: adicionar companyId)
+      // Verificar se é o menu de agendamentos (por id ou path)
+      const isAgendamentosMenu = item.id === 'agendamentos' || 
+                                 item.path?.includes('/agendamentos');
+      
+      if (isAgendamentosMenu && primaryCompanyId) {
+        // Se o path já contém :companyId, substituir pelo ID real
+        if (item.path?.includes(':companyId')) {
+          return { ...item, path: item.path.replace(':companyId', primaryCompanyId) };
+        }
+        // Se o path é apenas /agendamentos, adicionar o companyId
+        if (item.path === '/agendamentos' || item.path === '/agendamentos/') {
+          return { ...item, path: `/agendamentos/${primaryCompanyId}` };
+        }
+        // Se o path já tem um ID mas não é o companyId correto, substituir
+        const pathMatch = item.path?.match(/^\/agendamentos\/([^/]+)/);
+        if (pathMatch) {
+          return { ...item, path: `/agendamentos/${primaryCompanyId}` };
+        }
       }
       return item;
     });
@@ -90,7 +150,7 @@ const MainApplication: React.FC = () => {
   }
 
   // Se o usuário está carregando a sessão ou os status, exibe loading
-  if (sessionLoading || loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingSubscription || loadingCompanyDetails) {
+  if (sessionLoading || loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingCollaboratorCheck || loadingSubscription || loadingCompanyDetails || loadingMenus) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando aplicação...</p>
@@ -174,23 +234,38 @@ const MainApplication: React.FC = () => {
           } min-h-full`}>
             <nav className="p-4">
               <ul className="space-y-2">
-                {finalMenuItems.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      to={item.path}
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
-                        location.pathname === item.path
-                          ? 'bg-yellow-600 text-black'
-                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                      }`}
-                    >
-                      <i className={`${item.icon} text-lg`}></i>
-                      {!sidebarCollapsed && (
-                        <span className="font-medium">{item.label}</span>
-                      )}
-                    </Link>
+                {(() => {
+                  console.log('[MainApplication] Renderizando sidebar com', finalMenuItems.length, 'menus:', finalMenuItems.map(m => ({ id: m.id, label: m.label, path: m.path })));
+                  return null;
+                })()}
+                {finalMenuItems.length === 0 && !loadingMenus && (
+                  <li className="text-gray-400 text-sm p-3">
+                    Nenhum menu disponível
                   </li>
-                ))}
+                )}
+                {finalMenuItems.map((item) => {
+                  // Verificar se o pathname corresponde ao item (considerando sub-rotas)
+                  const isActive = location.pathname === item.path || 
+                                   location.pathname.startsWith(item.path + '/');
+                  
+                  return (
+                    <li key={item.id}>
+                      <Link
+                        to={item.path}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-yellow-600 text-black'
+                            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        }`}
+                      >
+                        <i className={`${item.icon} text-lg`}></i>
+                        {!sidebarCollapsed && (
+                          <span className="font-medium">{item.label}</span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
                 {!loadingClientCheck && isClient && (
                   <li>
                     <Link

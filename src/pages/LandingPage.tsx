@@ -12,11 +12,12 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { CompanySelectionModal } from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays } from 'lucide-react'; // Adicionar Menu e CalendarDays
+import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag } from 'lucide-react'; // Adicionar Menu e CalendarDays
 import { Input } from '@/components/ui/input';
 import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Importar componentes de diálogo
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,12 +28,70 @@ const LandingPage: React.FC = () => {
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { plans, loading: loadingPlans } = useActivePlans();
   
+  // Buscar menus vinculados aos planos
+  useEffect(() => {
+    const fetchPlansWithMenus = async () => {
+      if (!plans || plans.length === 0) {
+        console.log('[LandingPage] Nenhum plano disponível');
+        setPlansWithMenus([]);
+        return;
+      }
+
+      console.log('[LandingPage] Buscando menus para', plans.length, 'planos');
+
+      try {
+        const plansWithMenusData = await Promise.all(
+          plans.map(async (plan) => {
+            console.log(`[LandingPage] Buscando menus do plano: ${plan.name} (${plan.id})`);
+            
+            const { data: menuPlansData, error: menuPlansError } = await supabase
+              .from('menu_plans')
+              .select('menu_id, menus(id, menu_key, label, icon, description, display_order)')
+              .eq('plan_id', plan.id);
+
+            if (menuPlansError) {
+              console.error(`[LandingPage] Erro ao buscar menus do plano ${plan.name}:`, menuPlansError);
+              return { ...plan, menus: [] };
+            }
+
+            console.log(`[LandingPage] Dados brutos de menu_plans para ${plan.name}:`, menuPlansData);
+
+            const menus = (menuPlansData || [])
+              .map((mp: any) => mp.menus)
+              .filter((menu: any) => menu !== null && menu !== undefined)
+              .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
+
+            console.log(`[LandingPage] Menus processados para ${plan.name}:`, menus.length, menus.map((m: any) => m.label));
+
+            return { ...plan, menus };
+          })
+        );
+
+        console.log('[LandingPage] Planos com menus carregados:', plansWithMenusData.map((p: any) => ({
+          name: p.name,
+          menusCount: p.menus?.length || 0
+        })));
+
+        setPlansWithMenus(plansWithMenusData);
+      } catch (error) {
+        console.error('[LandingPage] Erro ao buscar menus dos planos:', error);
+        setPlansWithMenus(plans.map(p => ({ ...p, menus: [] })));
+      }
+    };
+
+    if (!loadingPlans) {
+      fetchPlansWithMenus();
+    }
+  }, [plans, loadingPlans]);
+  
   const [searchTerm, setSearchTerm] = useState(''); // Estado para busca (mantido para UI, mas não usado para empresas)
   const [locationTerm, setLocationTerm] = useState(''); // Novo estado para localização
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
   const [isConfirmLogoutDialogOpen, setIsConfirmLogoutDialogOpen] = useState(false); // Novo estado para o diálogo de confirmação de logout
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly'); // Estado para período de cobrança
+  const [plansWithMenus, setPlansWithMenus] = useState<any[]>([]); // Planos com menus vinculados
 
   const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck;
 
@@ -64,8 +123,9 @@ const LandingPage: React.FC = () => {
     navigate(`/agendar/${companyId}`, { replace: true });
   };
   
-  // Determine the most expensive plan for visual highlight
-  const highestPricedPlan = plans.reduce((max, plan) => (plan.price > max.price ? plan : max), plans[0] || { price: -1 });
+  // Determine the most expensive plan for visual highlight (usando plansWithMenus se disponível, senão plans)
+  const plansToUse = plansWithMenus.length > 0 ? plansWithMenus : plans;
+  const highestPricedPlan = plansToUse.reduce((max, plan) => (plan.price > max.price ? plan : max), plansToUse[0] || { price: -1 });
 
   return (
     <div className="min-h-screen bg-white">
@@ -181,27 +241,96 @@ const LandingPage: React.FC = () => {
       {/* Pricing Section (New) */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Planos Para Profissionais</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
               Escolha o plano ideal para gerenciar seu negócio e crescer sem limites.
             </p>
+            
+            {/* Toggle Mensal/Anual */}
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <span className={`text-sm font-medium ${billingPeriod === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
+                Mensal
+              </span>
+              <ToggleGroup 
+                type="single" 
+                value={billingPeriod} 
+                onValueChange={(value) => {
+                  if (value === 'monthly' || value === 'yearly') {
+                    setBillingPeriod(value);
+                  }
+                }}
+                className="border border-gray-300 rounded-lg p-1"
+              >
+                <ToggleGroupItem 
+                  value="monthly" 
+                  aria-label="Mensal"
+                  className={`px-4 py-2 rounded-md ${billingPeriod === 'monthly' ? 'bg-yellow-600 text-black' : 'bg-transparent text-gray-600'}`}
+                >
+                  Mensal
+                </ToggleGroupItem>
+                <ToggleGroupItem 
+                  value="yearly" 
+                  aria-label="Anual"
+                  className={`px-4 py-2 rounded-md ${billingPeriod === 'yearly' ? 'bg-yellow-600 text-black' : 'bg-transparent text-gray-600'}`}
+                >
+                  Anual
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <span className={`text-sm font-medium ${billingPeriod === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
+                Anual
+              </span>
+            </div>
+            
+            {/* Banner de desconto anual */}
+            {billingPeriod === 'yearly' && (
+              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 max-w-2xl mx-auto mb-8">
+                <div className="flex items-center gap-2 justify-center">
+                  <div className="bg-green-500 text-white rounded-full p-1">
+                    <Tag className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-green-900">
+                      🎉 Desconto Especial de 15% no Plano Anual!
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">
+                      Economize ao pagar 12 meses de uma vez. O desconto já está aplicado nos preços abaixo.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {loadingPlans ? (
             <p className="text-center text-gray-600">Carregando planos...</p>
-          ) : plans.length === 0 ? (
+          ) : plansWithMenus.length === 0 ? (
             <p className="text-center text-gray-600">Nenhum plano ativo disponível no momento.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {plans.map((plan) => {
+              {plansWithMenus.map((plan) => {
                 // Verifica se este é o plano mais caro para destaque
                 const isFeatured = plan.id === highestPricedPlan.id;
                 const cardClasses = isFeatured 
                   ? 'border-4 border-yellow-600 shadow-2xl scale-105' 
                   : 'border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg';
                 
-                const monthlyPrice = plan.duration_months > 1 ? (plan.price / plan.duration_months) : plan.price;
+                // Calcular preço base baseado no período selecionado
+                const yearlyBasePrice = plan.price * 12;
+                const basePrice = billingPeriod === 'yearly' 
+                  ? Math.round(yearlyBasePrice * 0.85 * 100) / 100 // 15% de desconto no plano anual
+                  : plan.price;
+                
+                // Calcular valor sem desconto anual para exibição
+                const priceWithoutYearlyDiscount = billingPeriod === 'yearly' ? yearlyBasePrice : plan.price;
+                
+                // Calcular período de duração para exibição
+                const displayDuration = billingPeriod === 'yearly' ? 12 : 1;
+                
+                // Calcular economia do desconto anual (15%)
+                const yearlySavings = billingPeriod === 'yearly' 
+                  ? Math.round((yearlyBasePrice - basePrice) * 100) / 100 
+                  : 0;
 
                 return (
                   <Card key={plan.id} className={cardClasses}>
@@ -209,31 +338,83 @@ const LandingPage: React.FC = () => {
                       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-600 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
                         <Zap className="h-3 w-3" /> MAIS POPULAR
                       </div>
-                      )}
+                    )}
                     <CardHeader className="text-center pt-8">
                       <CardTitle className="text-3xl font-bold text-gray-900">{plan.name}</CardTitle>
-                      <p className="text-5xl font-extrabold text-yellow-600 mt-4">
-                        R$ {plan.price.toFixed(2).replace('.', ',')}
-                      </p>
-                      <p className="text-base text-gray-500">
-                        {plan.duration_months > 1 ? `Pagamento Único / ${plan.duration_months} meses` : '/ Mês'}
-                      </p>
-                      {plan.duration_months > 1 && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          (R$ {monthlyPrice.toFixed(2).replace('.', ',')} por mês)
+                      <div className="mt-4">
+                        {billingPeriod === 'yearly' && (
+                          <p className="text-lg font-semibold text-gray-400 line-through mb-1">
+                            R$ {priceWithoutYearlyDiscount.toFixed(2).replace('.', ',')}
+                          </p>
+                        )}
+                        <p className="text-5xl font-extrabold text-yellow-600">
+                          R$ {basePrice.toFixed(2).replace('.', ',')}
                         </p>
-                      )}
+                        <p className="text-base text-gray-500">
+                          /{displayDuration} {displayDuration > 1 ? 'meses' : 'mês'}
+                          {billingPeriod === 'yearly' && yearlySavings > 0 && (
+                            <span className="block text-xs text-green-600 font-semibold mt-1">
+                              💰 Você economiza R$ {yearlySavings.toFixed(2).replace('.', ',')} com 15% de desconto!
+                            </span>
+                          )}
+                        </p>
+                        {billingPeriod === 'monthly' && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            ou R$ {basePrice.toFixed(2).replace('.', ',')}/ano com <span className="font-semibold text-green-600">15% de desconto</span>
+                          </p>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
                       <p className="text-center text-gray-600">{plan.description}</p>
-                      <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
-                        {plan.features?.map((feature, index) => (
-                          <li key={index} className="flex items-center gap-2">
-                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
+                      
+                      {/* Exibir menus vinculados ao plano */}
+                      {(() => {
+                        console.log(`[LandingPage] Renderizando card do plano ${plan.name}:`, {
+                          hasMenus: !!plan.menus,
+                          menusLength: plan.menus?.length || 0,
+                          menus: plan.menus,
+                          hasFeatures: !!plan.features,
+                          featuresLength: plan.features?.length || 0
+                        });
+                        
+                        if (plan.menus && plan.menus.length > 0) {
+                          return (
+                            <div className="space-y-3">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                Módulos Inclusos:
+                              </p>
+                              <ul className="space-y-2 text-sm text-gray-700">
+                                {plan.menus.map((menu: any) => (
+                                  <li key={menu.id || menu.menu_key} className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <span>{menu.label || menu.menu_key}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        } else if (plan.features && plan.features.length > 0) {
+                          // Fallback para features antigas se não houver menus
+                          return (
+                            <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
+                              {plan.features.map((feature, index) => (
+                                <li key={index} className="flex items-center gap-2">
+                                  <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                  {feature}
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        } else {
+                          return (
+                            <p className="text-sm text-gray-500 text-center">
+                              Nenhum módulo configurado para este plano.
+                            </p>
+                          );
+                        }
+                      })()}
+                      
                       <Button
                         className="!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base bg-yellow-600 hover:bg-yellow-700 text-black"
                         onClick={handleProfessionalSignup} // Redireciona para o cadastro unificado
