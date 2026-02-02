@@ -62,6 +62,9 @@ import CompanySelectionPage from "./pages/CompanySelectionPage";
 import EditMyCompanyPage from "./pages/EditMyCompanyPage";
 import WhatsAppMessagingPage from "./pages/WhatsAppMessagingPage"; // Importar nova página de mensagens WhatsApp
 import WhatsAppProviderManagementPage from "./pages/WhatsAppProviderManagementPage"; // Importar nova página de gerenciamento de provedores WhatsApp
+import RoleTypesManagementPage from "./pages/RoleTypesManagementPage"; // Importar nova página de gerenciamento de perfis (roles)
+import MenuManagementPage from "./pages/MenuManagementPage"; // Importar nova página de gerenciamento de menus
+import MenuPermissionsPage from "./pages/MenuPermissionsPage"; // Importar nova página de permissões de menu
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsProprietario } from "./hooks/useIsProprietario";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
@@ -70,6 +73,7 @@ import { useIsCollaborator } from "./hooks/useIsCollaborator";
 import ContractList from "./components/ContractList";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import ColaboradorAgendamentosPage from "./pages/ColaboradorAgendamentosPage";
+import WaitingApprovalPage from "./pages/WaitingApprovalPage"; // Importar página de aprovação pendente
 
 const queryClient = new QueryClient();
 
@@ -178,6 +182,9 @@ const App = () => (
             
             {/* Rota de Aviso de Confirmação de Email */}
             <Route path="/email-confirmation-pending" element={<EmailConfirmationPendingPage />} />
+            
+            {/* Rota de Aguardando Aprovação (usuário sem vínculo válido) */}
+            <Route path="/waiting-approval" element={<ProtectedRoute><WaitingApprovalPage /></ProtectedRoute>} />
 
             {/* NOVAS ROTAS: Agendamento para Convidados */}
             <Route path="/guest-appointment/:companyId" element={<GuestAppointmentPage />} />
@@ -214,6 +221,10 @@ const App = () => (
             <Route path="/admin-dashboard/global-banners" element={<GlobalAdminProtectedRoute><BannerManagementPage /></GlobalAdminProtectedRoute>} />
             {/* NOVA ROTA: Gerenciamento de Provedores WhatsApp */}
             <Route path="/admin-dashboard/whatsapp-providers" element={<GlobalAdminProtectedRoute><WhatsAppProviderManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Gestão de Perfis (Roles) */}
+            <Route path="/admin-dashboard/role-types" element={<GlobalAdminProtectedRoute><RoleTypesManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Gestão de Menus */}
+            <Route path="/admin-dashboard/menus" element={<GlobalAdminProtectedRoute><MenuManagementPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
@@ -253,6 +264,7 @@ const App = () => (
               <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
               <Route path="mensagens-whatsapp" element={<CompanyAdminProtectedRoute><WhatsAppMessagingPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTÃO DE MENSAGENS WHATSAPP */}
               <Route path="empresa/editar" element={<CompanyAdminProtectedRoute><EditMyCompanyPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTORES EDITAREM DADOS DA EMPRESA */}
+              <Route path="menu-permissions" element={<CompanyAdminProtectedRoute><MenuPermissionsPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA PROPRIETÁRIOS GERENCIAREM PERMISSÕES DE MENU */}
 
               {/* Rotas de formulários específicos (protegidas) */}
               <Route path="novo-agendamento/:companyId" element={<ProtectedRoute><NovoAgendamentoPage /></ProtectedRoute>} />

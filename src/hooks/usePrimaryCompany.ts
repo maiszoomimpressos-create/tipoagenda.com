@@ -45,24 +45,68 @@ export function usePrimaryCompany() {
         console.log('usePrimaryCompany: Dados retornados do get_user_context:', data);
         const primaryCompany = data.find((company: UserCompanyContext) => company.is_primary);
 
+        let foundCompanyId: string | null = null;
+        let foundCompanyName: string | null = null;
+
         if (primaryCompany) {
-          console.log('usePrimaryCompany: Empresa primária encontrada:', primaryCompany.company_id, primaryCompany.company_name);
-          setPrimaryCompanyId(primaryCompany.company_id);
-
-          // Fetch company name using the primaryCompanyId
-          const { data: companyNameData, error: companyNameError } = await supabase
-            .from('companies')
-            .select('name')
-            .eq('id', primaryCompany.company_id)
-            .single();
-
-          if (companyNameError) {
-            throw companyNameError;
-          }
-          setPrimaryCompanyName(companyNameData.name);
-          console.log('usePrimaryCompany: Nome da empresa carregado:', companyNameData.name);
+          foundCompanyId = primaryCompany.company_id;
+          foundCompanyName = primaryCompany.company_name;
+          console.log('usePrimaryCompany: Empresa primária encontrada em user_companies:', foundCompanyId, foundCompanyName);
         } else {
-          console.warn('usePrimaryCompany: Nenhuma empresa primária encontrada para o usuário');
+          // Se não encontrou empresa primária em user_companies, buscar qualquer empresa
+          const anyCompany = data.find((company: UserCompanyContext) => company.company_id);
+          if (anyCompany) {
+            foundCompanyId = anyCompany.company_id;
+            foundCompanyName = anyCompany.company_name;
+            console.log('usePrimaryCompany: Empresa (não primária) encontrada em user_companies:', foundCompanyId, foundCompanyName);
+          }
+        }
+
+        // Se não encontrou em user_companies, buscar em collaborators (para colaboradores)
+        if (!foundCompanyId) {
+          console.log('usePrimaryCompany: Buscando em collaborators...');
+          const { data: collaboratorData, error: collaboratorError } = await supabase
+            .from('collaborators')
+            .select('company_id')
+            .eq('user_id', session.user.id)
+            .limit(1)
+            .maybeSingle();
+
+          if (collaboratorError) {
+            console.warn('usePrimaryCompany: Erro ao buscar collaborator (não crítico):', collaboratorError);
+          }
+
+          if (collaboratorData?.company_id) {
+            foundCompanyId = collaboratorData.company_id;
+            console.log('usePrimaryCompany: ✅ Empresa encontrada em collaborators:', foundCompanyId);
+          }
+        }
+
+        if (foundCompanyId) {
+          setPrimaryCompanyId(foundCompanyId);
+
+          // Se já temos o nome da empresa (de user_companies), usar diretamente
+          if (foundCompanyName) {
+            setPrimaryCompanyName(foundCompanyName);
+            console.log('usePrimaryCompany: Nome da empresa carregado de user_companies:', foundCompanyName);
+          } else {
+            // Se não temos o nome, buscar na tabela companies
+            const { data: companyNameData, error: companyNameError } = await supabase
+              .from('companies')
+              .select('name')
+              .eq('id', foundCompanyId)
+              .single();
+
+            if (companyNameError) {
+              console.warn('usePrimaryCompany: Erro ao buscar nome da empresa (não crítico):', companyNameError);
+              setPrimaryCompanyName(null);
+            } else {
+              setPrimaryCompanyName(companyNameData.name);
+              console.log('usePrimaryCompany: Nome da empresa carregado de companies:', companyNameData.name);
+            }
+          }
+        } else {
+          console.warn('usePrimaryCompany: ⚠️ Nenhuma empresa encontrada (nem em user_companies nem em collaborators)');
           setPrimaryCompanyId(null);
           setPrimaryCompanyName(null);
         }

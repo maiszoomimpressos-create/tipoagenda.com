@@ -13,6 +13,16 @@ import { ptBR } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input'; // Importar Input
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar Dialog
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+interface Menu {
+  id: string;
+  menu_key: string;
+  label: string;
+  icon: string;
+  description: string | null;
+  display_order: number;
+}
 
 interface Plan {
   id: string;
@@ -21,6 +31,7 @@ interface Plan {
   price: number;
   features: string[] | null;
   duration_months: number;
+  menus?: Menu[]; // Menus vinculados ao plano
 }
 
 interface Subscription {
@@ -52,6 +63,7 @@ const SubscriptionPlansPage: React.FC = () => {
   const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number } | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Novo estado para o modal de cancelamento
   const [cancelling, setCancelling] = useState(false); // Novo estado para o loading do cancelamento
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly'); // Estado para período de cobrança
 
   const fetchSubscriptionData = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -83,8 +95,30 @@ const SubscriptionPlansPage: React.FC = () => {
           features: p.features,
           duration_months: p.duration_months,
         })) as Plan[];
+
+      // Buscar menus vinculados a cada plano
+      const plansWithMenus = await Promise.all(
+        activePlans.map(async (plan) => {
+          const { data: menuPlansData, error: menuPlansError } = await supabase
+            .from('menu_plans')
+            .select('menu_id, menus(id, menu_key, label, icon, description, display_order)')
+            .eq('plan_id', plan.id);
+
+          if (menuPlansError) {
+            console.error(`Erro ao buscar menus do plano ${plan.name}:`, menuPlansError);
+            return { ...plan, menus: [] };
+          }
+
+          const menus = (menuPlansData || [])
+            .map((mp: any) => mp.menus)
+            .filter((menu: any) => menu !== null)
+            .sort((a: Menu, b: Menu) => a.display_order - b.display_order) as Menu[];
+
+          return { ...plan, menus };
+        })
+      );
         
-      setAvailablePlans(activePlans);
+      setAvailablePlans(plansWithMenus);
 
       // 2. Buscar a assinatura mais recente da empresa (independente do status)
       // Usamos select('*') em uma única linha para evitar qualquer problema de sintaxe no parâmetro select (HTTP 406).
@@ -277,14 +311,28 @@ const SubscriptionPlansPage: React.FC = () => {
 
     setLoadingData(true);
     try {
-        let finalPrice = plan.price;
+        // Calcular preço base baseado no período selecionado
+        // Para plano anual: aplicar desconto de 15% sobre o valor anual (12 meses)
+        const yearlyBasePrice = plan.price * 12;
+        const basePrice = billingPeriod === 'yearly' 
+          ? Math.round(yearlyBasePrice * 0.85 * 100) / 100 // 15% de desconto no plano anual
+          : plan.price;
+        
+        // Calcular duração em meses baseado no período selecionado
+        const durationMonths = billingPeriod === 'yearly' ? 12 : 1;
+        
+        // Calcular preço final (com cupom se aplicável)
+        let finalPrice = basePrice;
         if (validatedCoupon) {
             if (validatedCoupon.discount_type === 'percentual') {
-                finalPrice = plan.price * (1 - validatedCoupon.discount_value / 100);
+                finalPrice = Math.round(basePrice * (1 - validatedCoupon.discount_value / 100) * 100) / 100;
             } else if (validatedCoupon.discount_type === 'fixed') {
-                finalPrice = Math.max(0, plan.price - validatedCoupon.discount_value);
+                finalPrice = Math.max(0, Math.round((basePrice - validatedCoupon.discount_value) * 100) / 100);
             }
         }
+        
+        // Garantir que o preço final tenha no máximo 2 casas decimais
+        finalPrice = Math.round(finalPrice * 100) / 100;
 
         // A partir daqui, TODA a lógica de adesão/ativação de plano (com ou sem pagamento)
         // é centralizada na Edge Function `apply-coupon-and-subscribe`.
@@ -293,13 +341,13 @@ const SubscriptionPlansPage: React.FC = () => {
         // - encaminha para o Mercado Pago (quando finalPrice > 0).
 
         // Validate required fields before calling Edge Function
-        if (!plan.id || !primaryCompanyId || !plan.name || plan.price === undefined || plan.price === null || plan.duration_months === undefined || plan.duration_months === null) {
+        if (!plan.id || !primaryCompanyId || !plan.name || plan.price === undefined || plan.price === null) {
             throw new Error('Dados do plano incompletos. Por favor, recarregue a página e tente novamente.');
         }
 
         // Convert and validate price
-        const numericPrice = Number(plan.price);
-        const numericDuration = Number(plan.duration_months);
+        const numericPrice = Number(finalPrice);
+        const numericDuration = Number(durationMonths);
 
         if (isNaN(numericPrice) || numericPrice < 0) {
             throw new Error('Preço do plano inválido.');
@@ -585,7 +633,61 @@ const SubscriptionPlansPage: React.FC = () => {
 
 
       {/* Planos Disponíveis */}
-      <h2 className="text-2xl font-bold text-gray-900 pt-4">Escolha o Melhor Plano</h2>
+      <div className="flex flex-col gap-4 pt-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Escolha o Melhor Plano</h2>
+          <div className="flex items-center gap-3">
+            <span className={`text-sm font-medium ${billingPeriod === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
+              Mensal
+            </span>
+            <ToggleGroup 
+              type="single" 
+              value={billingPeriod} 
+              onValueChange={(value) => {
+                if (value === 'monthly' || value === 'yearly') {
+                  setBillingPeriod(value);
+                }
+              }}
+              className="border border-gray-300 rounded-lg p-1"
+            >
+              <ToggleGroupItem 
+                value="monthly" 
+                aria-label="Mensal"
+                className={`px-4 py-2 rounded-md ${billingPeriod === 'monthly' ? 'bg-yellow-600 text-black' : 'bg-transparent text-gray-600'}`}
+              >
+                Mensal
+              </ToggleGroupItem>
+              <ToggleGroupItem 
+                value="yearly" 
+                aria-label="Anual"
+                className={`px-4 py-2 rounded-md ${billingPeriod === 'yearly' ? 'bg-yellow-600 text-black' : 'bg-transparent text-gray-600'}`}
+              >
+                Anual
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <span className={`text-sm font-medium ${billingPeriod === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
+              Anual
+            </span>
+          </div>
+        </div>
+        {billingPeriod === 'yearly' && (
+          <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <div className="bg-green-500 text-white rounded-full p-1">
+                <Tag className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-green-900">
+                  🎉 Desconto Especial de 15% no Plano Anual!
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  Economize ao pagar 12 meses de uma vez. O desconto já está aplicado nos preços abaixo.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {availablePlans.map((plan) => {
           if (!plan) return null; 
@@ -602,18 +704,39 @@ const SubscriptionPlansPage: React.FC = () => {
           const buttonText = isCurrentPlan && displayStatus === 'active' && !isExpired ? 'Plano Atual' : 'Assinar Agora';
           const buttonClass = isCurrentPlan && displayStatus === 'active' && !isExpired ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-black';
 
+          // Calcular preço base baseado no período selecionado
+          // Para plano anual: aplicar desconto de 15% sobre o valor anual (12 meses)
+          const yearlyBasePrice = plan.price * 12;
+          const basePrice = billingPeriod === 'yearly' 
+            ? Math.round(yearlyBasePrice * 0.85 * 100) / 100 // 15% de desconto no plano anual
+            : plan.price;
+          
+          // Calcular valor sem desconto anual para exibição
+          const priceWithoutYearlyDiscount = billingPeriod === 'yearly' ? yearlyBasePrice : plan.price;
+          
           // Calculate discounted price for display
-          let finalPrice = plan.price;
+          let finalPrice = basePrice;
           let discountApplied = false;
           
           if (validatedCoupon) {
             if (validatedCoupon.discount_type === 'percentual') {
-              finalPrice = plan.price * (1 - validatedCoupon.discount_value / 100);
+              finalPrice = Math.round(basePrice * (1 - validatedCoupon.discount_value / 100) * 100) / 100;
             } else if (validatedCoupon.discount_type === 'fixed') {
-              finalPrice = Math.max(0, plan.price - validatedCoupon.discount_value);
+              finalPrice = Math.max(0, Math.round((basePrice - validatedCoupon.discount_value) * 100) / 100);
             }
-            discountApplied = finalPrice < plan.price;
+            discountApplied = finalPrice < basePrice;
           }
+          
+          // Garantir que o preço final tenha no máximo 2 casas decimais
+          finalPrice = Math.round(finalPrice * 100) / 100;
+          
+          // Calcular período de duração para exibição
+          const displayDuration = billingPeriod === 'yearly' ? 12 : 1;
+          
+          // Calcular economia do desconto anual (15%)
+          const yearlySavings = billingPeriod === 'yearly' 
+            ? Math.round((yearlyBasePrice - basePrice) * 100) / 100 
+            : 0;
 
           return (
             <Card key={plan.id} className={`border-2 ${isCurrentPlan ? 'border-yellow-600 shadow-xl' : 'border-gray-200'}`}>
@@ -634,27 +757,65 @@ const SubscriptionPlansPage: React.FC = () => {
                   </Button>
                 </div>
                 <div className="mt-4">
-                  {discountApplied && (
-                    <p className="text-xl font-semibold text-gray-400 line-through">
-                      R$ {plan.price.toFixed(2).replace('.', ',')}
+                  {billingPeriod === 'yearly' && (
+                    <p className="text-lg font-semibold text-gray-400 line-through mb-1">
+                      R$ {priceWithoutYearlyDiscount.toFixed(2).replace('.', ',')}
+                    </p>
+                  )}
+                  {discountApplied && billingPeriod === 'monthly' && (
+                    <p className="text-xl font-semibold text-gray-400 line-through mb-1">
+                      R$ {basePrice.toFixed(2).replace('.', ',')}
                     </p>
                   )}
                   <p className="text-4xl font-extrabold text-yellow-600">
                     R$ {finalPrice.toFixed(2).replace('.', ',')}
                   </p>
-                  <p className="text-sm text-gray-500">/{plan.duration_months} {plan.duration_months && plan.duration_months > 1 ? 'meses' : 'mês'}</p>
+                  <p className="text-sm text-gray-500">
+                    /{displayDuration} {displayDuration > 1 ? 'meses' : 'mês'}
+                    {billingPeriod === 'yearly' && yearlySavings > 0 && (
+                      <span className="block text-xs text-green-600 font-semibold mt-1">
+                        💰 Você economiza R$ {yearlySavings.toFixed(2).replace('.', ',')} com 15% de desconto!
+                      </span>
+                    )}
+                  </p>
+                  {billingPeriod === 'monthly' && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      ou R$ {basePrice.toFixed(2).replace('.', ',')}/ano com <span className="font-semibold text-green-600">15% de desconto</span>
+                    </p>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <p className="text-center text-gray-600">{plan.description}</p>
-                <ul className="space-y-2 text-sm text-gray-700">
-                  {plan.features?.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-green-500" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
+                
+                {/* Exibir menus vinculados ao plano */}
+                {plan.menus && plan.menus.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Módulos Inclusos:
+                    </p>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      {plan.menus.map((menu) => (
+                        <li key={menu.id} className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                          <span>{menu.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  /* Fallback para features antigas se não houver menus */
+                  plan.features && plan.features.length > 0 && (
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      {plan.features.map((feature, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-green-500" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                )}
                 <Button
                   className={`!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base ${buttonClass}`}
                   onClick={() => handleSubscribe(plan)}

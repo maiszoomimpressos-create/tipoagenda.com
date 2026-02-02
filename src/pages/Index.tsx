@@ -5,11 +5,15 @@
  * 
  * Esta página é responsável por redirecionar usuários logados para suas respectivas dashboards
  * baseado em seus roles. A ordem de prioridade é:
- * 1. Proprietário -> /dashboard (MÁXIMA PRIORIDADE)
- * 2. Global Admin -> /admin-dashboard
- * 3. Company Admin -> /dashboard
- * 4. Colaborador -> /colaborador/agendamentos
- * 5. Cliente -> /meus-agendamentos
+ * 1. Validação de Vínculo: Verifica se usuário possui vínculo válido (user_companies ou collaborators)
+ *    - Se não tiver vínculo -> /waiting-approval
+ * 2. Proprietário -> /dashboard (MÁXIMA PRIORIDADE)
+ * 3. Global Admin -> /admin-dashboard
+ * 4. Company Admin -> /dashboard
+ * 5. Colaborador -> Verifica se tem role_type:
+ *    - Se tem role_type -> /dashboard (menus filtrados por permissões)
+ *    - Se não tem role_type -> /colaborador/agendamentos
+ * 6. Cliente -> /meus-agendamentos
  * 
  * Usuários sem sessão ou sem role definido permanecem na LandingPage.
  */
@@ -21,11 +25,14 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { useIsClient } from '@/hooks/useIsClient';
 import { useIsCollaborator } from '@/hooks/useIsCollaborator';
+import { useUserValidation } from '@/hooks/useUserValidation';
+import { supabase } from '@/integrations/supabase/client';
 import LandingPage from './LandingPage';
 
 const IndexPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
+  const { hasValidLink, loading: loadingValidation, company_id } = useUserValidation();
   const { isProprietario, loadingProprietarioCheck } = useIsProprietario();
   const { isCompanyAdmin, loadingCompanyAdminCheck } = useIsCompanyAdmin();
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
@@ -46,7 +53,22 @@ const IndexPage: React.FC = () => {
       return; 
     }
 
-    // VALIDAÇÃO 3: Aguardar até que TODOS os roles terminem de carregar
+    // VALIDAÇÃO 3: Aguardar validação de vínculo
+    if (loadingValidation) {
+      return;
+    }
+
+    // VALIDAÇÃO 4: Verificar se usuário possui vínculo válido
+    // Se não tiver vínculo, redirecionar para página de aprovação
+    // EXCEÇÃO: Global Admin não precisa de vínculo com empresa
+    if (!hasValidLink && !isGlobalAdmin) {
+      console.log('[IndexPage] Usuário sem vínculo válido - redirecionando para /waiting-approval');
+      hasRedirectedRef.current = true;
+      navigate('/waiting-approval', { replace: true });
+      return;
+    }
+
+    // VALIDAÇÃO 5: Aguardar até que TODOS os roles terminem de carregar
     // CRÍTICO: Não redirecionar antes de ter certeza dos roles
     if (loadingRoles) {
       return;
@@ -82,10 +104,65 @@ const IndexPage: React.FC = () => {
     }
 
     // PRIORIDADE 4: Colaborador
+    // Verificar se o colaborador tem role_type (primeiro na empresa primária, depois em qualquer empresa, depois na tabela collaborators)
     if (isCollaborator === true) {
-      console.log('[IndexPage] COLABORADOR detectado - redirecionando para /colaborador/agendamentos');
-      hasRedirectedRef.current = true;
-      navigate('/colaborador/agendamentos', { replace: true });
+      const checkCollaboratorRole = async () => {
+        try {
+          // 1. Tentar buscar role_type na empresa primária
+          const { data: primaryCompanyData } = await supabase
+            .from('user_companies')
+            .select('role_type, company_id, is_primary')
+            .eq('user_id', session.user.id)
+            .eq('is_primary', true)
+            .maybeSingle();
+
+          let hasRoleType = primaryCompanyData?.role_type;
+
+          // 2. Se não encontrou empresa primária ou não tem role_type, buscar em qualquer empresa
+          if (!hasRoleType) {
+            const { data: anyCompanyData } = await supabase
+              .from('user_companies')
+              .select('role_type, company_id, is_primary')
+              .eq('user_id', session.user.id)
+              .not('role_type', 'is', null)
+              .limit(1)
+              .maybeSingle();
+            
+            hasRoleType = anyCompanyData?.role_type;
+          }
+
+          // 3. Se ainda não encontrou, verificar na tabela collaborators
+          if (!hasRoleType) {
+            const { data: collaboratorData } = await supabase
+              .from('collaborators')
+              .select('role_type_id, company_id')
+              .eq('user_id', session.user.id)
+              .limit(1)
+              .maybeSingle();
+            
+            hasRoleType = !!collaboratorData?.role_type_id;
+          }
+
+          // 4. Decisão final baseada no que foi encontrado
+          if (hasRoleType) {
+            console.log('[IndexPage] COLABORADOR com role_type detectado - redirecionando para /dashboard');
+            hasRedirectedRef.current = true;
+            navigate('/dashboard', { replace: true });
+          } else {
+            // Se não tem role_type em nenhum lugar, é um colaborador básico
+            console.log('[IndexPage] COLABORADOR sem role_type detectado - redirecionando para /colaborador/agendamentos');
+            hasRedirectedRef.current = true;
+            navigate('/colaborador/agendamentos', { replace: true });
+          }
+        } catch (error) {
+          console.error('[IndexPage] Erro ao verificar role_type do colaborador:', error);
+          // Em caso de erro, redirecionar para tela de agendamentos (comportamento padrão)
+          hasRedirectedRef.current = true;
+          navigate('/colaborador/agendamentos', { replace: true });
+        }
+      };
+      
+      checkCollaboratorRole();
       return;
     }
 
@@ -101,7 +178,7 @@ const IndexPage: React.FC = () => {
     // Não redirecionar automaticamente - deixar na LandingPage
     console.log('[IndexPage] Usuário logado mas sem role definido - permanecendo na LandingPage');
     hasRedirectedRef.current = false;
-  }, [session, sessionLoading, loadingRoles, isGlobalAdmin, isProprietario, isCompanyAdmin, isClient, isCollaborator, navigate]);
+  }, [session, sessionLoading, loadingValidation, hasValidLink, loadingRoles, isGlobalAdmin, isProprietario, isCompanyAdmin, isClient, isCollaborator, navigate]);
 
   // Reset do flag quando a sessão mudar
   useEffect(() => {
@@ -110,8 +187,8 @@ const IndexPage: React.FC = () => {
     }
   }, [session]);
 
-  // Se está carregando sessão ou roles, mostrar loading
-  if (sessionLoading || (session && loadingRoles)) {
+  // Se está carregando sessão, validação de vínculo ou roles, mostrar loading
+  if (sessionLoading || (session && (loadingValidation || loadingRoles))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Verificando permissões...</p>

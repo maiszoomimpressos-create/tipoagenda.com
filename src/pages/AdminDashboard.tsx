@@ -7,7 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { markExplicitLogout } from '@/utils/auth-state';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon, MessageSquare } from 'lucide-react'; // Importando CreditCard, ImageIcon e MessageSquare
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon, MessageSquare, UserCog, Menu } from 'lucide-react'; // Importando CreditCard, ImageIcon, MessageSquare, UserCog e Menu
 import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -220,6 +220,26 @@ const AdminDashboard: React.FC = () => {
             buttonText="Gerenciar Provedores"
             buttonColor="bg-green-600 hover:bg-green-700"
             onClick={() => navigate('/admin-dashboard/whatsapp-providers')}
+          />
+
+          {/* NOVO CARD: Gestão de Perfis (Roles) */}
+          <ManagementCard
+            title="Gestão de Perfis (Roles)"
+            description="Gerencie os tipos de cargos/perfis do sistema e controle sua visibilidade."
+            icon={<UserCog className="h-6 w-6 text-blue-600" />}
+            buttonText="Gerenciar Perfis"
+            buttonColor="bg-blue-600 hover:bg-blue-700"
+            onClick={() => navigate('/admin-dashboard/role-types')}
+          />
+
+          {/* NOVO CARD: Gestão de Menus */}
+          <ManagementCard
+            title="Gestão de Menus"
+            description="Crie e gerencie os menus do sistema, vinculando-os a planos de assinatura."
+            icon={<Menu className="h-6 w-6 text-purple-600" />}
+            buttonText="Gerenciar Menus"
+            buttonColor="bg-purple-600 hover:bg-purple-700"
+            onClick={() => navigate('/admin-dashboard/menus')}
           />
         </div>
         

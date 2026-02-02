@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { Edit, Trash2, Clock, Briefcase } from 'lucide-react'; // Importar ícones
+import { Edit, Trash2, Clock, Briefcase, Shield } from 'lucide-react'; // Importar ícones
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar componentes de diálogo
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Importar componentes de tooltip
 
@@ -153,7 +153,17 @@ const ColaboradoresPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Colaboradores</h1>
-        {createButton(() => navigate('/colaboradores/new'), 'fas fa-user-plus', 'Adicionar Colaborador')}
+        <div className="flex gap-3">
+          <Button
+            onClick={() => navigate('/menu-permissions')}
+            className="!rounded-button bg-blue-600 hover:bg-blue-700 text-white"
+            title="Gerenciar permissões de menu por função"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Permissões de Menu
+          </Button>
+          {createButton(() => navigate('/colaboradores/new'), 'fas fa-user-plus', 'Adicionar Colaborador')}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

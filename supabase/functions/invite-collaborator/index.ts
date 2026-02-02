@@ -54,14 +54,95 @@ serve(async (req) => {
       });
     }
 
-    const { companyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl } = requestData;
+    const { companyId: requestedCompanyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl } = requestData;
 
-    console.log('Edge Function Debug (invite-collaborator): Received data:', { companyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl });
+    console.log('Edge Function Debug (invite-collaborator): Received data:', { requestedCompanyId, firstName, lastName, email, phoneNumber, hireDate, roleTypeId, commissionPercentage, status, avatarUrl });
     console.log('Edge Function Debug (invite-collaborator): Authenticated user ID:', user.id);
 
-    // Validação detalhada com mensagens específicas
+    // Create a Supabase client with the service role key for admin operations
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          persistSession: false,
+        },
+      }
+    );
+
+    // SEGURANÇA: Capturar company_id automaticamente do usuário logado
+    // Primeiro, buscar empresa primária do usuário
+    let companyId: string | null = null;
+    const { data: primaryCompany, error: primaryCompanyError } = await supabaseAdmin
+      .from('user_companies')
+      .select('company_id, role_type')
+      .eq('user_id', user.id)
+      .eq('is_primary', true)
+      .maybeSingle();
+
+    if (primaryCompanyError && primaryCompanyError.code !== 'PGRST116') {
+      console.error('Edge Function Error (invite-collaborator): Erro ao buscar empresa primária:', primaryCompanyError);
+      return new Response(JSON.stringify({ 
+        error: 'Erro ao identificar sua empresa. Verifique se você está associado a uma empresa.' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (primaryCompany?.company_id) {
+      companyId = primaryCompany.company_id;
+      console.log('Edge Function Debug (invite-collaborator): Empresa primária encontrada:', companyId);
+    } else {
+      // Se não tem primária, buscar qualquer empresa
+      const { data: anyCompany, error: anyCompanyError } = await supabaseAdmin
+        .from('user_companies')
+        .select('company_id, role_type')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (anyCompanyError && anyCompanyError.code !== 'PGRST116') {
+        console.error('Edge Function Error (invite-collaborator): Erro ao buscar empresa:', anyCompanyError);
+        return new Response(JSON.stringify({ 
+          error: 'Erro ao identificar sua empresa. Verifique se você está associado a uma empresa.' 
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (anyCompany?.company_id) {
+        companyId = anyCompany.company_id;
+        console.log('Edge Function Debug (invite-collaborator): Empresa encontrada (não primária):', companyId);
+      }
+    }
+
+    // VALIDAÇÃO CRÍTICA: Se não conseguiu identificar empresa, abortar
+    if (!companyId) {
+      console.error('Edge Function Error (invite-collaborator): Não foi possível identificar a empresa do usuário logado');
+      return new Response(JSON.stringify({ 
+        error: 'Não foi possível identificar sua empresa. Verifique se você está associado a uma empresa antes de cadastrar colaboradores.' 
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // SEGURANÇA: Se foi enviado companyId no request, validar que é o mesmo do usuário logado
+    if (requestedCompanyId && requestedCompanyId !== companyId) {
+      console.error('Edge Function Error (invite-collaborator): Tentativa de criar colaborador em empresa diferente da do usuário logado');
+      console.error('Edge Function Debug (invite-collaborator): requestedCompanyId:', requestedCompanyId, 'userCompanyId:', companyId);
+      return new Response(JSON.stringify({ 
+        error: 'Você não tem permissão para criar colaboradores nesta empresa.' 
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validação detalhada com mensagens específicas (removido companyId da validação)
     const missingFields: string[] = [];
-    if (!companyId) missingFields.push('companyId');
     if (!firstName) missingFields.push('firstName');
     if (!lastName) missingFields.push('lastName');
     if (!email) missingFields.push('email');
@@ -80,17 +161,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    // Create a Supabase client with the service role key for admin operations
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          persistSession: false,
-        },
-      }
-    );
 
     // Check if the calling user (user.id) is an admin/proprietor of the companyId
     console.log('Edge Function Debug (invite-collaborator): Verificando role para user_id:', user.id, 'company_id:', companyId);

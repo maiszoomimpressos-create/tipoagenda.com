@@ -93,9 +93,11 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpis.map((kpi, index) =>
-          createCard(kpi.title, kpi.value, kpi.change, kpi.icon, kpi.color)
-        )}
+        {kpis.map((kpi, index) => (
+          <div key={kpi.title || index}>
+            {createCard(kpi.title, kpi.value, kpi.change, kpi.icon, kpi.color)}
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

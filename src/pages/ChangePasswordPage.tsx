@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useIsTemporaryPassword } from '@/hooks/useIsTemporaryPassword';
 import { useSession } from '@/components/SessionContextProvider';
+import { useUserValidation } from '@/hooks/useUserValidation';
 
 const changePasswordSchema = z.object({
   password: z.string().min(6, "A nova senha deve ter pelo menos 6 caracteres."),
@@ -27,6 +28,7 @@ const ChangePasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { session, loading: sessionLoading } = useSession();
   const { isTemporaryPassword, loading: loadingTemporaryCheck } = useIsTemporaryPassword();
+  const { hasValidLink, loading: loadingValidation } = useUserValidation();
   const [loading, setLoading] = useState(false);
   const isTemporaryParam = searchParams.get('temporary') === 'true';
 
@@ -89,8 +91,33 @@ const ChangePasswordPage: React.FC = () => {
 
       showSuccess('Sua senha foi alterada com sucesso!');
       
+      // Validar vínculo do usuário antes de redirecionar
+      // Verificar se possui vínculo em user_companies ou collaborators
+      const { data: userCompanyData } = await supabase
+        .from('user_companies')
+        .select('company_id')
+        .eq('user_id', session.user.id)
+        .limit(1)
+        .maybeSingle();
+
+      const { data: collaboratorData } = await supabase
+        .from('collaborators')
+        .select('company_id')
+        .eq('user_id', session.user.id)
+        .limit(1)
+        .maybeSingle();
+
+      const hasValidLink = !!(userCompanyData?.company_id || collaboratorData?.company_id);
+
+      if (!hasValidLink) {
+        // Se não tiver vínculo, redirecionar para página de aprovação
+        console.log('[ChangePasswordPage] Usuário sem vínculo válido - redirecionando para /waiting-approval');
+        navigate('/waiting-approval', { replace: true });
+        return;
+      }
+      
       // Redirecionar baseado no tipo de usuário
-      // Se for colaborador, redirecionar para tela de colaborador
+      // Verificar se é colaborador e se tem role_type na empresa primária
       const { data: typeUserData } = await supabase
         .from('type_user')
         .select('cod')
@@ -100,7 +127,51 @@ const ChangePasswordPage: React.FC = () => {
       const cod = (typeUserData?.cod || '').toUpperCase();
       
       if (cod === 'COLABORADOR') {
-        navigate('/colaborador/agendamentos', { replace: true });
+        // Verificar se o colaborador tem role_type (primeiro na empresa primária, depois em qualquer empresa, depois na tabela collaborators)
+        // 1. Tentar buscar role_type na empresa primária
+        const { data: primaryCompanyData } = await supabase
+          .from('user_companies')
+          .select('role_type, company_id, is_primary')
+          .eq('user_id', session.user.id)
+          .eq('is_primary', true)
+          .maybeSingle();
+
+        let hasRoleType = primaryCompanyData?.role_type;
+
+        // 2. Se não encontrou empresa primária ou não tem role_type, buscar em qualquer empresa
+        if (!hasRoleType) {
+          const { data: anyCompanyData } = await supabase
+            .from('user_companies')
+            .select('role_type, company_id, is_primary')
+            .eq('user_id', session.user.id)
+            .not('role_type', 'is', null)
+            .limit(1)
+            .maybeSingle();
+          
+          hasRoleType = anyCompanyData?.role_type;
+        }
+
+        // 3. Se ainda não encontrou, verificar na tabela collaborators
+        if (!hasRoleType) {
+          const { data: collaboratorData } = await supabase
+            .from('collaborators')
+            .select('role_type_id, company_id')
+            .eq('user_id', session.user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          hasRoleType = !!collaboratorData?.role_type_id;
+        }
+
+        // 4. Decisão final baseada no que foi encontrado
+        if (hasRoleType) {
+          // Se tem role_type, redirecionar para dashboard
+          // O sistema de menus dinâmicos vai filtrar os menus baseado nas permissões
+          navigate('/dashboard', { replace: true });
+        } else {
+          // Se não tem role_type, é um colaborador básico - redirecionar para tela de agendamentos
+          navigate('/colaborador/agendamentos', { replace: true });
+        }
       } else {
         navigate('/dashboard', { replace: true });
       }
