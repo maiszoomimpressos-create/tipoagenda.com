@@ -7,7 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useIsClient } from '@/hooks/useIsClient';
-import { Check, X, DollarSign, Clock, Zap, Tag, AlertTriangle, Settings } from 'lucide-react';
+import { Check, X, DollarSign, Clock, Zap, Tag, AlertTriangle, Settings, HeadphonesIcon } from 'lucide-react';
 import { format, parseISO, addMonths, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +95,7 @@ const SubscriptionPlansPage: React.FC = () => {
           features: p.features,
           duration_months: p.duration_months,
         })) as Plan[];
-
+        
       // Buscar menus vinculados a cada plano
       const plansWithMenus = await Promise.all(
         activePlans.map(async (plan) => {
@@ -636,10 +636,7 @@ const SubscriptionPlansPage: React.FC = () => {
       <div className="flex flex-col gap-4 pt-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900">Escolha o Melhor Plano</h2>
-          <div className="flex items-center gap-3">
-            <span className={`text-sm font-medium ${billingPeriod === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
-              Mensal
-            </span>
+          <div className="flex items-center">
             <ToggleGroup 
               type="single" 
               value={billingPeriod} 
@@ -665,9 +662,6 @@ const SubscriptionPlansPage: React.FC = () => {
                 Anual
               </ToggleGroupItem>
             </ToggleGroup>
-            <span className={`text-sm font-medium ${billingPeriod === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
-              Anual
-            </span>
           </div>
         </div>
         {billingPeriod === 'yearly' && (
@@ -713,7 +707,7 @@ const SubscriptionPlansPage: React.FC = () => {
           
           // Calcular valor sem desconto anual para exibição
           const priceWithoutYearlyDiscount = billingPeriod === 'yearly' ? yearlyBasePrice : plan.price;
-          
+
           // Calculate discounted price for display
           let finalPrice = basePrice;
           let discountApplied = false;
@@ -778,15 +772,33 @@ const SubscriptionPlansPage: React.FC = () => {
                       </span>
                     )}
                   </p>
-                  {billingPeriod === 'monthly' && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      ou R$ {basePrice.toFixed(2).replace('.', ',')}/ano com <span className="font-semibold text-green-600">15% de desconto</span>
-                    </p>
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <p className="text-center text-gray-600">{plan.description}</p>
+                <div className="space-y-3">
+                  <p className="text-center text-gray-600">{plan.description}</p>
+                  
+                  {/* Badge de Suporte baseado no plano */}
+                  {(() => {
+                    const planName = plan.name.toLowerCase();
+                    if (planName.includes('platinum')) {
+                      return (
+                        <div className="flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                          <Clock className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-900">Suporte em horário comercial</span>
+                        </div>
+                      );
+                    } else if (planName.includes('full')) {
+                      return (
+                        <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                          <Zap className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-900">Suporte 24hrs</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
                 
                 {/* Exibir menus vinculados ao plano */}
                 {plan.menus && plan.menus.length > 0 ? (
@@ -806,14 +818,14 @@ const SubscriptionPlansPage: React.FC = () => {
                 ) : (
                   /* Fallback para features antigas se não houver menus */
                   plan.features && plan.features.length > 0 && (
-                    <ul className="space-y-2 text-sm text-gray-700">
+                <ul className="space-y-2 text-sm text-gray-700">
                       {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-500" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
+                    <li key={index} className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
                   )
                 )}
                 <Button

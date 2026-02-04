@@ -12,7 +12,7 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { CompanySelectionModal } from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag } from 'lucide-react'; // Adicionar Menu e CalendarDays
+import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag, Clock } from 'lucide-react'; // Adicionar Menu e CalendarDays
 import { Input } from '@/components/ui/input';
 import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
@@ -248,10 +248,7 @@ const LandingPage: React.FC = () => {
             </p>
             
             {/* Toggle Mensal/Anual */}
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <span className={`text-sm font-medium ${billingPeriod === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
-                Mensal
-              </span>
+            <div className="flex items-center justify-center mb-6">
               <ToggleGroup 
                 type="single" 
                 value={billingPeriod} 
@@ -277,9 +274,6 @@ const LandingPage: React.FC = () => {
                   Anual
                 </ToggleGroupItem>
               </ToggleGroup>
-              <span className={`text-sm font-medium ${billingPeriod === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
-                Anual
-              </span>
             </div>
             
             {/* Banner de desconto anual */}
@@ -358,15 +352,33 @@ const LandingPage: React.FC = () => {
                             </span>
                           )}
                         </p>
-                        {billingPeriod === 'monthly' && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            ou R$ {basePrice.toFixed(2).replace('.', ',')}/ano com <span className="font-semibold text-green-600">15% de desconto</span>
-                          </p>
-                        )}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      <p className="text-center text-gray-600">{plan.description}</p>
+                      <div className="space-y-3">
+                        <p className="text-center text-gray-600">{plan.description}</p>
+                        
+                        {/* Badge de Suporte baseado no plano */}
+                        {(() => {
+                          const planName = plan.name.toLowerCase();
+                          if (planName.includes('platinum')) {
+                            return (
+                              <div className="flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                                <Clock className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-900">Suporte em horário comercial</span>
+                              </div>
+                            );
+                          } else if (planName.includes('full')) {
+                            return (
+                              <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                <Zap className="h-4 w-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-900">Suporte 24hrs</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                       
                       {/* Exibir menus vinculados ao plano */}
                       {(() => {

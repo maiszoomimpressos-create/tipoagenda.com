@@ -126,7 +126,10 @@ const ChangePasswordPage: React.FC = () => {
 
       const cod = (typeUserData?.cod || '').toUpperCase();
       
-      if (cod === 'COLABORADOR') {
+      if (cod === 'CLIENTE') {
+        // Cliente deve ir para página de meus agendamentos
+        navigate('/meus-agendamentos', { replace: true });
+      } else if (cod === 'COLABORADOR') {
         // Verificar se o colaborador tem role_type (primeiro na empresa primária, depois em qualquer empresa, depois na tabela collaborators)
         // 1. Tentar buscar role_type na empresa primária
         const { data: primaryCompanyData } = await supabase
@@ -173,6 +176,7 @@ const ChangePasswordPage: React.FC = () => {
           navigate('/colaborador/agendamentos', { replace: true });
         }
       } else {
+        // Para outros tipos (PROPRIETARIO, ADMIN, etc), redirecionar para dashboard
         navigate('/dashboard', { replace: true });
       }
     } catch (error: any) {
