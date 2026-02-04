@@ -4,6 +4,7 @@
  * Este hook valida se o usuário possui vínculo válido em:
  * - user_companies (empresa vinculada)
  * - collaborators (se for colaborador)
+ * - clients (se for cliente)
  * 
  * Retorna metadados essenciais:
  * - company_id: ID da empresa primária
@@ -68,9 +69,44 @@ export function useUserValidation() {
         let isCollaborator = false;
         let collaboratorCompanyId: string | null = null;
         let collaboratorRoleTypeId: string | null = null;
+        let isClient = false;
+        let clientCompanyId: string | null = null;
 
-        // PRIORIDADE 1: Verificar se é colaborador (tabela collaborators)
-        // Colaboradores podem não estar em user_companies, então verificamos primeiro
+        // PRIORIDADE 1: Verificar se é cliente (tabela clients)
+        // Clientes podem não estar em user_companies, então verificamos primeiro
+        const { data: clientData, error: clientError } = await supabase
+          .from('clients')
+          .select('company_id')
+          .eq('client_auth_id', userId)
+          .limit(1)
+          .maybeSingle();
+
+        if (clientError) {
+          console.warn('[useUserValidation] Erro ao buscar client (não crítico):', clientError);
+        }
+
+        if (clientData) {
+          isClient = true;
+          clientCompanyId = clientData.company_id || null;
+          
+          console.log('[useUserValidation] ✅ Cliente encontrado:', {
+            company_id: clientCompanyId,
+            has_company_id: !!clientCompanyId
+          });
+
+          // Se encontrou cliente com company_id, usar esses dados
+          if (clientCompanyId) {
+            companyId = clientCompanyId;
+            console.log('[useUserValidation] ✅ Usando dados do client como principal');
+          } else {
+            console.warn('[useUserValidation] ⚠️ Cliente encontrado mas SEM company_id!');
+          }
+        } else {
+          console.log('[useUserValidation] Nenhum registro encontrado na tabela clients');
+        }
+
+        // PRIORIDADE 2: Verificar se é colaborador (tabela collaborators)
+        // Colaboradores podem não estar em user_companies, então verificamos depois de clientes
         const { data: collaboratorData, error: collaboratorError } = await supabase
           .from('collaborators')
           .select('company_id, role_type_id')
@@ -100,11 +136,14 @@ export function useUserValidation() {
             has_company_id: !!collaboratorCompanyId
           });
 
-          // Se encontrou colaborador com company_id, usar esses dados
-          if (collaboratorCompanyId) {
+          // Se encontrou colaborador com company_id e ainda não tem companyId, usar esses dados
+          if (!companyId && collaboratorCompanyId) {
             companyId = collaboratorCompanyId;
             roleTypeId = collaboratorRoleTypeId;
             console.log('[useUserValidation] ✅ Usando dados do collaborator como principal');
+          } else if (collaboratorCompanyId) {
+            // Se já tem companyId de client, manter, mas logar que também é colaborador
+            console.log('[useUserValidation] ✅ Usuário é tanto cliente quanto colaborador');
           } else {
             console.warn('[useUserValidation] ⚠️ Colaborador encontrado mas SEM company_id!');
           }
@@ -112,7 +151,7 @@ export function useUserValidation() {
           console.log('[useUserValidation] Nenhum registro encontrado na tabela collaborators');
         }
 
-        // PRIORIDADE 2: Verificar vínculo em user_companies (se não encontrou em collaborators ou para complementar)
+        // PRIORIDADE 3: Verificar vínculo em user_companies (se não encontrou em clients/collaborators ou para complementar)
         // Buscar empresa primária primeiro
         const { data: primaryCompanyData, error: primaryCompanyError } = await supabase
           .from('user_companies')
@@ -160,26 +199,30 @@ export function useUserValidation() {
           }
         }
 
-        // 3. Verificar se possui vínculo válido
+        // 4. Verificar se possui vínculo válido
         // TEM vínculo válido se:
-        // - Tem company_id (de qualquer fonte: collaborators OU user_companies)
-        // - OU é colaborador com company_id na tabela collaborators (mesmo que companyId ainda seja null)
+        // - Tem company_id (de qualquer fonte: clients, collaborators OU user_companies)
+        // - OU é cliente com company_id na tabela clients
+        // - OU é colaborador com company_id na tabela collaborators
         const hasValidLink = !!(
           companyId || 
+          clientCompanyId ||
           collaboratorCompanyId
         );
 
         console.log('[useUserValidation] Resultado da validação:', {
           hasValidLink,
           companyId,
+          isClient,
           isCollaborator,
+          clientCompanyId,
           collaboratorCompanyId,
           collaboratorRoleTypeId,
           roleTypeId,
-          fonte: companyId === collaboratorCompanyId ? 'collaborator' : companyId ? 'user_companies' : 'nenhuma'
+          fonte: companyId === clientCompanyId ? 'client' : companyId === collaboratorCompanyId ? 'collaborator' : companyId ? 'user_companies' : 'nenhuma'
         });
 
-        // 4. Buscar subscription_id se tiver company_id
+        // 5. Buscar subscription_id se tiver company_id
         let subscriptionId: string | null = null;
         if (companyId) {
           const { data: subscriptionData, error: subscriptionError } = await supabase

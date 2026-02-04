@@ -11,19 +11,38 @@ serve(async (req) => {
   }
 
   try {
-    const { email, firstName, lastName, temporaryPassword, loginUrl } = await req.json();
+    const body = await req.json();
+    const { email, firstName, lastName, temporaryPassword, loginUrl, userType } = body;
+
+    console.log('Edge Function Debug (send-collaborator-welcome-email): Payload recebido:', body);
 
     if (!email || !firstName || !temporaryPassword || !loginUrl) {
+      console.error('Edge Function Error (send-collaborator-welcome-email): Dados obrigatórios faltando:', {
+        hasEmail: !!email,
+        hasFirstName: !!firstName,
+        hasTemporaryPassword: !!temporaryPassword,
+        hasLoginUrl: !!loginUrl,
+      });
       return new Response(JSON.stringify({ error: 'Missing required data for email' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Tipo de usuário: 'cliente' ou 'colaborador' (padrão)
+    const isClient = userType === 'cliente' || userType === 'CLIENTE';
+    const userTypeText = isClient ? 'cliente' : 'colaborador';
+
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 
+    console.log('Edge Function Debug (send-collaborator-welcome-email): userType resolvido:', {
+      rawUserType: userType,
+      isClient,
+      userTypeText,
+    });
+
     if (!RESEND_API_KEY) {
-      console.warn('RESEND_API_KEY não configurada. Email não será enviado.');
+      console.warn('Edge Function Warning (send-collaborator-welcome-email): RESEND_API_KEY não configurada. Email não será enviado.');
       return new Response(JSON.stringify({ 
         success: false, 
         message: 'Email service not configured' 
@@ -50,7 +69,7 @@ serve(async (req) => {
         <div class="container">
           <h2>Bem-vindo ao TipoAgenda!</h2>
           <p>Olá ${firstName} ${lastName},</p>
-          <p>Você foi cadastrado como colaborador no sistema TipoAgenda. Utilize as credenciais abaixo para acessar o sistema:</p>
+          <p>Você foi cadastrado como ${userTypeText} no sistema TipoAgenda. Utilize as credenciais abaixo para acessar o sistema:</p>
           
           <div class="credentials">
             <p><strong>E-mail:</strong> ${email}</p>
@@ -73,6 +92,8 @@ serve(async (req) => {
       </html>
     `;
 
+    console.log('Edge Function Debug (send-collaborator-welcome-email): Enviando email via Resend para:', email);
+
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -89,8 +110,13 @@ serve(async (req) => {
 
     const resendData = await resendResponse.json();
 
+    console.log('Edge Function Debug (send-collaborator-welcome-email): Resend response status/ok:', {
+      status: resendResponse.status,
+      ok: resendResponse.ok,
+    });
+
     if (resendResponse.ok) {
-      console.log('Email de boas-vindas enviado com sucesso via Resend API para:', email);
+      console.log('Edge Function Debug (send-collaborator-welcome-email): Email de boas-vindas enviado com sucesso via Resend API para:', email);
       return new Response(JSON.stringify({ 
         success: true, 
         message: 'Email sent successfully' 
@@ -99,10 +125,10 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } else {
-      console.error('Resend API error:', resendData);
+      console.error('Edge Function Error (send-collaborator-welcome-email): Resend API error:', resendData);
       
       if (resendData.statusCode === 403 && resendData.message?.includes('testing emails')) {
-        console.warn('Resend está em modo de teste. Você só pode enviar emails para o email da sua conta do Resend.');
+        console.warn('Edge Function Warning (send-collaborator-welcome-email): Resend está em modo de teste. Você só pode enviar emails para o email da sua conta do Resend.');
       }
       
       return new Response(JSON.stringify({ 

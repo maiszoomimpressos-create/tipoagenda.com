@@ -135,7 +135,7 @@ const MainApplication: React.FC = () => {
         // Se o path já tem um ID mas não é o companyId correto, substituir
         const pathMatch = item.path?.match(/^\/agendamentos\/([^/]+)/);
         if (pathMatch) {
-          return { ...item, path: `/agendamentos/${primaryCompanyId}` };
+        return { ...item, path: `/agendamentos/${primaryCompanyId}` };
         }
       }
       return item;
@@ -249,21 +249,21 @@ const MainApplication: React.FC = () => {
                                    location.pathname.startsWith(item.path + '/');
                   
                   return (
-                    <li key={item.id}>
-                      <Link
-                        to={item.path}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                  <li key={item.id}>
+                    <Link
+                      to={item.path}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
                           isActive
-                            ? 'bg-yellow-600 text-black'
-                            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                        }`}
-                      >
-                        <i className={`${item.icon} text-lg`}></i>
-                        {!sidebarCollapsed && (
-                          <span className="font-medium">{item.label}</span>
-                        )}
-                      </Link>
-                    </li>
+                          ? 'bg-yellow-600 text-black'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <i className={`${item.icon} text-lg`}></i>
+                      {!sidebarCollapsed && (
+                        <span className="font-medium">{item.label}</span>
+                      )}
+                    </Link>
+                  </li>
                   );
                 })}
                 {!loadingClientCheck && isClient && (

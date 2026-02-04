@@ -208,7 +208,14 @@ const NovoClientePage: React.FC = () => {
         throw new Error(edgeFunctionErrorMessage);
       }
 
-      showSuccess('Cliente cadastrado e e-mail de convite enviado com sucesso!');
+      // Verificar se o email foi enviado
+      const responseData = response.data;
+      if (responseData?.emailSent) {
+        showSuccess('Cliente cadastrado e e-mail de convite enviado com sucesso!');
+      } else {
+        showError(`Cliente cadastrado, mas o e-mail não foi enviado. ${responseData?.emailError || 'Verifique os logs.'}`);
+      }
+      
       navigate('/clientes');
     } catch (error: any) {
       console.error('Erro ao cadastrar cliente:', error);
