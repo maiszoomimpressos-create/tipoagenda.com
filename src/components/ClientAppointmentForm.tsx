@@ -53,8 +53,7 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
   const [clientContext, setClientContext] = useState<{ clientId: string; clientName: string } | null>(null);
   // const [targetCompanyId, setTargetCompanyIdState] = useState<string | null>(null); // REMOVIDO: companyId vem da prop
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [services, setServices] = useState<Service[]>([]); // Serviços do colaborador selecionado
-  const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
+  const [services, setServices] = useState<Service[]>([]); // Serviços disponíveis para o agendamento
   const [loadingData, setLoadingData] = useState(true); // For initial data fetch
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
@@ -165,17 +164,35 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
       }
       // Não precisamos setar targetCompanyIdState pois usamos a prop companyId diretamente.
 
-      // 3. Fetch Collaborators for the selected company
+      // 3. Fetch Collaborators for the selected company - apenas profissionais com função "Colaborador"
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
-        .select('id, first_name, last_name')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          role_type_id,
+          role_types(description)
+        `)
         .eq('company_id', companyId)
         .eq('status', 'Ativo')
         .order('first_name', { ascending: true });
 
       if (collaboratorsError) throw collaboratorsError;
-      setCollaborators(collaboratorsData);
-      console.log('ClientAppointmentForm: Fetched collaborators count:', collaboratorsData.length); // LOG ADDED
+
+      const professionalCollaborators = (collaboratorsData || []).filter((col: any) => {
+        const roleDescription = (col.role_types as { description?: string } | null)?.description || '';
+        return roleDescription.toLowerCase().includes('colaborador');
+      });
+
+      const mappedCollaborators = professionalCollaborators.map((col: any) => ({
+        id: col.id,
+        first_name: col.first_name,
+        last_name: col.last_name,
+      }));
+
+      setCollaborators(mappedCollaborators);
+      console.log('ClientAppointmentForm: Fetched collaborators count (filtered by role=Colaborador):', mappedCollaborators.length); // LOG ADDED
 
       // 4. Services serão carregados apenas quando um colaborador for selecionado
       // Não carregamos todos os serviços aqui para evitar lista grande
@@ -196,62 +213,45 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Carrega serviços permitidos para o colaborador selecionado
+  // Carrega serviços disponíveis para o colaborador selecionado (para cliente: todos os serviços ativos da empresa)
   useEffect(() => {
     const loadAllowed = async () => {
       if (!selectedCollaboratorId || !companyId) {
-        setAllowedServiceIds([]);
         setServices([]);
         setValue('serviceIds', [], { shouldValidate: true });
         return;
       }
 
-      // Busca os IDs dos serviços permitidos
-      const { data: collaboratorServicesData, error: collaboratorServicesError } = await supabase
-        .from('collaborator_services')
-        .select('service_id')
-        .eq('company_id', companyId)
-        .eq('collaborator_id', selectedCollaboratorId)
-        .eq('active', true);
-
-      if (collaboratorServicesError) {
-        console.error('Erro ao carregar serviços permitidos:', collaboratorServicesError);
-        showError('Erro ao carregar serviços permitidos para o colaborador.');
-        setAllowedServiceIds([]);
-        setServices([]);
-        setValue('serviceIds', [], { shouldValidate: true });
-        return;
-      }
-
-      const ids = (collaboratorServicesData || []).map((d: any) => d.service_id);
-      setAllowedServiceIds(ids);
-
-      // Agora busca os detalhes dos serviços (apenas os permitidos para este colaborador)
-      if (ids.length > 0) {
+      try {
         const { data: servicesData, error: servicesError } = await supabase
           .from('services')
           .select('id, name, price, duration_minutes')
           .eq('company_id', companyId)
           .eq('status', 'Ativo')
-          .in('id', ids)
           .order('name', { ascending: true });
 
         if (servicesError) {
-          console.error('Erro ao carregar detalhes dos serviços:', servicesError);
-          showError('Erro ao carregar detalhes dos serviços.');
+          console.error('Erro ao carregar serviços para agendamento do cliente:', servicesError);
+          showError('Erro ao carregar serviços disponíveis.');
           setServices([]);
-        } else {
-          setServices(servicesData || []);
+          setValue('serviceIds', [], { shouldValidate: true });
+          return;
         }
-      } else {
-        setServices([]);
-      }
 
-      // Limpa serviços selecionados que não estão mais permitidos
-      const currentServiceIds = getValues('serviceIds');
-      const filteredServiceIds = currentServiceIds.filter((id) => ids.includes(id));
-      if (filteredServiceIds.length !== currentServiceIds.length) {
-        setValue('serviceIds', filteredServiceIds, { shouldValidate: true });
+        setServices(servicesData || []);
+
+        // Limpa serviços selecionados que não existem mais
+        const currentServiceIds = getValues('serviceIds');
+        const validIds = new Set((servicesData || []).map((s: any) => s.id));
+        const filteredServiceIds = currentServiceIds.filter((id) => validIds.has(id));
+        if (filteredServiceIds.length !== currentServiceIds.length) {
+          setValue('serviceIds', filteredServiceIds, { shouldValidate: true });
+        }
+      } catch (err: any) {
+        console.error('Erro inesperado ao carregar serviços para agendamento do cliente:', err);
+        showError('Erro ao carregar serviços disponíveis.');
+        setServices([]);
+        setValue('serviceIds', [], { shouldValidate: true });
       }
     };
     loadAllowed();
@@ -513,7 +513,7 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
                     </SelectTrigger>
                     <SelectContent>
                       {collaborators.length === 0 ? (
-                        <SelectItem value="no-collaborators" disabled>Nenhum colaborador disponível.</SelectItem>
+                        <SelectItem value="no-collaborators" disabled>Nenhum profissional disponível.</SelectItem>
                       ) : (
                         collaborators.map((collab) => (
                           <SelectItem key={collab.id} value={collab.id}>
@@ -595,8 +595,8 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
                 {!selectedCollaboratorId && (
                   <p className="text-sm text-gray-600 mt-2">Selecione um colaborador para ver os serviços.</p>
                 )}
-                {selectedCollaboratorId && services.length === 0 && allowedServiceIds.length === 0 && (
-                  <p className="text-sm text-red-500 mt-2">Nenhum serviço permitido para este colaborador.</p>
+                {selectedCollaboratorId && services.length === 0 && (
+                  <p className="text-sm text-red-500 mt-2">Nenhum serviço disponível para esta empresa.</p>
                 )}
                 {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
                 {totalDurationMinutes > 0 && (

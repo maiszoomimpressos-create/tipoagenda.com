@@ -65,7 +65,6 @@ const GuestAppointmentPage: React.FC = () => {
   const [guestPhone, setGuestPhone] = useState('');
   const [services, setServices] = useState<Service[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [allowedServiceIds, setAllowedServiceIds] = useState<string[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -99,7 +98,13 @@ const GuestAppointmentPage: React.FC = () => {
 
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
-        .select('id, first_name, last_name')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          role_type_id,
+          role_types(description)
+        `)
         .eq('company_id', companyId)
         .eq('is_active', true);
 
@@ -107,8 +112,21 @@ const GuestAppointmentPage: React.FC = () => {
         console.error('fetchServicesAndCollaborators: Error fetching collaborators:', collaboratorsError); // ADDED LOG
         throw collaboratorsError;
       }
-      console.log('fetchServicesAndCollaborators: Fetched collaboratorsData:', collaboratorsData); // ADDED LOG
-      setCollaborators(collaboratorsData as Collaborator[]);
+      console.log('fetchServicesAndCollaborators: Fetched collaboratorsData (raw):', collaboratorsData); // ADDED LOG
+
+      const professionalCollaborators = (collaboratorsData || []).filter((col: any) => {
+        const roleDescription = (col.role_types as { description?: string } | null)?.description || '';
+        return roleDescription.toLowerCase().includes('colaborador');
+      });
+
+      const mappedCollaborators: Collaborator[] = professionalCollaborators.map((col: any) => ({
+        id: col.id,
+        first_name: col.first_name,
+        last_name: col.last_name,
+      }));
+
+      console.log('fetchServicesAndCollaborators: Fetched collaboratorsData (filtered by role=Colaborador):', mappedCollaborators); // ADDED LOG
+      setCollaborators(mappedCollaborators);
 
     } catch (error: any) {
       showError('Erro ao carregar serviços ou colaboradores: ' + error.message);
@@ -130,6 +148,12 @@ const GuestAppointmentPage: React.FC = () => {
 
   const fetchAvailableTimes = useCallback(async () => {
     if (!companyId || !selectedServiceId || !selectedDate || !selectedCollaboratorId) {
+      console.log('GuestAppointmentPage.fetchAvailableTimes: pré-condições não atendidas', {
+        companyId,
+        selectedServiceId,
+        selectedDate,
+        selectedCollaboratorId,
+      });
       setAvailableTimes([]);
       return;
     }
@@ -138,6 +162,12 @@ const GuestAppointmentPage: React.FC = () => {
     setSelectedTime(null);
     try {
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+      console.log('GuestAppointmentPage.fetchAvailableTimes: buscando horários com parâmetros:', {
+        companyId,
+        selectedServiceId,
+        selectedCollaboratorId,
+        formattedDate,
+      });
       const service = services.find(s => s.id === selectedServiceId);
 
       if (!service) {
@@ -194,30 +224,6 @@ const GuestAppointmentPage: React.FC = () => {
     setSelectedTime(null);
     setAvailableTimes([]);
   };
-
-  // Carrega serviços permitidos para o colaborador selecionado (ou todos se "any")
-  useEffect(() => {
-    const loadAllowed = async () => {
-      if (!selectedCollaboratorId || selectedCollaboratorId === "any") {
-        setAllowedServiceIds([]);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('collaborator_services')
-        .select('service_id')
-        .eq('company_id', companyId)
-        .eq('collaborator_id', selectedCollaboratorId)
-        .eq('active', true);
-      if (error) {
-        console.error('Erro ao carregar serviços permitidos:', error);
-        showError('Erro ao carregar serviços permitidos para o colaborador.');
-        setAllowedServiceIds([]);
-        return;
-      }
-      setAllowedServiceIds((data || []).map((d: any) => d.service_id));
-    };
-    loadAllowed();
-  }, [selectedCollaboratorId, services, companyId]);
 
   const handleDateSelect = (date: Date | undefined) => {
     const today = startOfDay(new Date());
@@ -355,7 +361,7 @@ const GuestAppointmentPage: React.FC = () => {
             </SelectContent>
           </Select>
           {collaborators.length === 0 && !loading && (
-            <p className="text-sm text-gray-500 mt-2">Nenhum colaborador ativo encontrado para esta empresa.</p>
+            <p className="text-sm text-gray-500 mt-2">Nenhum profissional disponível para esta empresa.</p>
           )}
         </div>
 
@@ -365,25 +371,18 @@ const GuestAppointmentPage: React.FC = () => {
           <Select 
             onValueChange={handleServiceChange} 
             value={selectedServiceId || ""} 
-            disabled={isSubmitting || services.length === 0 || !selectedCollaboratorId || (selectedCollaboratorId && allowedServiceIds.length === 0)}
+            disabled={isSubmitting || services.length === 0 || !selectedCollaboratorId}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione um serviço" />
             </SelectTrigger>
             <SelectContent>
-              {services
-                .filter(service => allowedServiceIds.includes(service.id))
-                .map(service => (
-                  <SelectItem key={service.id} value={service.id}>
-                    {service.name} (R$ {service.price.toFixed(2)}) ({service.duration_minutes} min)
-                  </SelectItem>
-                ))}
-              {selectedCollaboratorId && allowedServiceIds.length === 0 && ( // Mensagem se nenhum serviço permitido
-                <SelectItem value="no-allowed" disabled>
-                  Nenhum serviço permitido para este colaborador.
+              {services.map(service => (
+                <SelectItem key={service.id} value={service.id}>
+                  {service.name} (R$ {service.price.toFixed(2)}) ({service.duration_minutes} min)
                 </SelectItem>
-              )}
-               {!selectedCollaboratorId && ( // Mensagem se nenhum colaborador selecionado
+              ))}
+              {!selectedCollaboratorId && (
                 <SelectItem value="select-collaborator" disabled>
                   Selecione um colaborador primeiro
                 </SelectItem>
@@ -393,7 +392,7 @@ const GuestAppointmentPage: React.FC = () => {
           {services.length === 0 && !loading && (
             <p className="text-sm text-red-500 mt-2">Nenhum serviço ativo encontrado para esta empresa.</p>
           )}
-          {selectedCollaboratorId && !selectedServiceId && allowedServiceIds.length > 0 && (
+          {selectedCollaboratorId && !selectedServiceId && services.length > 0 && (
             <p className="text-sm text-gray-600 mt-2">Selecione um serviço para continuar.</p>
           )}
            {!selectedCollaboratorId && (
