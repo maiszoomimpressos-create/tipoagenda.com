@@ -116,15 +116,33 @@ const NovoAgendamentoPage: React.FC = () => {
       if (clientsError) throw clientsError;
       setClients(clientsData);
 
-      // Fetch Collaborators
+      // Fetch Collaborators - apenas profissionais com função "Colaborador"
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
-        .select('id, first_name, last_name')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          role_type_id,
+          role_types(description)
+        `)
         .eq('company_id', currentCompanyId)
         .order('first_name', { ascending: true });
 
       if (collaboratorsError) throw collaboratorsError;
-      setCollaborators(collaboratorsData);
+
+      const professionalCollaborators = (collaboratorsData || []).filter((col: any) => {
+        const roleDescription = (col.role_types as { description?: string } | null)?.description || '';
+        return roleDescription.toLowerCase().includes('colaborador');
+      });
+
+      setCollaborators(
+        professionalCollaborators.map((col: any) => ({
+          id: col.id,
+          first_name: col.first_name,
+          last_name: col.last_name,
+        }))
+      );
 
       // Fetch Services
       const { data: servicesData, error: servicesError } = await supabase
@@ -427,7 +445,7 @@ const NovoAgendamentoPage: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {collaborators.length === 0 ? (
-                        <SelectItem value="no-collaborators" disabled>Nenhum colaborador disponível.</SelectItem>
+                        <SelectItem value="no-collaborators" disabled>Nenhum profissional disponível.</SelectItem>
                       ) : (
                         collaborators.map((collab) => (
                           <SelectItem key={collab.id} value={collab.id}>

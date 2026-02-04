@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { PlusCircle, MinusCircle, Package } from 'lucide-react';
+import { useMenuItems } from '@/hooks/useMenuItems';
 
 interface Product {
   id: string;
@@ -64,6 +65,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onCheckoutComplete,
 }) => {
   const { session } = useSession();
+  const { menuItems } = useMenuItems();
   const [loading, setLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(true);
   const [appointmentDetails, setAppointmentDetails] = useState<AppointmentDetails | null>(null);
@@ -72,6 +74,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [observations, setObservations] = useState('');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+  // Verifica se o usuário/empresa tem acesso ao menu de produtos/estoque
+  const hasProductMenuAccess = menuItems.some(
+    (menu) => menu.menu_key === 'estoque' || menu.path === '/estoque'
+  );
 
   const fetchDetails = useCallback(async () => {
     if (!appointmentId || !companyId) return;
@@ -444,60 +451,62 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           </div>
 
-          {/* Adicionar Produtos */}
-          <div className="space-y-3 border-b pb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Produtos Adicionais</h3>
-            <div className="flex gap-2">
-              <Select onValueChange={setSelectedProductId} value={selectedProductId || ''}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Adicionar Produto (Estoque: > 0)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableProducts.length === 0 ? (
-                    <SelectItem value="no-stock" disabled>Nenhum produto em estoque.</SelectItem>
-                  ) : (
-                    availableProducts.map(p => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} (R$ {p.price.toFixed(2).replace('.', ',')} | Estoque: {p.quantity})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <Button type="button" onClick={handleAddProduct} disabled={!selectedProductId} className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
-                <PlusCircle className="h-4 w-4" />
-              </Button>
-            </div>
+          {/* Adicionar Produtos - visível apenas se a empresa/usuário tiver acesso ao menu de estoque/produtos */}
+          {hasProductMenuAccess && (
+            <div className="space-y-3 border-b pb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Produtos Adicionais</h3>
+              <div className="flex gap-2">
+                <Select onValueChange={setSelectedProductId} value={selectedProductId || ''}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Adicionar Produto (Estoque: > 0)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProducts.length === 0 ? (
+                      <SelectItem value="no-stock" disabled>Nenhum produto em estoque.</SelectItem>
+                    ) : (
+                      availableProducts.map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} (R$ {p.price.toFixed(2).replace('.', ',')} | Estoque: {p.quantity})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button type="button" onClick={handleAddProduct} disabled={!selectedProductId} className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black">
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+              </div>
 
-            {/* Lista de Produtos Vendidos */}
-            <div className="space-y-2 pt-2">
-              {productsSold.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm font-medium">{p.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-600">R$ {p.unit_price.toFixed(2).replace('.', ',')}</span>
-                    <div className="flex items-center border rounded-md">
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateProductQuantity(p.id, -1)}>
-                        <MinusCircle className="h-4 w-4" />
-                      </Button>
-                      <span className="text-sm font-semibold w-6 text-center">{p.quantity}</span>
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateProductQuantity(p.id, 1)}>
-                        <PlusCircle className="h-4 w-4" />
-                      </Button>
+              {/* Lista de Produtos Vendidos */}
+              <div className="space-y-2 pt-2">
+                {productsSold.map(p => (
+                  <div key={p.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium">{p.name}</span>
                     </div>
-                    <span className="font-bold text-gray-900 w-16 text-right">R$ {(p.unit_price * p.quantity).toFixed(2).replace('.', ',')}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-600">R$ {p.unit_price.toFixed(2).replace('.', ',')}</span>
+                      <div className="flex items-center border rounded-md">
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateProductQuantity(p.id, -1)}>
+                          <MinusCircle className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm font-semibold w-6 text-center">{p.quantity}</span>
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateProductQuantity(p.id, 1)}>
+                          <PlusCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <span className="font-bold text-gray-900 w-16 text-right">R$ {(p.unit_price * p.quantity).toFixed(2).replace('.', ',')}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className="flex justify-between font-bold pt-2 border-t">
+                <span>Total Produtos:</span>
+                <span>R$ {totalProductsPrice.toFixed(2).replace('.', ',')}</span>
+              </div>
             </div>
-            <div className="flex justify-between font-bold pt-2 border-t">
-              <span>Total Produtos:</span>
-              <span>R$ {totalProductsPrice.toFixed(2).replace('.', ',')}</span>
-            </div>
-          </div>
+          )}
 
           {/* Resumo e Pagamento */}
           <div className="space-y-4">
