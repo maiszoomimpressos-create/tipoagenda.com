@@ -60,7 +60,7 @@ const SubscriptionPlansPage: React.FC = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [couponCode, setCouponCode] = useState(''); // Novo estado para o cupom
   const [couponValidationMessage, setCouponValidationMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number } | null>(null);
+  const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number, plan_id: string | null } | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Novo estado para o modal de cancelamento
   const [cancelling, setCancelling] = useState(false); // Novo estado para o loading do cancelamento
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly'); // Estado para período de cobrança
@@ -242,7 +242,7 @@ const SubscriptionPlansPage: React.FC = () => {
       // 1. Check if coupon exists and is active
       const { data: couponData, error: couponError } = await supabase
         .from('admin_coupons')
-        .select('id, discount_type, discount_value, valid_until, max_uses, current_uses, status')
+        .select('id, discount_type, discount_value, valid_until, max_uses, current_uses, status, plan_id')
         .eq('code', couponCode.toUpperCase())
         .single();
 
@@ -276,13 +276,19 @@ const SubscriptionPlansPage: React.FC = () => {
         throw new Error('Esta empresa já utilizou este cupom.');
       }
 
-      // Success!
+      // Success! Armazenar também o plan_id do cupom para validação posterior
       setValidatedCoupon({
         id: couponData.id,
         discount_type: couponData.discount_type,
         discount_value: couponData.discount_value,
+        plan_id: couponData.plan_id || null, // Adicionar plan_id ao validatedCoupon
       });
-      setCouponValidationMessage({ type: 'success', message: `Cupom '${couponCode.toUpperCase()}' aplicado! Você receberá ${couponData.discount_type === 'percentual' ? `${couponData.discount_value}%` : `R$ ${couponData.discount_value.toFixed(2).replace('.', ',')}`} de desconto e 30 dias grátis.` });
+      
+      const planRestriction = couponData.plan_id 
+        ? ' (válido apenas para o plano específico)' 
+        : ' (válido para todos os planos)';
+      
+      setCouponValidationMessage({ type: 'success', message: `Cupom '${couponCode.toUpperCase()}' aplicado!${planRestriction} Você receberá ${couponData.discount_type === 'percentual' ? `${couponData.discount_value}%` : `R$ ${couponData.discount_value.toFixed(2).replace('.', ',')}`} de desconto e 30 dias grátis.` });
 
     } catch (error: any) {
       setCouponValidationMessage({ type: 'error', message: error.message });
@@ -311,6 +317,15 @@ const SubscriptionPlansPage: React.FC = () => {
 
     setLoadingData(true);
     try {
+        // VALIDAÇÃO: Verificar se o cupom é válido para o plano selecionado
+        if (validatedCoupon && validatedCoupon.plan_id) {
+          if (validatedCoupon.plan_id !== plan.id) {
+            showError(`Este cupom é válido apenas para um plano específico. Por favor, selecione o plano correto ou remova o cupom.`);
+            setLoadingData(false);
+            return;
+          }
+        }
+
         // Calcular preço base baseado no período selecionado
         // Para plano anual: aplicar desconto de 15% sobre o valor anual (12 meses)
         const yearlyBasePrice = plan.price * 12;

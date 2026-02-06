@@ -99,7 +99,7 @@ export function useUserValidation() {
             companyId = clientCompanyId;
             console.log('[useUserValidation] ✅ Usando dados do client como principal');
           } else {
-            console.warn('[useUserValidation] ⚠️ Cliente encontrado mas SEM company_id!');
+            console.log('[useUserValidation] ✅ Cliente público encontrado (sem company_id fixo - pode agendar em qualquer empresa)');
           }
         } else {
           console.log('[useUserValidation] Nenhum registro encontrado na tabela clients');
@@ -202,12 +202,13 @@ export function useUserValidation() {
         // 4. Verificar se possui vínculo válido
         // TEM vínculo válido se:
         // - Tem company_id (de qualquer fonte: clients, collaborators OU user_companies)
-        // - OU é cliente com company_id na tabela clients
+        // - OU é cliente (existe na tabela clients, mesmo sem company_id - clientes públicos podem agendar em qualquer empresa)
         // - OU é colaborador com company_id na tabela collaborators
         const hasValidLink = !!(
           companyId || 
           clientCompanyId ||
-          collaboratorCompanyId
+          collaboratorCompanyId ||
+          isClient // Clientes públicos (signup) podem não ter company_id, mas ainda têm acesso válido
         );
 
         console.log('[useUserValidation] Resultado da validação:', {
@@ -219,7 +220,7 @@ export function useUserValidation() {
           collaboratorCompanyId,
           collaboratorRoleTypeId,
           roleTypeId,
-          fonte: companyId === clientCompanyId ? 'client' : companyId === collaboratorCompanyId ? 'collaborator' : companyId ? 'user_companies' : 'nenhuma'
+          fonte: companyId === clientCompanyId ? 'client' : companyId === collaboratorCompanyId ? 'collaborator' : companyId ? 'user_companies' : isClient ? 'client_publico' : 'nenhuma'
         });
 
         // 5. Buscar subscription_id se tiver company_id

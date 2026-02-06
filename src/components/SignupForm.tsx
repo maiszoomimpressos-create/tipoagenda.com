@@ -47,75 +47,43 @@ const SignupForm: React.FC = () => {
     const { email, password, firstName, lastName } = data;
 
     try {
-      // 1. Realizar o cadastro do usuário no Supabase Auth
-      const siteUrl = window.location.origin;
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-          },
-          emailRedirectTo: `${siteUrl}/meus-agendamentos`, // Redirecionar cliente para meus agendamentos após confirmar email
+      // Chamar Edge Function signup-client (mesma rotina de invite-client)
+      const response = await supabase.functions.invoke('signup-client', {
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          password,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
         },
       });
 
-      if (signUpError) {
-        console.error("Erro no cadastro:", signUpError);
-        showError(signUpError.message);
-        setLoading(false);
-        return;
-      }
-
-      // Se o usuário foi criado (mesmo que precise de confirmação por e-mail)
-      if (authData.user) {
-        const newUser = authData.user;
-        const targetCompanyId = getTargetCompanyId(); // Still get it to clear it later
-
-        // 2. Criar o registro na tabela 'clients' para o novo usuário
-        try {
-          const { error: clientInsertError } = await supabase
-            .from('clients')
-            .insert({
-              client_auth_id: newUser.id,
-              user_id: newUser.id, // Definir user_id como o ID do próprio cliente para auto-cadastro
-              name: `${firstName} ${lastName}`,
-              phone: newUser.user_metadata.phone_number || '00000000000', // Usar placeholder se não houver
-              email: newUser.email || email,
-              birth_date: newUser.user_metadata.birth_date || '1900-01-01', // Usar placeholder
-              zip_code: '00000000', // Placeholder
-              state: 'XX', // Placeholder
-              city: 'N/A', // Placeholder
-              address: 'N/A', // Placeholder
-              number: '0', // Placeholder
-              neighborhood: 'N/A', // Placeholder
-              company_id: null, // Clients are not tied to a single company in 'clients' table
-            });
-
-          if (clientInsertError) {
-            console.error("Erro ao inserir cliente na tabela clients:", clientInsertError);
-            throw clientInsertError;
-          }
-
-          // REMOVIDO: Inserção na tabela user_companies com CLIENTE_ROLE_ID.
-          // Um cliente não é um 'membro' de uma empresa no mesmo sentido que um colaborador.
-          // A associação cliente-empresa para agendamentos é feita na tabela 'appointments'.
-          // O tipo de usuário 'CLIENTE' já é definido pelo trigger handle_new_user.
-
-          showSuccess('Cadastro realizado com sucesso! Verifique seu e-mail para confirmar.');
-          clearTargetCompanyId(); // Limpar o ID da empresa alvo após o uso
-        } catch (clientCreationError: any) {
-          console.error("Erro ao criar registro de cliente:", clientCreationError);
-          showError('Cadastro realizado, mas houve um erro ao criar seu perfil de cliente: ' + clientCreationError.message);
+      if (response.error) {
+        // Extract the specific error message from the Edge Function's response
+        let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
+        if (response.error.context && response.error.context.data && response.error.context.data.error) {
+          edgeFunctionErrorMessage = response.error.context.data.error;
+        } else if (response.error.message) {
+          edgeFunctionErrorMessage = response.error.message;
         }
-      } else {
-        showError('Não foi possível completar o cadastro. Verifique se o e-mail já está em uso.');
+        throw new Error(edgeFunctionErrorMessage);
       }
+
+      // Verificar se o email foi enviado
+      const responseData = response.data;
+      if (responseData?.emailSent) {
+        showSuccess('Cadastro realizado com sucesso! Email de confirmação foi enviado.');
+      } else {
+        showError(`Cadastro realizado, mas o e-mail não foi enviado. ${responseData?.emailError || 'Verifique os logs.'}`);
+      }
+
+      clearTargetCompanyId(); // Limpar o ID da empresa alvo após o uso
 
     } catch (error: any) {
       console.error("Erro inesperado no cadastro:", error);
-      showError('Erro inesperado: ' + error.message);
+      showError('Erro ao realizar cadastro: ' + (error.message || 'Erro desconhecido.'));
     } finally {
       setLoading(false);
     }

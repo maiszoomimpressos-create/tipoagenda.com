@@ -49,6 +49,7 @@ const adminCouponSchema = z.object({
   status: z.enum(['active', 'inactive', 'expired'], {
     errorMap: () => ({ message: "O status é obrigatório." })
   }),
+  plan_id: z.string().uuid().nullable().optional(),
 });
 
 type AdminCouponFormValues = z.infer<typeof adminCouponSchema>;
@@ -62,6 +63,7 @@ interface AdminCoupon {
   max_uses: number;
   current_uses: number;
   status: 'active' | 'inactive' | 'expired';
+  plan_id: string | null;
 }
 
 interface AdminCouponFormModalProps {
@@ -79,6 +81,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
 }) => {
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [availablePlans, setAvailablePlans] = useState<{ id: string; name: string }[]>([]);
 
   const {
     register,
@@ -96,12 +99,37 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
       valid_until: '',
       max_uses: 1,
       status: 'active',
+      plan_id: null,
     },
   });
 
   const discountTypeValue = watch('discount_type');
   const statusValue = watch('status');
   const codeValue = watch('code'); // Watch code value for input display
+  const planIdValue = watch('plan_id');
+
+  // Carregar planos disponíveis quando o modal abrir
+  useEffect(() => {
+    const fetchPlans = async () => {
+      if (!isOpen) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('subscription_plans')
+          .select('id, name')
+          .eq('status', 'active')
+          .order('price', { ascending: true });
+
+        if (error) throw error;
+        setAvailablePlans(data || []);
+      } catch (error: any) {
+        console.error('Erro ao carregar planos:', error);
+        showError('Erro ao carregar planos: ' + error.message);
+      }
+    };
+
+    fetchPlans();
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -114,6 +142,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
           valid_until: editingCoupon.valid_until || '',
           max_uses: editingCoupon.max_uses,
           status: editingCoupon.status,
+          plan_id: editingCoupon.plan_id || null,
         });
       } else {
         // Reset to default values for new coupon
@@ -124,6 +153,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
           valid_until: '',
           max_uses: 1,
           status: 'active',
+          plan_id: null,
         });
       }
     }
@@ -150,6 +180,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
       valid_until: data.valid_until || null,
       max_uses: data.max_uses,
       status: data.status,
+      plan_id: data.plan_id || null,
       created_by_user_id: session.user.id,
     };
 
@@ -290,6 +321,32 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
               </SelectContent>
             </Select>
             {errors.status && <p className="col-span-4 text-red-500 text-xs text-right">{errors.status.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="plan_id" className="text-right">
+              Plano Específico
+            </Label>
+            <Select 
+              onValueChange={(value) => setValue('plan_id', value === 'all' ? null : value, { shouldValidate: true })} 
+              value={planIdValue || 'all'}
+            >
+              <SelectTrigger id="plan_id" className="col-span-3">
+                <SelectValue placeholder="Selecione o plano" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os planos (geral)</SelectItem>
+                {availablePlans.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="col-span-4 text-xs text-gray-500 text-right">
+              Selecione um plano específico ou deixe "Todos os planos" para cupom geral
+            </p>
+            {errors.plan_id && <p className="col-span-4 text-red-500 text-xs text-right">{errors.plan_id.message}</p>}
           </div>
           
           <DialogFooter className="flex justify-between items-center mt-6">

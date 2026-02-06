@@ -199,6 +199,38 @@ serve(async (req) => {
         couponId = coupon.id;
         console.log(`Edge Function - Applying coupon: ${couponId}, type: ${coupon.discount_type}, value: ${coupon.discount_value}`);
         
+        // VALIDAÇÃO: Verificar se o cupom é válido para o plano selecionado
+        const { data: couponDetails, error: couponDetailsError } = await supabaseAdmin
+            .from('admin_coupons')
+            .select('plan_id, status, valid_until, max_uses, current_uses')
+            .eq('id', couponId)
+            .single();
+
+        if (couponDetailsError) {
+            console.error('Edge Function - Error fetching coupon details:', couponDetailsError);
+            return new Response(JSON.stringify({ error: 'Erro ao validar cupom' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+        }
+
+        // Verificar se o cupom está ativo
+        if (couponDetails.status !== 'active') {
+            return new Response(JSON.stringify({ error: 'Cupom inativo' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+        }
+
+        // Verificar se o cupom é válido para o plano selecionado
+        if (couponDetails.plan_id && couponDetails.plan_id !== planId) {
+            console.error(`Edge Function - Coupon ${couponId} is valid only for plan ${couponDetails.plan_id}, but plan ${planId} was selected`);
+            return new Response(JSON.stringify({ error: 'Este cupom é válido apenas para um plano específico. Por favor, selecione o plano correto.' }), { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+        }
+        
         // Re-validate coupon usage (security check against race conditions)
         const { data: usageData, error: usageError } = await supabaseAdmin
             .from('coupon_usages')
