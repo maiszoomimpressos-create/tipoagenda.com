@@ -21,6 +21,7 @@ interface AdminCoupon {
   max_uses: number;
   current_uses: number;
   status: 'active' | 'inactive' | 'expired';
+  plan_id: string | null;
   created_at: string;
 }
 
