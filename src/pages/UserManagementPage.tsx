@@ -30,41 +30,78 @@ const UserManagementPage: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch all user types and auth data (using the working join syntax)
+      // 1. Buscar todos os tipos de usuário (sem depender de relacionamento implícito com auth_users)
       const { data: userTypeData, error: typeError } = await supabase
         .from('type_user')
-        .select(`
-          user_id,
-          cod,
-          descr,
-          auth_users:user_id(email, created_at, raw_user_meta_data)
-        `)
+        .select('user_id, cod, descr, created_at')
         .order('created_at', { ascending: false });
 
       if (typeError) throw typeError;
 
-      // 2. Fetch all profiles separately
+      if (!userTypeData || userTypeData.length === 0) {
+        setUsers([]);
+        return;
+      }
+
+      const userIds = userTypeData
+        .map((item: any) => item.user_id)
+        .filter((id: string | null | undefined) => !!id);
+
+      // 2. Buscar dados de auth (email, metadata) via view auth_users ou Edge Function
+      let authUsersData: any[] = [];
+      let authError: any = null;
+
+      // Tentar primeiro via view auth_users
+      const { data: viewData, error: viewError } = await supabase
+        .from('auth_users')
+        .select('id, email, created_at, raw_user_meta_data')
+        .in('id', userIds);
+
+      if (viewError) {
+        // Se a view não existe, usar Edge Function como fallback
+        console.warn('[UserManagementPage] View auth_users não disponível, usando Edge Function:', viewError.message);
+        
+        const { data: functionResponse, error: functionError } = await supabase.functions.invoke('get-user-auth-data', {
+          body: { user_ids: userIds },
+        });
+
+        if (functionError) {
+          authError = functionError;
+        } else if (functionResponse?.data) {
+          authUsersData = functionResponse.data;
+        }
+      } else {
+        authUsersData = viewData || [];
+      }
+
+      if (authError) {
+        console.warn('[UserManagementPage] Erro ao buscar dados de auth (continuando sem email):', authError);
+        // Não lança erro, apenas continua sem dados de auth
+      }
+
+      // 3. Buscar todos os perfis separadamente
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, first_name, last_name');
 
       if (profilesError) throw profilesError;
 
-      const profileMap = new Map(profilesData.map(p => [p.id, p]));
+      const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
+      const authMap = new Map((authUsersData || []).map((u: any) => [u.id, u]));
 
-      // 3. Combine data
+      // 4. Combinar dados
       const processedUsers: UserData[] = userTypeData.map((item: any) => {
-        const authUser = item.auth_users;
+        const authUser = authMap.get(item.user_id) || {};
         const profile = profileMap.get(item.user_id) || {};
-        
+
         return {
           id: item.user_id,
-          email: authUser?.email || 'N/A',
-          created_at: authUser?.created_at || 'N/A',
+          email: authUser.email || 'N/A',
+          created_at: authUser.created_at || item.created_at || 'N/A',
           user_metadata: {
-            // Prioritize profile data, fallback to auth metadata
-            first_name: profile.first_name || authUser?.raw_user_meta_data?.first_name,
-            last_name: profile.last_name || authUser?.raw_user_meta_data?.last_name,
+            // Prioriza dados do perfil, depois metadata do auth
+            first_name: profile.first_name || authUser.raw_user_meta_data?.first_name,
+            last_name: profile.last_name || authUser.raw_user_meta_data?.last_name,
           },
           type_user: {
             cod: item.cod,
@@ -75,7 +112,7 @@ const UserManagementPage: React.FC = () => {
 
       setUsers(processedUsers);
     } catch (error: any) {
-      console.error('Erro ao carregar usuários:', error);
+      console.error('[UserManagementPage] Erro ao carregar usuários:', error);
       showError('Erro ao carregar usuários: ' + error.message);
     } finally {
       setLoading(false);

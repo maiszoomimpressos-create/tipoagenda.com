@@ -311,13 +311,37 @@ serve(async (req) => {
                                 errorMessage.includes('user already exists') ||
                                 errorMessage.includes('already exists') ||
                                 errorMessage.includes('duplicate') ||
+                                errorMessage.includes('email address is already') ||
                                 errorStatus === 422 ||
                                 errorStatus === 400;
       
       if (isUserExistsError) {
         console.log('Edge Function Debug (invite-collaborator): Usuário já existe (erro do Supabase).');
+        
+        // Verificar se o email já está cadastrado como colaborador nesta empresa
+        const { data: existingCollaborator, error: checkError } = await supabaseAdmin
+          .from('collaborators')
+          .select('id, first_name, last_name, email, company_id')
+          .eq('email', normalizedEmail)
+          .eq('company_id', companyId)
+          .maybeSingle();
+        
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.error('Edge Function Error (invite-collaborator): Erro ao verificar colaborador existente:', checkError);
+        }
+        
+        if (existingCollaborator) {
+          return new Response(JSON.stringify({ 
+            error: `O e-mail "${normalizedEmail}" já está cadastrado como colaborador nesta empresa. Por favor, use outro e-mail ou edite o colaborador existente.` 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Se não está na tabela collaborators, mas está em auth.users, informar de forma clara
         return new Response(JSON.stringify({ 
-          error: 'Já existe um usuário cadastrado com este e-mail. Por favor, use outro e-mail.' 
+          error: `O e-mail "${normalizedEmail}" já está cadastrado no sistema. Este e-mail não pode ser usado para cadastrar um novo colaborador. Por favor, use outro e-mail.` 
         }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
