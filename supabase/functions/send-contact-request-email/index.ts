@@ -34,17 +34,25 @@ serve(async (req) => {
     // 1. Encontrar o e-mail do Administrador Global (ou usar o padrão)
     let adminEmail = DEFAULT_ADMIN_EMAIL;
     try {
-        const { data: adminUser, error: adminError } = await supabaseAdmin
+        // 1. Buscar o usuário GLOBAL_ADMIN na tabela type_user
+        const { data: adminTypeUser, error: adminTypeError } = await supabaseAdmin
             .from('type_user')
-            .select('auth_users:user_id(email)')
+            .select('user_id')
             .eq('cod', 'GLOBAL_ADMIN')
             .limit(1)
             .single();
 
-        if (adminError && adminError.code !== 'PGRST116') throw adminError;
+        if (adminTypeError && adminTypeError.code !== 'PGRST116') throw adminTypeError;
 
-        if (adminUser && adminUser.auth_users?.email) {
-            adminEmail = adminUser.auth_users.email;
+        // 2. Buscar o e-mail correspondente via auth.admin.getUserById (service role tem acesso direto)
+        if (adminTypeUser?.user_id) {
+            const { data: adminAuthUser, error: adminAuthError } = await supabaseAdmin.auth.admin.getUserById(adminTypeUser.user_id);
+
+            if (adminAuthError) {
+                console.warn('Failed to fetch GLOBAL_ADMIN email via getUserById, using default.', adminAuthError);
+            } else if (adminAuthUser?.user?.email) {
+                adminEmail = adminAuthUser.user.email;
+            }
         }
     } catch (e) {
         console.error('Failed to fetch GLOBAL_ADMIN email, using default.', e);

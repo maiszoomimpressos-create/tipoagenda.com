@@ -244,6 +244,45 @@ const CollaboratorFormPage: React.FC = () => {
       return;
     }
 
+    // Validação prévia: verificar se o email já está cadastrado como colaborador nesta empresa
+    if (!isEditing) {
+      try {
+        const { data: existingCollaborator, error: checkError } = await supabase
+          .from('collaborators')
+          .select('id, first_name, last_name, email')
+          .eq('email', data.email.trim().toLowerCase())
+          .eq('company_id', primaryCompanyId)
+          .maybeSingle();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.warn('Erro ao verificar email existente (continuando):', checkError);
+        }
+
+        if (existingCollaborator) {
+          const collaboratorName = existingCollaborator.first_name && existingCollaborator.last_name
+            ? `${existingCollaborator.first_name} ${existingCollaborator.last_name}`
+            : 'um colaborador';
+          
+          showError(`O e-mail "${data.email}" já está cadastrado para ${collaboratorName} nesta empresa. Por favor, use outro e-mail ou edite o colaborador existente.`);
+          
+          // Focar no campo de email
+          setTimeout(() => {
+            const emailInput = document.getElementById('email');
+            if (emailInput) {
+              emailInput.focus();
+              emailInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+          
+          setLoading(false);
+          return;
+        }
+      } catch (validationError: any) {
+        console.warn('Erro na validação prévia de email (continuando):', validationError);
+        // Continua o processo mesmo se a validação prévia falhar
+      }
+    }
+
       let avatarUrl: string | null = null;
     if (data.avatar_file && data.avatar_file.length > 0) {
       const originalFile = data.avatar_file[0];
@@ -413,6 +452,28 @@ const CollaboratorFormPage: React.FC = () => {
           }
 
           console.error('Mensagem de erro extraída da Edge Function:', edgeFunctionErrorMessage);
+          
+          // Melhorar mensagem de erro de email duplicado para ser mais visível
+          const isEmailError = edgeFunctionErrorMessage.toLowerCase().includes('e-mail') || 
+                              edgeFunctionErrorMessage.toLowerCase().includes('email') ||
+                              edgeFunctionErrorMessage.toLowerCase().includes('já está cadastrado') ||
+                              edgeFunctionErrorMessage.toLowerCase().includes('already');
+          
+          if (isEmailError) {
+            // Destacar o erro de email duplicado
+            showError(edgeFunctionErrorMessage);
+            // Focar no campo de email
+            setTimeout(() => {
+              const emailInput = document.getElementById('email');
+              if (emailInput) {
+                emailInput.focus();
+                emailInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 100);
+            setLoading(false);
+            return;
+          }
+          
           throw new Error(edgeFunctionErrorMessage);
         }
       }

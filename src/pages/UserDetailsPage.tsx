@@ -50,14 +50,10 @@ const UserDetailsPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // 1. Fetch User Type and Auth Data
+      // 1. Buscar tipo de usuário (sem depender de relacionamento implícito com auth_users)
       const { data: userTypeData, error: typeError } = await supabase
         .from('type_user')
-        .select(`
-          cod,
-          descr,
-          auth_users:user_id(email, created_at)
-        `)
+        .select('user_id, cod, descr')
         .eq('user_id', userId)
         .single();
 
@@ -67,9 +63,35 @@ const UserDetailsPage: React.FC = () => {
         throw new Error('Usuário não encontrado ou sem tipo de usuário definido.');
       }
 
-      const authUser = userTypeData.auth_users;
+      // 2. Buscar dados de auth (email/created_at) via view auth_users ou Edge Function
+      let authUser: any = null;
       
-      // 2. Fetch Profile Data separately
+      // Tentar primeiro via view auth_users
+      const { data: viewData, error: viewError } = await supabase
+        .from('auth_users')
+        .select('id, email, created_at')
+        .eq('id', userId)
+        .single();
+
+      if (viewError && viewError.code !== 'PGRST116') {
+        // Se a view não existe, usar Edge Function como fallback
+        console.warn('[UserDetailsPage] View auth_users não disponível, usando Edge Function:', viewError.message);
+        
+        const { data: functionResponse, error: functionError } = await supabase.functions.invoke('get-user-auth-data', {
+          body: { user_ids: [userId] },
+        });
+
+        if (functionError) {
+          console.warn('[UserDetailsPage] Erro ao buscar dados de auth via Edge Function:', functionError);
+          // Continua sem dados de auth
+        } else if (functionResponse?.data && functionResponse.data.length > 0) {
+          authUser = functionResponse.data[0];
+        }
+      } else if (viewData) {
+        authUser = viewData;
+      }
+      
+      // 3. Buscar dados de perfil separadamente
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('first_name, last_name, phone_number, cpf, birth_date, gender')
@@ -81,7 +103,7 @@ const UserDetailsPage: React.FC = () => {
         console.warn('Profile data missing for user:', userId, profileError);
       }
 
-      // 3. Fetch User Companies/Roles using RPC
+      // 4. Buscar empresas/roles via RPC
       const { data: companyContext, error: companyError } = await supabase
         .rpc('get_user_context', { p_user_id: userId });
 
@@ -97,7 +119,7 @@ const UserDetailsPage: React.FC = () => {
       });
 
     } catch (error: any) {
-      console.error('Erro ao carregar detalhes do usuário:', error);
+      console.error('[UserDetailsPage] Erro ao carregar detalhes do usuário:', error);
       showError('Erro ao carregar detalhes do usuário: ' + error.message);
       navigate('/admin-dashboard/users');
     } finally {
