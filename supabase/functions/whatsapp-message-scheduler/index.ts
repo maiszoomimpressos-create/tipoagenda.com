@@ -212,6 +212,10 @@ async function sendViaProvider(
   toPhone: string,
   text: string,
 ): Promise<{ ok: boolean; status: number; responseBody: any }> {
+  // Formatar telefone para API LiotPRO: remover "+" e espaços, apenas dígitos
+  // A API espera formato: "558599999999" (sem +, sem espaços)
+  const formattedPhoneForAPI = toPhone.replace(/[+\s]/g, '');
+  
   // Criar cópia do payload_template e incluir user_id e queue_id automaticamente
   const payloadTemplate = { ...(provider.payload_template || {}) };
   
@@ -235,7 +239,12 @@ async function sendViaProvider(
 
   // Adicionar header de autenticação
   if (provider.auth_key && provider.auth_token) {
-    headers[provider.auth_key] = provider.auth_token;
+    // Garantir que o token tenha prefixo "Bearer " se necessário
+    let tokenValue = provider.auth_token;
+    if (provider.auth_key.toLowerCase() === 'authorization' && !tokenValue.startsWith('Bearer ')) {
+      tokenValue = 'Bearer ' + tokenValue;
+    }
+    headers[provider.auth_key] = tokenValue;
   }
 
   let body: string | FormData | undefined;
@@ -249,11 +258,11 @@ async function sendViaProvider(
       let fieldValue: string;
       
       if (typeof value === 'string') {
-        // Substituir placeholders
+        // Substituir placeholders (usar telefone formatado sem +)
         fieldValue = value
-          .replace(/{phone}/g, toPhone)
+          .replace(/{phone}/g, formattedPhoneForAPI)
           .replace(/{text}/g, text)
-          .replace(/\[PHONE\]/g, toPhone)
+          .replace(/\[PHONE\]/g, formattedPhoneForAPI)
           .replace(/\[TEXT\]/g, text);
       } else if (typeof value === 'boolean') {
         // Converter boolean para string
@@ -278,11 +287,11 @@ async function sendViaProvider(
     // Usar application/json (padrão)
     headers['Content-Type'] = 'application/json';
     
-    // Substituir placeholders básicos no JSON do payload
+    // Substituir placeholders básicos no JSON do payload (usar telefone formatado sem +)
     const payloadString = JSON.stringify(payloadTemplate)
-      .replace(/{phone}/g, toPhone)
+      .replace(/{phone}/g, formattedPhoneForAPI)
       .replace(/{text}/g, text)
-      .replace(/\[PHONE\]/g, toPhone)
+      .replace(/\[PHONE\]/g, formattedPhoneForAPI)
       .replace(/\[TEXT\]/g, text);
 
     const payloadJson = JSON.parse(payloadString);
@@ -290,6 +299,8 @@ async function sendViaProvider(
   }
 
   console.log(`sendViaProvider: Preparando requisição para: ${provider.base_url}`);
+  console.log(`sendViaProvider: Telefone original: ${toPhone}`);
+  console.log(`sendViaProvider: Telefone formatado para API (sem +): ${formattedPhoneForAPI}`);
   console.log(`sendViaProvider: Método HTTP: ${provider.http_method}`);
   console.log(`sendViaProvider: Headers: ${JSON.stringify(headers)}`);
   console.log(`sendViaProvider: Content-Type para body: ${contentType}`);
@@ -724,23 +735,18 @@ serve(async (req) => {
       console.log('  - Se os schedules estão configurados corretamente');
     }
 
-    // 7) Buscar logs PENDING vencidos para envio agora
-    // IMPORTANTE: scheduled_for está em horário de BRASÍLIA, então precisamos converter now para Brasília também
-    const nowBRString = toBrasiliaISOString(now);
-    const nowPlus5BRString = toBrasiliaISOString(nowPlus5);
-    
-    console.log('Buscando logs PENDING:', {
+    // 7) Buscar logs PENDING para envio
+    // SIMPLIFICAÇÃO: enviar TODAS as mensagens PENDING, independentemente de scheduled_for.
+    // Motivo: evitar qualquer problema de timezone/filtro que esteja impedindo o envio.
+    // O controle de duplicidade é feito pelo status (PENDING → SENT/FAILED).
+    console.log('Buscando logs PENDING (sem filtro de horário)...', {
       now_UTC: now.toISOString(),
-      now_BR: nowBRString,
-      nowPlus5_UTC: nowPlus5.toISOString(),
-      nowPlus5_BR: nowPlus5BRString,
     });
     
     const { data: pendingLogs, error: pendingError } = await supabaseAdmin
       .from<MessageSendLogRow>('message_send_log')
       .select('*')
-      .eq('status', 'PENDING')
-      .lte('scheduled_for', nowPlus5BRString); // Comparar com horário de Brasília
+      .eq('status', 'PENDING');
 
     if (pendingError) {
       console.error('Erro ao buscar logs pendentes para envio:', pendingError);

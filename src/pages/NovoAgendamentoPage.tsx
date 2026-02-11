@@ -13,7 +13,6 @@ import * as z from 'zod';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
-import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Calendar } from "@/components/ui/calendar"; // Importar Calendar
 import { format, addMinutes, setHours, setMinutes, isBefore, isAfter, parseISO, parse, startOfDay } from 'date-fns'; // Importar funções de data
 import { ptBR } from 'date-fns/locale'; // Importar locale para o calendário
@@ -54,12 +53,7 @@ interface Service {
 const NovoAgendamentoPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
-  const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
-  const { companyId: companyIdFromUrl } = useParams<{ companyId: string }>(); // Pega o companyId da URL
-
-  // Determina o ID da empresa a ser usado, priorizando o da URL
-  const currentCompanyId = companyIdFromUrl || primaryCompanyId;
-  const loadingCompanyId = companyIdFromUrl ? false : loadingPrimaryCompany; // Se veio da URL, não está carregando
+  const { companyId: currentCompanyId } = useParams<{ companyId: string }>(); // Sempre pega o companyId da URL
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -100,7 +94,7 @@ const NovoAgendamentoPage: React.FC = () => {
   // const selectedPaymentMethod = watch('paymentMethod'); // REMOVIDO
 
   const fetchInitialData = useCallback(async () => {
-    if (sessionLoading || loadingCompanyId || !currentCompanyId) {
+    if (sessionLoading || !currentCompanyId) {
       return;
     }
 
@@ -161,25 +155,25 @@ const NovoAgendamentoPage: React.FC = () => {
     } finally {
       setLoadingData(false);
     }
-  }, [sessionLoading, loadingCompanyId, currentCompanyId]);
+  }, [sessionLoading, currentCompanyId]);
 
   useEffect(() => {
     if (!session && !sessionLoading) {
       showError('Você precisa estar logado para criar agendamentos.');
       navigate('/login');
     }
-    if (!primaryCompanyId && !loadingPrimaryCompany && session) {
-      showError('Você precisa ter uma empresa primária cadastrada para criar agendamentos.');
-      navigate('/register-company');
-    }
     fetchInitialData();
-  }, [session, sessionLoading, primaryCompanyId, loadingPrimaryCompany, navigate, fetchInitialData]);
+  }, [session, sessionLoading, navigate, fetchInitialData]);
 
-  // Carrega serviços permitidos para o colaborador selecionado
+  // Carrega serviços permitidos para o colaborador selecionado.
   // Importante: dependemos apenas do colaborador e da empresa para evitar loops de renderização.
   useEffect(() => {
     const loadAllowed = async () => {
       if (!selectedCollaboratorId || !currentCompanyId) {
+        console.log('NovoAgendamentoPage.loadAllowed: sem colaborador ou companyId', {
+          selectedCollaboratorId,
+          currentCompanyId,
+        });
         setAllowedServiceIds([]);
         setCommissionByService({});
         setValue('serviceIds', [], { shouldValidate: true });
@@ -187,6 +181,10 @@ const NovoAgendamentoPage: React.FC = () => {
       }
 
       // Sempre limpa serviços selecionados ao trocar de colaborador
+      console.log('NovoAgendamentoPage.loadAllowed: carregando serviços para colaborador', {
+        selectedCollaboratorId,
+        currentCompanyId,
+      });
       setValue('serviceIds', [], { shouldValidate: true });
 
       const { data, error } = await supabase
@@ -197,12 +195,16 @@ const NovoAgendamentoPage: React.FC = () => {
         .eq('active', true);
 
       if (error) {
-        console.error('Erro ao carregar serviços permitidos:', error);
+        console.error('NovoAgendamentoPage.loadAllowed: erro ao carregar serviços permitidos:', error);
         showError('Erro ao carregar serviços permitidos para o colaborador.');
         setAllowedServiceIds([]);
         setCommissionByService({});
         return;
       }
+
+      console.log('NovoAgendamentoPage.loadAllowed: resultado collaborator_services', {
+        raw: data,
+      });
 
       const ids = (data || []).map((d: any) => d.service_id);
       const commissionMap = (data || []).reduce<Record<string, { type?: string; value?: number }>>(
@@ -212,6 +214,8 @@ const NovoAgendamentoPage: React.FC = () => {
         },
         {}
       );
+
+      console.log('NovoAgendamentoPage.loadAllowed: ids permitidos', ids);
 
       setCommissionByService(commissionMap);
       setAllowedServiceIds(ids);
@@ -317,7 +321,39 @@ const NovoAgendamentoPage: React.FC = () => {
 
       if (servicesLinkError) throw servicesLinkError;
 
-      // 3. If the client was previously unassociated (company_id is null), associate them now.
+      // 3. Agendar mensagens WhatsApp (lembrete e agradecimento) se configurado
+      try {
+        console.log('[NovoAgendamentoPage] Agendando mensagens WhatsApp para appointment:', appointmentData.id);
+        const { data: scheduleResult, error: scheduleError } = await supabase.rpc(
+          'schedule_whatsapp_messages_for_appointment',
+          { p_appointment_id: appointmentData.id }
+        );
+
+        if (scheduleError) {
+          console.error('[NovoAgendamentoPage] ❌ ERRO ao agendar mensagens WhatsApp:', scheduleError);
+          console.error('[NovoAgendamentoPage] Detalhes do erro:', JSON.stringify(scheduleError, null, 2));
+          // Não falha o processo, apenas loga o erro
+        } else {
+          console.log('[NovoAgendamentoPage] ✅ Resultado do agendamento:', JSON.stringify(scheduleResult, null, 2));
+          if (scheduleResult && !scheduleResult.success) {
+            console.warn('[NovoAgendamentoPage] ⚠️ Função retornou success=false:', scheduleResult.error || scheduleResult.message);
+          }
+          if (scheduleResult && scheduleResult.logs_created === 0) {
+            console.warn('[NovoAgendamentoPage] ⚠️ Nenhum log foi criado. Verifique:', {
+              logs_created: scheduleResult.logs_created,
+              logs_skipped: scheduleResult.logs_skipped,
+              errors: scheduleResult.errors,
+              message: scheduleResult.message
+            });
+          }
+        }
+      } catch (scheduleErr: any) {
+        console.error('[NovoAgendamentoPage] ❌ EXCEÇÃO ao agendar mensagens WhatsApp:', scheduleErr);
+        console.error('[NovoAgendamentoPage] Stack:', scheduleErr.stack);
+        // Não falha o processo, apenas loga o erro
+      }
+
+      // 4. If the client was previously unassociated (company_id is null), associate them now.
       // We use the admin client for this update to bypass RLS if necessary, although the user should have update permission on clients they created.
       const selectedClient = clients.find(c => c.id === data.clientId);
       if (selectedClient) {
@@ -355,7 +391,7 @@ const NovoAgendamentoPage: React.FC = () => {
     }
   };
 
-  if (sessionLoading || loadingCompanyId || loadingData) {
+  if (sessionLoading || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando dados para agendamento...</p>
@@ -367,7 +403,7 @@ const NovoAgendamentoPage: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <p className="text-red-500 text-center mb-4">
-          Você precisa estar logado e ter uma empresa primária para criar agendamentos.
+          Você precisa estar logado e acessar a página com o ID da empresa na URL para criar agendamentos.
         </p>
         <Button
           className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
@@ -470,32 +506,48 @@ const NovoAgendamentoPage: React.FC = () => {
                     setValue('appointmentTime', '');
                   }}
                   value={selectedServiceIds[0] || ''}
-                  disabled={services.length === 0 || allowedServiceIds.length === 0}
+                  disabled={
+                    services.length === 0 ||
+                    !selectedCollaboratorId ||
+                    allowedServiceIds.length === 0
+                  }
                 >
                   <SelectTrigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <SelectValue placeholder="Selecione o serviço" />
+                    <SelectValue
+                      placeholder={
+                        !selectedCollaboratorId
+                          ? 'Selecione um profissional primeiro'
+                          : 'Selecione o serviço'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {services.length === 0 ? (
+                    {!selectedCollaboratorId ? (
+                      <SelectItem value="no-collaborator" disabled>
+                        Selecione um profissional primeiro.
+                      </SelectItem>
+                    ) : services.length === 0 ? (
                       <SelectItem value="no-services" disabled>
                         Nenhum serviço ativo disponível.
                       </SelectItem>
                     ) : allowedServiceIds.length === 0 ? (
                       <SelectItem value="no-allowed" disabled>
-                        Nenhum serviço permitido para este colaborador.
+                        Nenhum serviço vinculado a este colaborador.
                       </SelectItem>
                     ) : (
                       services
                         .filter((service) => allowedServiceIds.includes(service.id))
                         .map((service) => (
-                        <SelectItem key={service.id} value={service.id}>
-                          {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
-                        </SelectItem>
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name} - R$ {service.price.toFixed(2).replace('.', ',')} ({service.duration_minutes} min)
+                          </SelectItem>
                         ))
                     )}
                   </SelectContent>
                 </Select>
-                {errors.serviceIds && <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>}
+                {errors.serviceIds && (
+                  <p className="text-red-500 text-xs mt-1">{errors.serviceIds.message}</p>
+                )}
                 {totalDurationMinutes > 0 && (
                   <p className="text-sm text-gray-600 mt-2">
                     Duração total: {totalDurationMinutes} min | Preço total: R$ {totalPriceCalculated.toFixed(2).replace('.', ',')}

@@ -7,7 +7,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { markExplicitLogout } from '@/utils/auth-state';
-import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon, MessageSquare, UserCog, Menu } from 'lucide-react'; // Importando CreditCard, ImageIcon, MessageSquare, UserCog e Menu
+import { Users, Building, DollarSign, FileText, Tags, LogOut, Key, MailCheck, Tag, BarChart, Zap, CreditCard, Image as ImageIcon, MessageSquare, UserCog, Menu, Database } from 'lucide-react'; // Importando CreditCard, ImageIcon, MessageSquare, UserCog, Menu e Database
 import RecentAuditLogs from '@/components/RecentAuditLogs';
 
 // Componente auxiliar para padronizar os cards de gerenciamento
@@ -123,6 +123,46 @@ const AdminDashboard: React.FC = () => {
             buttonColor="bg-yellow-600 hover:bg-yellow-700 text-black"
             onClick={() => navigate('/admin-dashboard/plans')}
           />
+
+          {/* Card: Provedores WhatsApp */}
+          <ManagementCard
+            title="Provedores WhatsApp"
+            description="Configure os provedores de WhatsApp que serão usados para envio automático de mensagens."
+            icon={<MessageSquare className="h-6 w-6 text-green-600" />}
+            buttonText="Gerenciar Provedores"
+            buttonColor="bg-green-600 hover:bg-green-700"
+            onClick={() => navigate('/admin-dashboard/whatsapp-providers')}
+          />
+
+          {/* Card: Backup do Banco de Dados */}
+          <ManagementCard
+            title="Backup do Banco de Dados"
+            description="Crie e baixe um backup completo do banco de dados do sistema."
+            icon={<Database className="h-6 w-6 text-purple-600" />}
+            buttonText="Gerar e Baixar Backup"
+            buttonColor="bg-purple-600 hover:bg-purple-700"
+            onClick={() => navigate('/admin-dashboard/backup')}
+          />
+
+          {/* Card: Gerenciamento de Chaves de Pagamento */}
+          <ManagementCard
+            title="Gerenciamento de Chaves de Pagamento"
+            description="Configure chaves de API de pagamento (Mercado Pago, etc.) de forma segura via Supabase Secrets."
+            icon={<Key className="h-6 w-6 text-gray-600" />}
+            buttonText="Configurar Chaves"
+            buttonColor="bg-gray-600 hover:bg-gray-700"
+            onClick={() => navigate('/admin-dashboard/api-keys')}
+          />
+
+          {/* Card: Gestão de Menus */}
+          <ManagementCard
+            title="Gestão de Menus"
+            description="Crie e gerencie os menus do sistema, vinculando-os a planos de assinatura."
+            icon={<Menu className="h-6 w-6 text-purple-600" />}
+            buttonText="Gerenciar Menus"
+            buttonColor="bg-purple-600 hover:bg-purple-700"
+            onClick={() => navigate('/admin-dashboard/menus')}
+          />
         </div>
 
         {/* Group Box: Configurações Globais */}
@@ -182,15 +222,6 @@ const AdminDashboard: React.FC = () => {
             buttonColor="bg-red-600 hover:bg-red-700"
             onClick={() => navigate('/admin-dashboard/contact-requests')}
           />
-          
-          <ManagementCard
-            title="Gerenciamento de Chaves de Pagamento"
-            description="Configure chaves de API de pagamento (Mercado Pago, etc.) de forma segura via Supabase Secrets."
-            icon={<Key className="h-6 w-6 text-gray-600" />}
-            buttonText="Configurar Chaves"
-            buttonColor="bg-gray-600 hover:bg-gray-700"
-            onClick={() => navigate('/admin-dashboard/api-keys')}
-          />
 
           {/* NOVO CARD: Gerenciamento de Banners Globais */}
           <ManagementCard
@@ -212,16 +243,6 @@ const AdminDashboard: React.FC = () => {
             onClick={() => navigate('/admin-dashboard/payment-attempts')}
           />
 
-          {/* NOVO CARD: Gerenciamento de Provedores WhatsApp */}
-          <ManagementCard
-            title="Provedores WhatsApp"
-            description="Configure os provedores de WhatsApp que serão usados para envio automático de mensagens."
-            icon={<MessageSquare className="h-6 w-6 text-green-600" />}
-            buttonText="Gerenciar Provedores"
-            buttonColor="bg-green-600 hover:bg-green-700"
-            onClick={() => navigate('/admin-dashboard/whatsapp-providers')}
-          />
-
           {/* NOVO CARD: Gestão de Perfis (Roles) */}
           <ManagementCard
             title="Gestão de Perfis (Roles)"
@@ -232,15 +253,6 @@ const AdminDashboard: React.FC = () => {
             onClick={() => navigate('/admin-dashboard/role-types')}
           />
 
-          {/* NOVO CARD: Gestão de Menus */}
-          <ManagementCard
-            title="Gestão de Menus"
-            description="Crie e gerencie os menus do sistema, vinculando-os a planos de assinatura."
-            icon={<Menu className="h-6 w-6 text-purple-600" />}
-            buttonText="Gerenciar Menus"
-            buttonColor="bg-purple-600 hover:bg-purple-700"
-            onClick={() => navigate('/admin-dashboard/menus')}
-          />
         </div>
         
         {/* Logs de Auditoria Recentes */}

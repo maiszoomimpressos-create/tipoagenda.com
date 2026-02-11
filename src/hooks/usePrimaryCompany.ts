@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSession } from '@/components/SessionContextProvider';
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
@@ -15,6 +16,7 @@ export function usePrimaryCompany() {
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string | null>(null);
   const [primaryCompanyName, setPrimaryCompanyName] = useState<string | null>(null);
   const [loadingPrimaryCompany, setLoadingPrimaryCompany] = useState(true);
+  const location = useLocation();
   // Usa apenas o user.id como dependência para evitar re-execuções desnecessárias
   const userId = session?.user?.id || null;
 
@@ -24,7 +26,13 @@ export function usePrimaryCompany() {
         return; // Wait for session to load
       }
 
-      if (!session?.user) {
+      // Para rotas públicas baseadas em companyId na URL (como /agendar e /guest-appointment),
+      // não tentamos descobrir empresa primária nem mostrar warnings.
+      const isPublicCompanyRoute =
+        location.pathname.startsWith('/agendar/') ||
+        location.pathname.startsWith('/guest-appointment/');
+
+      if (!session?.user || isPublicCompanyRoute) {
         setPrimaryCompanyId(null);
         setPrimaryCompanyName(null);
         setLoadingPrimaryCompany(false);
@@ -122,7 +130,7 @@ export function usePrimaryCompany() {
     };
 
     fetchPrimaryCompany();
-  }, [userId, sessionLoading]); // Usa userId em vez de session inteiro
+  }, [userId, sessionLoading, location.pathname]); // Usa userId em vez de session inteiro
 
   return { primaryCompanyId, primaryCompanyName, loadingPrimaryCompany };
 }

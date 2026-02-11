@@ -213,7 +213,9 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Carrega serviços disponíveis para o colaborador selecionado (para cliente: todos os serviços ativos da empresa)
+  // Carrega serviços disponíveis para o colaborador selecionado,
+  // filtrando pela tabela collaborator_services para não permitir
+  // que o cliente marque um serviço que o colaborador não realiza.
   useEffect(() => {
     const loadAllowed = async () => {
       if (!selectedCollaboratorId || !companyId) {
@@ -223,21 +225,55 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
       }
 
       try {
+        console.log('ClientAppointmentForm.loadAllowed: buscando serviços para colaborador', {
+          companyId,
+          selectedCollaboratorId,
+        });
+
+        // 1) Buscar IDs de serviços permitidos na collaborator_services
+        const { data: collaboratorServices, error: collaboratorServicesError } = await supabase
+          .from('collaborator_services')
+          .select('service_id')
+          .eq('company_id', companyId)
+          .eq('collaborator_id', selectedCollaboratorId)
+          .eq('active', true);
+
+        if (collaboratorServicesError) {
+          console.error('ClientAppointmentForm.loadAllowed: erro ao buscar collaborator_services:', collaboratorServicesError);
+          showError('Erro ao carregar serviços disponíveis para o colaborador.');
+          setServices([]);
+          setValue('serviceIds', [], { shouldValidate: true });
+          return;
+        }
+
+        const allowedServiceIds = (collaboratorServices || []).map((cs: any) => cs.service_id);
+        console.log('ClientAppointmentForm.loadAllowed: allowedServiceIds =', allowedServiceIds);
+
+        if (allowedServiceIds.length === 0) {
+          console.log('ClientAppointmentForm.loadAllowed: nenhum serviço vinculado a este colaborador.');
+          setServices([]);
+          setValue('serviceIds', [], { shouldValidate: true });
+          return;
+        }
+
+        // 2) Buscar apenas os serviços permitidos
         const { data: servicesData, error: servicesError } = await supabase
           .from('services')
           .select('id, name, price, duration_minutes')
           .eq('company_id', companyId)
           .eq('status', 'Ativo')
+          .in('id', allowedServiceIds)
           .order('name', { ascending: true });
 
         if (servicesError) {
-          console.error('Erro ao carregar serviços para agendamento do cliente:', servicesError);
+          console.error('ClientAppointmentForm.loadAllowed: erro ao carregar serviços filtrados:', servicesError);
           showError('Erro ao carregar serviços disponíveis.');
           setServices([]);
           setValue('serviceIds', [], { shouldValidate: true });
           return;
         }
 
+        console.log('ClientAppointmentForm.loadAllowed: serviços carregados para o colaborador:', servicesData);
         setServices(servicesData || []);
 
         // Limpa serviços selecionados que não existem mais
@@ -248,7 +284,7 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
           setValue('serviceIds', filteredServiceIds, { shouldValidate: true });
         }
       } catch (err: any) {
-        console.error('Erro inesperado ao carregar serviços para agendamento do cliente:', err);
+        console.error('ClientAppointmentForm.loadAllowed: erro inesperado ao carregar serviços:', err);
         showError('Erro ao carregar serviços disponíveis.');
         setServices([]);
         setValue('serviceIds', [], { shouldValidate: true });
@@ -447,6 +483,38 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
         // Tentar remover o agendamento criado se a vinculação falhar
         await supabase.from('appointments').delete().eq('id', appointmentData.id);
         throw servicesLinkError;
+      }
+
+      // 3. Agendar mensagens WhatsApp (lembrete e agradecimento) se configurado
+      try {
+        console.log('[ClientAppointmentForm] Agendando mensagens WhatsApp para appointment:', appointmentData.id);
+        const { data: scheduleResult, error: scheduleError } = await supabase.rpc(
+          'schedule_whatsapp_messages_for_appointment',
+          { p_appointment_id: appointmentData.id }
+        );
+
+        if (scheduleError) {
+          console.error('[ClientAppointmentForm] ❌ ERRO ao agendar mensagens WhatsApp:', scheduleError);
+          console.error('[ClientAppointmentForm] Detalhes do erro:', JSON.stringify(scheduleError, null, 2));
+          // Não falha o processo, apenas loga o erro
+        } else {
+          console.log('[ClientAppointmentForm] ✅ Resultado do agendamento:', JSON.stringify(scheduleResult, null, 2));
+          if (scheduleResult && !scheduleResult.success) {
+            console.warn('[ClientAppointmentForm] ⚠️ Função retornou success=false:', scheduleResult.error || scheduleResult.message);
+          }
+          if (scheduleResult && scheduleResult.logs_created === 0) {
+            console.warn('[ClientAppointmentForm] ⚠️ Nenhum log foi criado. Verifique:', {
+              logs_created: scheduleResult.logs_created,
+              logs_skipped: scheduleResult.logs_skipped,
+              errors: scheduleResult.errors,
+              message: scheduleResult.message
+            });
+          }
+        }
+      } catch (scheduleErr: any) {
+        console.error('[ClientAppointmentForm] ❌ EXCEÇÃO ao agendar mensagens WhatsApp:', scheduleErr);
+        console.error('[ClientAppointmentForm] Stack:', scheduleErr.stack);
+        // Não falha o processo, apenas loga o erro
       }
 
       showSuccess('Agendamento criado com sucesso!');

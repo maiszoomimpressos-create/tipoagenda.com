@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ interface MessagingProvider {
 }
 
 const WhatsAppMessagingPage: React.FC = () => {
+  const navigate = useNavigate();
   const { primaryCompanyId } = usePrimaryCompany();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -387,14 +389,14 @@ const WhatsAppMessagingPage: React.FC = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mensagens WhatsApp</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Configure templates, regras de envio e gerencie mensagens automáticas
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Label htmlFor="whatsapp-enabled" className="cursor-pointer">
               Habilitar Mensagens WhatsApp
@@ -406,6 +408,15 @@ const WhatsAppMessagingPage: React.FC = () => {
               disabled={saving}
             />
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="!rounded-button whitespace-nowrap"
+            onClick={() => navigate('/mensagens-whatsapp/gerenciar-mensagens')}
+            disabled={!whatsappEnabled}
+          >
+            Gerenciar Fila de Mensagens
+          </Button>
         </div>
       </div>
 

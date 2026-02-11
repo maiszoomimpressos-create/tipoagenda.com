@@ -19,11 +19,23 @@ function onlyDigits(value: string) {
 }
 
 function formatPhoneBR(value: string) {
-  const digits = onlyDigits(value).slice(0, 11);
+  const digits = onlyDigits(value).slice(0, 13); // Permitir até 13 dígitos (55 + DDD + número)
+  
+  if (!digits) return '';
+  
+  // Se tiver DDI (55), formatar como +55 (XX) XXXXX-XXXX
+  if (digits.startsWith('55') && digits.length >= 12) {
+    const ddi = digits.slice(0, 2);
+    const ddd = digits.slice(2, 4);
+    const part1 = digits.slice(4, 9);
+    const part2 = digits.slice(9, 13);
+    return `+${ddi} (${ddd}) ${part1}-${part2}`;
+  }
+  
+  // Formato brasileiro padrão (sem DDI)
   const ddd = digits.slice(0, 2);
   const rest = digits.slice(2);
-
-  if (!digits) return '';
+  
   if (digits.length < 3) return `(${digits}`;
 
   // 10 dígitos: (DD) XXXX-XXXX
@@ -64,9 +76,11 @@ const GuestAppointmentPage: React.FC = () => {
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [services, setServices] = useState<Service[]>([]);
+  const [allServices, setAllServices] = useState<Service[]>([]); // Todos os serviços da empresa
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null);
+  const [selectedCollaboratorValue, setSelectedCollaboratorValue] = useState<string>("any");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableTimes, setAvailableTimes] = useState<TimeSlot[]>([]);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -94,6 +108,8 @@ const GuestAppointmentPage: React.FC = () => {
         throw servicesError;
       }
       console.log('fetchServicesAndCollaborators: Fetched servicesData:', servicesData); // ADDED LOG
+      setAllServices(servicesData as Service[]); // Guardar todos os serviços
+      // Inicialmente mostrar todos os serviços (já que "any" é o padrão)
       setServices(servicesData as Service[]);
 
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
@@ -147,12 +163,16 @@ const GuestAppointmentPage: React.FC = () => {
   }, [companyId, fetchServicesAndCollaborators]);
 
   const fetchAvailableTimes = useCallback(async () => {
-    if (!companyId || !selectedServiceId || !selectedDate || !selectedCollaboratorId) {
+    // Permitir buscar horários mesmo quando "any" está selecionado
+    const hasCollaborator = selectedCollaboratorId || selectedCollaboratorValue === "any";
+    
+    if (!companyId || !selectedServiceId || !selectedDate || !hasCollaborator) {
       console.log('GuestAppointmentPage.fetchAvailableTimes: pré-condições não atendidas', {
         companyId,
         selectedServiceId,
         selectedDate,
         selectedCollaboratorId,
+        selectedCollaboratorValue,
       });
       setAvailableTimes([]);
       return;
@@ -207,12 +227,111 @@ const GuestAppointmentPage: React.FC = () => {
   }, [companyId, selectedServiceId, selectedCollaboratorId, selectedDate, services]);
 
   useEffect(() => {
-    if (selectedServiceId && selectedCollaboratorId && selectedDate) {
+    const hasCollaborator = selectedCollaboratorId || selectedCollaboratorValue === "any";
+    if (selectedServiceId && hasCollaborator && selectedDate) {
         fetchAvailableTimes();
     }
-  }, [fetchAvailableTimes, selectedServiceId, selectedCollaboratorId, selectedDate]);
+  }, [fetchAvailableTimes, selectedServiceId, selectedCollaboratorId, selectedCollaboratorValue, selectedDate]);
+
+  // Filtrar serviços baseado no colaborador selecionado
+  useEffect(() => {
+    const loadServicesForCollaborator = async () => {
+      if (!companyId) {
+        setServices([]);
+        return;
+      }
+
+      // Se ainda não carregou os serviços, aguardar
+      if (allServices.length === 0) {
+        console.log('⏳ Aguardando carregamento de serviços...');
+        return;
+      }
+
+      // Validar companyId
+      if (!companyId) {
+        console.error('❌ companyId não encontrado!');
+        setServices([]);
+        return;
+      }
+
+      // Se "Qualquer colaborador" foi selecionado, mostrar todos os serviços
+      if (!selectedCollaboratorId || selectedCollaboratorValue === "any") {
+        console.log('✅ Mostrando todos os serviços (qualquer colaborador selecionado)');
+        setServices(allServices);
+        return;
+      }
+
+      // Validar collaboratorId
+      if (!selectedCollaboratorId) {
+        console.error('❌ selectedCollaboratorId não encontrado!');
+        setServices([]);
+        return;
+      }
+
+      // Buscar serviços permitidos para o colaborador selecionado
+      try {
+        console.log('🔍 Buscando serviços para colaborador:', {
+          companyId,
+          collaboratorId: selectedCollaboratorId,
+          allServicesCount: allServices.length
+        });
+
+        const { data: allowedServices, error } = await supabase
+          .from('collaborator_services')
+          .select('service_id')
+          .eq('company_id', companyId)
+          .eq('collaborator_id', selectedCollaboratorId)
+          .eq('active', true);
+
+        console.log('📊 Resultado da query collaborator_services:', {
+          data: allowedServices,
+          error: error,
+          count: allowedServices?.length || 0
+        });
+
+        if (error) {
+          console.error('❌ Erro ao buscar serviços do colaborador:', error);
+          // Em caso de erro, não exibir serviços para evitar agendamento incorreto
+          setServices([]);
+          setSelectedServiceId(null);
+          return;
+        }
+
+        const allowedServiceIds = (allowedServices || []).map((s: any) => s.service_id);
+        
+        console.log(`✅ Serviços permitidos para colaborador ${selectedCollaboratorId}:`, allowedServiceIds);
+        console.log(`📋 Total de serviços permitidos: ${allowedServiceIds.length}`);
+
+        // Se não houver serviços cadastrados na tabela collaborator_services para este colaborador,
+        // não exibir nenhum serviço (evita agendamentos indevidos)
+        if (allowedServiceIds.length === 0) {
+          console.log('⚠️ Nenhum serviço cadastrado na tabela collaborator_services para este colaborador. Não exibindo serviços.');
+          setServices([]);
+          setSelectedServiceId(null);
+          return;
+        }
+        
+        // Filtrar serviços permitidos
+        const filteredServices = allServices.filter(service => 
+          allowedServiceIds.includes(service.id)
+        );
+
+        console.log(`🎯 Serviços filtrados: ${filteredServices.length} de ${allServices.length}`);
+        console.log('📝 Serviços filtrados:', filteredServices.map(s => ({ id: s.id, name: s.name })));
+
+        setServices(filteredServices);
+        setSelectedServiceId(null); // Reset service selection
+      } catch (error: any) {
+        console.error('Erro ao carregar serviços do colaborador:', error);
+        setServices([]);
+      }
+    };
+
+    loadServicesForCollaborator();
+  }, [selectedCollaboratorId, selectedCollaboratorValue, companyId, allServices]);
 
   const handleCollaboratorChange = (value: string) => {
+    setSelectedCollaboratorValue(value);
     setSelectedCollaboratorId(value === "any" ? null : value);
     setSelectedServiceId(null); // Reset service when collaborator changes
     setSelectedTime(null);
@@ -244,13 +363,14 @@ const GuestAppointmentPage: React.FC = () => {
     setIsSubmitting(true);
 
     const guestPhoneDigits = onlyDigits(guestPhone);
-    if (guestPhoneDigits.length !== 10 && guestPhoneDigits.length !== 11) {
-      showError('Telefone inválido. Informe DDD + número.');
+    // Aceitar 10 dígitos (DDD + número), 11 dígitos (DDD + número com 9), ou 13 dígitos (55 + DDD + número)
+    if (guestPhoneDigits.length !== 10 && guestPhoneDigits.length !== 11 && guestPhoneDigits.length !== 13) {
+      showError('Telefone inválido. Informe DDD + número (10 ou 11 dígitos) ou com DDI (13 dígitos).');
       setIsSubmitting(false);
       return;
     }
 
-    if (!companyId || !guestName || !guestPhone || !selectedServiceId || !selectedDate || !selectedCollaboratorId || !selectedTime) {
+    if (!companyId || !guestName || !guestPhone || !selectedServiceId || !selectedDate || (!selectedCollaboratorId && selectedCollaboratorValue !== "any") || !selectedTime) {
       showError('Por favor, preencha todos os campos obrigatórios.');
       setIsSubmitting(false);
       return;
@@ -347,7 +467,11 @@ const GuestAppointmentPage: React.FC = () => {
         {/* Seleção de Colaborador */}
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Escolha o Colaborador</h2>
-          <Select onValueChange={handleCollaboratorChange} disabled={isSubmitting || collaborators.length === 0}>
+          <Select 
+            onValueChange={handleCollaboratorChange} 
+            value={selectedCollaboratorValue}
+            disabled={isSubmitting || collaborators.length === 0}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Qualquer colaborador" />
             </SelectTrigger>
@@ -371,7 +495,7 @@ const GuestAppointmentPage: React.FC = () => {
           <Select 
             onValueChange={handleServiceChange} 
             value={selectedServiceId || ""} 
-            disabled={isSubmitting || services.length === 0 || !selectedCollaboratorId}
+            disabled={isSubmitting || services.length === 0 || (!selectedCollaboratorId && selectedCollaboratorValue !== "any")}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione um serviço" />
@@ -382,20 +506,23 @@ const GuestAppointmentPage: React.FC = () => {
                   {service.name} (R$ {service.price.toFixed(2)}) ({service.duration_minutes} min)
                 </SelectItem>
               ))}
-              {!selectedCollaboratorId && (
-                <SelectItem value="select-collaborator" disabled>
-                  Selecione um colaborador primeiro
+              {services.length === 0 && selectedCollaboratorValue !== "any" && (
+                <SelectItem value="no-services" disabled>
+                  Nenhum serviço disponível para este colaborador
                 </SelectItem>
               )}
             </SelectContent>
           </Select>
-          {services.length === 0 && !loading && (
+          {services.length === 0 && !loading && selectedCollaboratorValue !== "any" && (
+            <p className="text-sm text-red-500 mt-2">Nenhum serviço disponível para o colaborador selecionado.</p>
+          )}
+          {selectedCollaboratorValue === "any" && allServices.length === 0 && !loading && (
             <p className="text-sm text-red-500 mt-2">Nenhum serviço ativo encontrado para esta empresa.</p>
           )}
-          {selectedCollaboratorId && !selectedServiceId && services.length > 0 && (
+          {(selectedCollaboratorId || selectedCollaboratorValue === "any") && !selectedServiceId && services.length > 0 && (
             <p className="text-sm text-gray-600 mt-2">Selecione um serviço para continuar.</p>
           )}
-           {!selectedCollaboratorId && (
+          {selectedCollaboratorValue === "" && (
             <p className="text-sm text-gray-600 mt-2">Selecione um colaborador para ver os serviços disponíveis.</p>
           )}
         </div>
@@ -411,7 +538,7 @@ const GuestAppointmentPage: React.FC = () => {
                 onSelect={handleDateSelect}
                 initialFocus
                 locale={ptBR}
-                disabled={isSubmitting || !selectedServiceId || !selectedCollaboratorId}
+                disabled={isSubmitting || !selectedServiceId || (!selectedCollaboratorId && selectedCollaboratorValue !== "any")}
                 fromDate={startOfDay(new Date())}
               />
             </div>
@@ -433,7 +560,7 @@ const GuestAppointmentPage: React.FC = () => {
                       {slot.time}
                     </Button>
                   ))
-                ) : selectedDate && selectedServiceId && selectedCollaboratorId ? (
+                ) : selectedDate && selectedServiceId && (selectedCollaboratorId || selectedCollaboratorValue === "any") ? (
                   <p className="text-gray-500 col-span-3">Nenhum horário disponível para a data, colaborador e serviço selecionados.</p>
                 ) : (
                   <p className="text-gray-500 col-span-3">Selecione um colaborador, serviço e uma data para ver os horários.</p>

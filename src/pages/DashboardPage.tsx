@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useSession } from '@/components/SessionContextProvider';
+import { useMenuItems } from '@/hooks/useMenuItems';
 import { showError } from '@/utils/toast';
 import MonthlyRevenueChart from '@/components/MonthlyRevenueChart';
 import CriticalStockReport from '@/components/CriticalStockReport';
@@ -16,8 +17,9 @@ const DashboardPage: React.FC = () => {
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const { data, loading } = useDashboardData();
+  const { menuItems: dynamicMenuItems, loading: loadingMenus } = useMenuItems();
 
-  if (sessionLoading || loadingPrimaryCompany || loading) {
+  if (sessionLoading || loadingPrimaryCompany || loading || loadingMenus) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-700">Carregando Dashboard...</p>
@@ -49,6 +51,12 @@ const DashboardPage: React.FC = () => {
       </div>
     );
   }
+
+  const hasCashRegisterPermission = dynamicMenuItems.some((menu) => {
+    const key = (menu.menu_key || '').toLowerCase();
+    const path = (menu.path || '').toLowerCase();
+    return key === 'financeiro' || key === 'caixa' || path.includes('financeiro') || path.includes('caixa');
+  });
 
   const kpis = [
     { 
@@ -88,7 +96,7 @@ const DashboardPage: React.FC = () => {
         <div className="flex gap-3">
           {createButton(() => navigate(`/novo-agendamento/${primaryCompanyId}`), 'fas fa-plus', 'Novo Agendamento')}
           {createButton(() => navigate('/novo-cliente'), 'fas fa-user-plus', 'Novo Cliente')}
-          {createButton(() => navigate('/fechar-caixa'), 'fas fa-cash-register', 'Fechar Caixa')}
+          {hasCashRegisterPermission && createButton(() => navigate('/fechar-caixa'), 'fas fa-cash-register', 'Fechar Caixa')}
         </div>
       </div>
 
