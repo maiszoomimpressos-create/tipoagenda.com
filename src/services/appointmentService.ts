@@ -12,17 +12,79 @@ interface GuestAppointmentData {
   total_duration_minutes: number;
 }
 
-const DEFAULT_GUEST_CLIENT_ID = '229a877f-238d-4dee-8eca-f0efe4a24e59';
-
-// Para agendamentos da página de convidado, sempre usamos o cliente padrão
-// e colocamos o nome digitado no campo de apelido.
+// Para agendamentos da página de convidado, criar ou buscar cliente pelo telefone
 export async function findOrCreateClient(
-  _companyId: string,
+  companyId: string,
   name: string,
-  _phone: string,
+  phone: string,
 ): Promise<{ clientId: string; clientNickname: string }> {
+  // Remover formatação do telefone (apenas dígitos)
+  const phoneDigits = phone.replace(/\D/g, '');
+  
+  // Se o telefone tem 10 ou 11 dígitos, adicionar DDI 55 se não tiver
+  let formattedPhone = phoneDigits;
+  if (phoneDigits.length === 10 || phoneDigits.length === 11) {
+    if (!phoneDigits.startsWith('55')) {
+      formattedPhone = '55' + phoneDigits;
+    }
+  } else if (phoneDigits.length >= 12 && phoneDigits.startsWith('55')) {
+    formattedPhone = phoneDigits;
+  } else {
+    // Se não tiver formato válido, usar como está
+    formattedPhone = phoneDigits;
+  }
+
+  // Buscar cliente existente pelo telefone (tentar vários formatos)
+  const { data: existingClients, error: searchError } = await supabase
+    .from('clients')
+    .select('id, name, phone')
+    .or(`phone.eq.${formattedPhone},phone.eq.${phoneDigits},phone.eq.+${formattedPhone},phone.like.%${phoneDigits.slice(-9)}%`)
+    .limit(5);
+
+  if (searchError) {
+    console.error('Erro ao buscar cliente:', searchError);
+    // Continuar para criar novo cliente mesmo com erro na busca
+  }
+
+  // Se encontrou cliente com telefone exato, usar ele
+  const exactMatch = existingClients?.find(c => {
+    const clientPhone = c.phone?.replace(/\D/g, '') || '';
+    return clientPhone === formattedPhone || clientPhone === phoneDigits;
+  });
+
+  if (exactMatch) {
+    return {
+      clientId: exactMatch.id,
+      clientNickname: name,
+    };
+  }
+
+  // Cliente não existe, criar novo
+  const { data: newClient, error: insertError } = await supabase
+    .from('clients')
+    .insert({
+      name: name,
+      phone: formattedPhone,
+      email: `convidado_${Date.now()}@temp.com`,
+      birth_date: '1900-01-01',
+      zip_code: '00000000',
+      state: 'XX',
+      city: 'N/A',
+      address: 'N/A',
+      number: '0',
+      neighborhood: 'N/A',
+      company_id: companyId, // Associar à empresa
+    })
+    .select('id')
+    .single();
+
+  if (insertError) {
+    console.error('Erro ao criar cliente convidado:', insertError);
+    throw insertError;
+  }
+
   return {
-    clientId: DEFAULT_GUEST_CLIENT_ID,
+    clientId: newClient.id,
     clientNickname: name,
   };
 }
@@ -56,6 +118,38 @@ export async function createGuestAppointment(
     // Opcionalmente poderíamos remover o appointment criado para evitar órfãos,
     // mas por simplicidade apenas informamos o erro.
     throw new Error('Erro ao vincular serviço ao agendamento de convidado.');
+  }
+
+  // 3. Agendar mensagens WhatsApp (lembrete e agradecimento) se configurado
+  try {
+    console.log('[appointmentService] Agendando mensagens WhatsApp para appointment:', appointment.id);
+    const { data: scheduleResult, error: scheduleError } = await supabase.rpc(
+      'schedule_whatsapp_messages_for_appointment',
+      { p_appointment_id: appointment.id }
+    );
+
+    if (scheduleError) {
+      console.error('[appointmentService] ❌ ERRO ao agendar mensagens WhatsApp:', scheduleError);
+      console.error('[appointmentService] Detalhes do erro:', JSON.stringify(scheduleError, null, 2));
+      // Não falha o processo, apenas loga o erro
+    } else {
+      console.log('[appointmentService] ✅ Resultado do agendamento:', JSON.stringify(scheduleResult, null, 2));
+      if (scheduleResult && !scheduleResult.success) {
+        console.warn('[appointmentService] ⚠️ Função retornou success=false:', scheduleResult.error || scheduleResult.message);
+      }
+      if (scheduleResult && scheduleResult.logs_created === 0) {
+        console.warn('[appointmentService] ⚠️ Nenhum log foi criado. Verifique:', {
+          logs_created: scheduleResult.logs_created,
+          logs_skipped: scheduleResult.logs_skipped,
+          errors: scheduleResult.errors,
+          message: scheduleResult.message
+        });
+      }
+    }
+  } catch (scheduleErr: any) {
+    console.error('[appointmentService] ❌ EXCEÇÃO ao agendar mensagens WhatsApp:', scheduleErr);
+    console.error('[appointmentService] Stack:', scheduleErr.stack);
+    // Não falha o processo, apenas loga o erro
   }
 
   return appointment.id;

@@ -1,0 +1,231 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    ROTEIRO DE VÍDEO - TIPOAGENDA
+              Sistema Completo de Agendamento e Gestão
+═══════════════════════════════════════════════════════════════════════════════
+
+DURAÇÃO ESTIMADA: 3-4 minutos
+FORMATO: Vídeo promocional/demonstrativo
+PÚBLICO-ALVO: Proprietários de empresas de serviços (salões, clínicas, etc.)
+
+═══════════════════════════════════════════════════════════════════════════════
+                            ESTRUTURA DO VÍDEO
+═══════════════════════════════════════════════════════════════════════════════
+
+[INTRODUÇÃO - 0:00 a 0:30]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"Você já imaginou ter um sistema que organiza todos os seus agendamentos,
+gerencia seus clientes e colaboradores, controla seu financeiro e ainda
+envia mensagens automáticas pelo WhatsApp? 
+
+Apresentamos o TipoAgenda: a solução completa para transformar a gestão
+da sua empresa de serviços."
+
+[VISUAL SUGERIDO]
+- Logo do TipoAgenda aparecendo
+- Transição suave para tela do sistema
+- Música de fundo inspiradora e profissional
+
+───────────────────────────────────────────────────────────────────────────────
+
+[SEÇÃO 1: AGENDAMENTOS - 0:30 a 1:00]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"Com o TipoAgenda, você tem controle total sobre seus agendamentos. Crie
+novos agendamentos em segundos, visualize sua agenda em formato de calendário
+ou lista, e gerencie a disponibilidade de cada colaborador de forma
+intuitiva e eficiente.
+
+O sistema permite que você veja todos os compromissos do dia, semana ou mês
+em uma única tela, facilitando a organização e evitando conflitos de horário."
+
+[VISUAL SUGERIDO]
+- Demonstração da tela de agendamentos
+- Criação de um novo agendamento
+- Visualização do calendário
+- Navegação entre diferentes visualizações
+
+───────────────────────────────────────────────────────────────────────────────
+
+[SEÇÃO 2: GESTÃO DE CLIENTES E COLABORADORES - 1:00 a 1:30]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"Gerencie seu cadastro de clientes de forma completa e organizada. Armazene
+informações importantes, histórico de atendimentos e preferências de cada cliente.
+
+Para colaboradores, o sistema oferece controle de permissões, horários de
+trabalho e vinculação com serviços específicos. Cada colaborador pode ter
+acesso apenas às funcionalidades necessárias para seu trabalho."
+
+[VISUAL SUGERIDO]
+- Tela de listagem de clientes
+- Visualização de perfil de cliente
+- Tela de colaboradores
+- Demonstração de permissões
+
+───────────────────────────────────────────────────────────────────────────────
+
+[SEÇÃO 3: SERVIÇOS E ESTOQUE - 1:30 a 2:00]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"Cadastre todos os serviços oferecidos pela sua empresa, defina valores,
+duração e quais colaboradores podem realizar cada serviço. O sistema também
+permite gerenciar seu estoque de produtos, controlando entradas, saídas e
+alertas de reposição.
+
+Tudo integrado para que você tenha visibilidade completa do seu negócio."
+
+[VISUAL SUGERIDO]
+- Tela de serviços
+- Cadastro de novo serviço
+- Tela de estoque
+- Movimentações de produtos
+
+───────────────────────────────────────────────────────────────────────────────
+
+[SEÇÃO 4: FINANCEIRO E RELATÓRIOS - 2:00 a 2:30]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"O módulo financeiro do TipoAgenda registra todas as movimentações financeiras,
+seja de receitas ou despesas. Visualize relatórios detalhados sobre vendas,
+comissões de colaboradores e performance do negócio.
+
+Com gráficos e tabelas intuitivas, você toma decisões baseadas em dados reais."
+
+[VISUAL SUGERIDO]
+- Dashboard financeiro
+- Gráficos de receitas
+- Relatórios detalhados
+- Visualização de comissões
+
+───────────────────────────────────────────────────────────────────────────────
+
+[SEÇÃO 5: AUTOMAÇÃO COM WHATSAPP - 2:30 a 3:00]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"Automatize a comunicação com seus clientes através do WhatsApp. O sistema
+envia automaticamente lembretes de agendamentos, confirmações e notificações
+de cancelamento.
+
+Configure templates personalizados e defina regras de envio para cada tipo
+de mensagem. Economize tempo e melhore a experiência do seu cliente."
+
+[VISUAL SUGERIDO]
+- Tela de configuração de mensagens WhatsApp
+- Templates de mensagens
+- Regras de envio automático
+- Demonstração de mensagem recebida
+
+───────────────────────────────────────────────────────────────────────────────
+
+[SEÇÃO 6: PLANOS E PERMISSÕES - 3:00 a 3:20]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"O TipoAgenda oferece diferentes planos de assinatura adaptados ao tamanho
+e necessidade da sua empresa. Cada plano inclui funcionalidades específicas,
+e você pode controlar quais colaboradores têm acesso a cada área do sistema.
+
+Tenha flexibilidade total para personalizar o sistema conforme sua necessidade."
+
+[VISUAL SUGERIDO]
+- Tela de planos disponíveis
+- Configuração de permissões
+- Diferentes níveis de acesso
+
+───────────────────────────────────────────────────────────────────────────────
+
+[CONCLUSÃO E CALL TO ACTION - 3:20 a 3:45]
+───────────────────────────────────────────────────────────────────────────────
+
+NARRAÇÃO:
+"O TipoAgenda é mais que um sistema de agendamento. É uma solução completa
+para gestão do seu negócio, que economiza tempo, organiza processos e aumenta
+a satisfação dos seus clientes.
+
+Transforme a gestão da sua empresa hoje mesmo. Acesse tipoagenda.com e
+comece sua jornada rumo à eficiência e ao crescimento."
+
+[VISUAL SUGERIDO]
+- Logo do TipoAgenda centralizado
+- URL do site: tipoagenda.com
+- Botão de ação: "Comece Agora"
+- Informações de contato (opcional)
+
+───────────────────────────────────────────────────────────────────────────────
+
+═══════════════════════════════════════════════════════════════════════════════
+                        DICAS DE PRODUÇÃO
+═══════════════════════════════════════════════════════════════════════════════
+
+1. TOM DE VOZ:
+   - Profissional, mas acessível
+   - Entusiasmado, mas não exagerado
+   - Ritmo moderado (nem muito rápido, nem muito lento)
+   - Pronúncia clara e pausas estratégicas
+
+2. MÚSICA DE FUNDO:
+   - Instrumental, moderna e inspiradora
+   - Volume baixo para não competir com a narração
+   - Ritmo que acompanhe o tom do vídeo
+
+3. TRANSITIONS:
+   - Suaves entre seções
+   - Use fade ou slide transitions
+   - Mantenha consistência visual
+
+4. TEXTOS NA TELA:
+   - Destaque palavras-chave importantes
+   - Use fontes legíveis e modernas
+   - Cores que combinem com a identidade visual
+
+5. DEMONSTRAÇÕES:
+   - Use gravações de tela reais do sistema
+   - Destaque funcionalidades principais
+   - Mostre a interface de forma clara e organizada
+
+═══════════════════════════════════════════════════════════════════════════════
+                    FUNCIONALIDADES PRINCIPAIS A DESTACAR
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ Sistema de Agendamentos Completo
+✓ Gestão de Clientes e Colaboradores
+✓ Controle de Serviços e Estoque
+✓ Módulo Financeiro Integrado
+✓ Relatórios e Analytics
+✓ Automação via WhatsApp
+✓ Sistema de Planos e Permissões
+✓ Interface Intuitiva e Moderna
+✓ Multi-empresa
+✓ Controle de Fidelidade
+
+═══════════════════════════════════════════════════════════════════════════════
+                        VERSÃO RESUMIDA (60 SEGUNDOS)
+═══════════════════════════════════════════════════════════════════════════════
+
+[0:00-0:15] INTRODUÇÃO
+"TipoAgenda: a solução completa para gestão da sua empresa de serviços."
+
+[0:15-0:30] AGENDAMENTOS
+"Controle total de agendamentos com visualização em calendário e lista."
+
+[0:30-0:40] GESTÃO COMPLETA
+"Gerencie clientes, colaboradores, serviços e estoque em um só lugar."
+
+[0:40-0:50] AUTOMAÇÃO
+"Automatize mensagens WhatsApp e tenha relatórios financeiros detalhados."
+
+[0:50-1:00] CALL TO ACTION
+"Transforme sua gestão hoje. Acesse tipoagenda.com"
+
+═══════════════════════════════════════════════════════════════════════════════
+                              FIM DO ROTEIRO
+═══════════════════════════════════════════════════════════════════════════════
+
+

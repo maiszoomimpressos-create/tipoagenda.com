@@ -62,9 +62,11 @@ import CompanySelectionPage from "./pages/CompanySelectionPage";
 import EditMyCompanyPage from "./pages/EditMyCompanyPage";
 import WhatsAppMessagingPage from "./pages/WhatsAppMessagingPage"; // Importar nova página de mensagens WhatsApp
 import WhatsAppProviderManagementPage from "./pages/WhatsAppProviderManagementPage"; // Importar nova página de gerenciamento de provedores WhatsApp
+import WhatsAppMessageQueuePage from "./pages/WhatsAppMessageQueuePage"; // Importar página de gerenciamento da fila de mensagens WhatsApp
 import RoleTypesManagementPage from "./pages/RoleTypesManagementPage"; // Importar nova página de gerenciamento de perfis (roles)
 import MenuManagementPage from "./pages/MenuManagementPage"; // Importar nova página de gerenciamento de menus
 import MenuPermissionsPage from "./pages/MenuPermissionsPage"; // Importar nova página de permissões de menu
+import BackupPage from "./pages/BackupPage"; // Importar nova página de backup
 import { useIsCompanyAdmin } from "./hooks/useIsCompanyAdmin";
 import { useIsProprietario } from "./hooks/useIsProprietario";
 import { useIsGlobalAdmin } from "./hooks/useIsGlobalAdmin";
@@ -225,6 +227,8 @@ const App = () => (
             <Route path="/admin-dashboard/role-types" element={<GlobalAdminProtectedRoute><RoleTypesManagementPage /></GlobalAdminProtectedRoute>} />
             {/* NOVA ROTA: Gestão de Menus */}
             <Route path="/admin-dashboard/menus" element={<GlobalAdminProtectedRoute><MenuManagementPage /></GlobalAdminProtectedRoute>} />
+            {/* NOVA ROTA: Backup do Banco de Dados */}
+            <Route path="/admin-dashboard/backup" element={<GlobalAdminProtectedRoute><BackupPage /></GlobalAdminProtectedRoute>} />
 
 
             {/* Rotas da aplicação (com layout MainApplication) */}
@@ -263,6 +267,7 @@ const App = () => (
               <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
               <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
               <Route path="mensagens-whatsapp" element={<CompanyAdminProtectedRoute><WhatsAppMessagingPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTÃO DE MENSAGENS WHATSAPP */}
+              <Route path="mensagens-whatsapp/gerenciar-mensagens" element={<CompanyAdminProtectedRoute><WhatsAppMessageQueuePage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GERENCIAR FILA DE MENSAGENS WHATSAPP */}
               <Route path="empresa/editar" element={<CompanyAdminProtectedRoute><EditMyCompanyPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTORES EDITAREM DADOS DA EMPRESA */}
               <Route path="menu-permissions" element={<CompanyAdminProtectedRoute><MenuPermissionsPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA PROPRIETÁRIOS GERENCIAREM PERMISSÕES DE MENU */}
 

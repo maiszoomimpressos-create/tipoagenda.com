@@ -66,12 +66,20 @@ async function testProvider() {
     console.log('');
 
     // 2. Preparar requisição (mesma lógica da Edge Function)
+    // Formatar telefone para API LiotPRO: remover "+" e espaços, apenas dígitos
+    const formattedPhoneForAPI = testPhone.replace(/[+\s]/g, '');
+    
     const contentType = provider.content_type || 'json';
     const headers = {};
 
     // Adicionar header de autenticação
     if (provider.auth_key && provider.auth_token) {
-      headers[provider.auth_key] = provider.auth_token;
+      // Garantir que o token tenha prefixo "Bearer " se necessário
+      let tokenValue = provider.auth_token;
+      if (provider.auth_key.toLowerCase() === 'authorization' && !tokenValue.startsWith('Bearer ')) {
+        tokenValue = 'Bearer ' + tokenValue;
+      }
+      headers[provider.auth_key] = tokenValue;
     }
 
     let body;
@@ -100,11 +108,11 @@ async function testProvider() {
         let fieldValue;
 
         if (typeof value === 'string') {
-          // Substituir placeholders
+          // Substituir placeholders (usar telefone formatado sem +)
           fieldValue = value
-            .replace(/{phone}/g, testPhone)
+            .replace(/{phone}/g, formattedPhoneForAPI)
             .replace(/{text}/g, testMessage)
-            .replace(/\[PHONE\]/g, testPhone)
+            .replace(/\[PHONE\]/g, formattedPhoneForAPI)
             .replace(/\[TEXT\]/g, testMessage);
         } else if (typeof value === 'boolean') {
           fieldValue = String(value);
@@ -142,11 +150,11 @@ async function testProvider() {
         payloadTemplate.queueId = '';
       }
       
-      // Substituir placeholders básicos no JSON do payload
+      // Substituir placeholders básicos no JSON do payload (usar telefone formatado sem +)
       const payloadString = JSON.stringify(payloadTemplate)
-        .replace(/{phone}/g, testPhone)
+        .replace(/{phone}/g, formattedPhoneForAPI)
         .replace(/{text}/g, testMessage)
-        .replace(/\[PHONE\]/g, testPhone)
+        .replace(/\[PHONE\]/g, formattedPhoneForAPI)
         .replace(/\[TEXT\]/g, testMessage);
 
       const payloadJson = JSON.parse(payloadString);
@@ -174,11 +182,48 @@ async function testProvider() {
     console.log('');
 
     // 3. Enviar requisição
-    const response = await fetch(provider.base_url, {
-      method: provider.http_method,
-      headers,
-      body: body,
-    });
+    let response;
+    try {
+      // Criar AbortController para timeout (compatível com Node.js 15+)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+      
+      response = await fetch(provider.base_url, {
+        method: provider.http_method,
+        headers,
+        body: body,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      console.error('\n❌ Erro ao fazer requisição HTTP:');
+      console.error(`   Tipo: ${fetchError.name}`);
+      console.error(`   Mensagem: ${fetchError.message}`);
+      
+      if (fetchError.name === 'AbortError') {
+        console.error('   → Timeout: a requisição demorou mais de 30 segundos');
+      } else if (fetchError.message && fetchError.message.includes('ENOTFOUND')) {
+        console.error('   → Problema de DNS: não foi possível resolver o hostname');
+      } else if (fetchError.message && fetchError.message.includes('ECONNREFUSED')) {
+        console.error('   → Conexão recusada: servidor não está respondendo');
+      } else if (fetchError.message && fetchError.message.includes('ETIMEDOUT')) {
+        console.error('   → Timeout: servidor não respondeu a tempo');
+      } else if (fetchError.message && (fetchError.message.includes('CERT') || fetchError.message.includes('SSL'))) {
+        console.error('   → Problema com certificado SSL/TLS');
+      } else if (fetchError.cause) {
+        console.error(`   → Causa: ${fetchError.cause.message || fetchError.cause}`);
+      }
+      
+      console.error('\n💡 Verifique:');
+      console.error('   - Conexão com internet');
+      console.error('   - Firewall/Antivírus bloqueando');
+      console.error('   - URL do provedor está correta?');
+      console.error(`   - Tente acessar manualmente: ${provider.base_url}`);
+      console.error('   - Execute: node scripts/test-connectivity.js');
+      
+      throw fetchError;
+    }
 
     // 4. Processar resposta
     let responseBody;
