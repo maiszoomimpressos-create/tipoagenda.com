@@ -1,7 +1,7 @@
--- Script para verificar e corrigir a descrição do menu "planos"
--- O problema relatado: descrição aparece como "por?" no sistema
+-- Script para verificar e corrigir o LABEL e a descrição do menu "planos"
+-- O problema relatado: label aparece como "por" em vez de "Planos"
 
--- 1. Verificar a descrição atual do menu "planos"
+-- 1. Verificar o label e descrição atual do menu "planos"
 SELECT 
   id,
   menu_key,
@@ -15,7 +15,13 @@ FROM menus
 WHERE menu_key = 'planos'
   AND is_active = true;
 
--- 2. Atualizar a descrição do menu "planos" com uma descrição adequada
+-- 2. CORRIGIR O LABEL do menu "planos" para "Planos" (PRINCIPAL)
+UPDATE menus
+SET label = 'Planos'
+WHERE menu_key = 'planos'
+  AND is_active = true;
+
+-- 3. Atualizar a descrição do menu "planos" com uma descrição adequada
 -- Se a descrição estiver como "por?" ou incompleta, será corrigida
 UPDATE menus
 SET description = 'Gerencie sua assinatura, visualize planos disponíveis e altere seu plano atual.'
@@ -23,7 +29,7 @@ WHERE menu_key = 'planos'
   AND is_active = true
   AND (description IS NULL OR description = '' OR description LIKE '%por?%' OR description = 'por?');
 
--- 3. Verificar se a atualização foi aplicada
+-- 4. Verificar se a atualização foi aplicada
 SELECT 
   id,
   menu_key,
@@ -37,13 +43,18 @@ FROM menus
 WHERE menu_key = 'planos'
   AND is_active = true;
 
--- 4. Se necessário, também verificar se há outros menus com descrições problemáticas
+-- 5. Verificar se há outros menus com labels ou descrições problemáticas
 SELECT 
   menu_key,
   label,
-  description
+  description,
+  CASE 
+    WHEN label LIKE 'por%' OR label = 'por' THEN '⚠️ Label parece incompleto'
+    WHEN LENGTH(label) < 3 THEN '⚠️ Label muito curto'
+    WHEN description LIKE '%?%' OR description = 'por?' THEN '⚠️ Descrição problemática'
+    ELSE '✅ OK'
+  END as status
 FROM menus
 WHERE is_active = true
-  AND (description IS NULL OR description = '' OR description LIKE '%?%')
 ORDER BY display_order;
 
