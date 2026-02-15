@@ -1,11 +1,82 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
 import { format, addMinutes, parse, getDay, startOfDay, isBefore, isAfter, setHours, setMinutes } from "https://esm.sh/date-fns@3.6.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+/**
+ * Verifica se a empresa tem acesso ao menu WhatsApp através do plano ativo
+ * @param supabase Cliente Supabase
+ * @param companyId ID da empresa
+ * @returns Promise<boolean> true se tem acesso, false caso contrário
+ */
+async function checkWhatsAppMenuAccess(
+  supabase: SupabaseClient,
+  companyId: string
+): Promise<boolean> {
+  try {
+    // 1. Buscar plano ativo da empresa
+    const { data: subscriptionData, error: subError } = await supabase
+      .from('company_subscriptions')
+      .select('plan_id')
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subError && subError.code !== 'PGRST116') {
+      console.error('[checkWhatsAppMenuAccess] Erro ao buscar assinatura:', subError);
+      return false;
+    }
+
+    if (!subscriptionData || !subscriptionData.plan_id) {
+      console.warn('[checkWhatsAppMenuAccess] Empresa sem plano ativo:', companyId);
+      return false;
+    }
+
+    const planId = subscriptionData.plan_id;
+
+    // 2. Buscar menu WhatsApp pelo menu_key
+    const { data: whatsappMenu, error: menuError } = await supabase
+      .from('menus')
+      .select('id')
+      .eq('menu_key', 'mensagens-whatsapp')
+      .eq('is_active', true)
+      .single();
+
+    if (menuError || !whatsappMenu) {
+      console.warn('[checkWhatsAppMenuAccess] Menu WhatsApp não encontrado ou inativo');
+      return false;
+    }
+
+    // 3. Verificar se o menu está vinculado ao plano da empresa
+    const { data: menuPlan, error: menuPlanError } = await supabase
+      .from('menu_plans')
+      .select('id')
+      .eq('plan_id', planId)
+      .eq('menu_id', whatsappMenu.id)
+      .single();
+
+    if (menuPlanError || !menuPlan) {
+      console.warn('[checkWhatsAppMenuAccess] Menu WhatsApp não está vinculado ao plano:', {
+        planId,
+        menuId: whatsappMenu.id,
+        error: menuPlanError?.message,
+      });
+      return false;
+    }
+
+    console.log('[checkWhatsAppMenuAccess] ✅ Empresa tem acesso ao menu WhatsApp:', companyId);
+    return true;
+  } catch (error: any) {
+    console.error('[checkWhatsAppMenuAccess] Erro inesperado:', error);
+    return false;
+  }
+}
 
 // Helper function to get available time slots (replicated from frontend utility for backend re-validation)
 async function getAvailableTimeSlotsBackend(
@@ -14,10 +85,12 @@ async function getAvailableTimeSlotsBackend(
   collaboratorId: string,
   date: Date,
   requiredDuration: number,
-  slotIntervalMinutes: number = 30,
+  slotIntervalMinutes: number | undefined = undefined, // Se não especificado, usa a duração do serviço
   excludeAppointmentId?: string
 ): Promise<string[]> {
-  console.log('getAvailableTimeSlotsBackend Start:', { companyId, collaboratorId, date: date.toISOString(), requiredDuration });
+  // Se slotIntervalMinutes não foi especificado, usar a duração do serviço como intervalo
+  const interval = slotIntervalMinutes ?? requiredDuration;
+  console.log('getAvailableTimeSlotsBackend Start:', { companyId, collaboratorId, date: date.toISOString(), requiredDuration, interval });
   const availableSlots: string[] = [];
   // Normalizar a data para garantir que está no início do dia - PRESERVAR A DATA ORIGINAL
   const normalizedDate = startOfDay(date);
@@ -183,7 +256,7 @@ async function getAvailableTimeSlotsBackend(
       // Calcular próximo slot alinhado
       const nextSlotAfterNow = setMinutes(
         setHours(currentSlotDateTime, currentSlotDateTime.getHours()), 
-        Math.ceil(currentSlotDateTime.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes
+        Math.ceil(currentSlotDateTime.getMinutes() / interval) * interval
       );
       
       if (isBefore(currentTime, nextSlotAfterNow)) {
@@ -199,7 +272,7 @@ async function getAvailableTimeSlotsBackend(
 
       let isSlotFree = true;
       let shouldAdvance = true;
-      let nextTime = addMinutes(currentTime, slotIntervalMinutes);
+      let nextTime = addMinutes(currentTime, interval);
       
       // Check against past time for current day (usar a data selecionada, não a data atual)
       if (selectedDateStart.getTime() === today.getTime()) {
@@ -214,7 +287,7 @@ async function getAvailableTimeSlotsBackend(
           // Avançar para o próximo slot após o horário atual
           const nextSlotAfterNow = setMinutes(
             setHours(now, now.getHours()), 
-            Math.ceil(now.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes
+            Math.ceil(now.getMinutes() / interval) * interval
           );
           // Converter para a data selecionada
           const nextSlotOnSelectedDate = new Date(selectedDateStart);
@@ -241,8 +314,8 @@ async function getAvailableTimeSlotsBackend(
             if (slotStartTime < busyEndTime && slotEndTime > busyStartTime) {
               isSlotFree = false;
               console.log('getAvailableTimeSlotsBackend: Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
-              // Avançar para depois do busy interval, alinhado ao slotIntervalMinutes
-              const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+              // Avançar para depois do busy interval, alinhado ao interval
+              const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / interval) * interval);
               if (isBefore(currentTime, busyEndAligned)) {
                 nextTime = busyEndAligned;
               }
@@ -272,8 +345,8 @@ async function getAvailableTimeSlotsBackend(
           if (slotStartTime < busyEndTime && slotEndTime > busyStartTime) {
             isSlotFree = false;
             console.log('getAvailableTimeSlotsBackend: ❌ Slot ignored (conflicts with busy interval):', format(slotStart, 'HH:mm'), 'Busy Interval:', { start: busy.start.toISOString(), end: busy.end.toISOString() });
-            // Avançar para depois do busy interval, alinhado ao slotIntervalMinutes
-            const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+            // Avançar para depois do busy interval, alinhado ao interval
+            const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / interval) * interval);
             if (isBefore(currentTime, busyEndAligned)) {
               nextTime = busyEndAligned;
             }
@@ -542,21 +615,29 @@ serve(async (req) => {
     }
 
     // 5. Agendar mensagens WhatsApp (lembrete e agradecimento) se configurado
+    // IMPORTANTE: Só agendar se a empresa tiver acesso ao menu WhatsApp no plano
     try {
-      console.log('book-appointment: Agendando mensagens WhatsApp para appointment:', appointment.id);
-      const { data: scheduleResult, error: scheduleError } = await supabaseAdmin.rpc(
-        'schedule_whatsapp_messages_for_appointment',
-        { p_appointment_id: appointment.id }
-      );
+      // Verificar se a empresa tem acesso ao menu WhatsApp
+      const hasWhatsAppAccess = await checkWhatsAppMenuAccess(supabaseAdmin, companyId);
+      
+      if (hasWhatsAppAccess) {
+        console.log('book-appointment: Agendando mensagens WhatsApp para appointment:', appointment.id);
+        const { data: scheduleResult, error: scheduleError } = await supabaseAdmin.rpc(
+          'schedule_whatsapp_messages_for_appointment',
+          { p_appointment_id: appointment.id }
+        );
 
-      if (scheduleError) {
-        console.warn('book-appointment: Erro ao agendar mensagens WhatsApp (não crítico):', scheduleError);
-        // Não falha o processo, apenas loga o aviso
+        if (scheduleError) {
+          console.warn('book-appointment: Erro ao agendar mensagens WhatsApp (não crítico):', scheduleError);
+          // Não falha o processo, apenas loga o aviso
+        } else {
+          console.log('book-appointment: Mensagens WhatsApp agendadas:', scheduleResult);
+        }
       } else {
-        console.log('book-appointment: Mensagens WhatsApp agendadas:', scheduleResult);
+        console.log('book-appointment: ⚠️ Empresa não tem acesso ao menu WhatsApp no plano. Mensagens não serão agendadas.');
       }
     } catch (scheduleErr: any) {
-      console.warn('book-appointment: Exceção ao agendar mensagens WhatsApp (não crítico):', scheduleErr);
+      console.warn('book-appointment: Exceção ao verificar acesso ou agendar mensagens WhatsApp (não crítico):', scheduleErr);
       // Não falha o processo, apenas loga o aviso
     }
 

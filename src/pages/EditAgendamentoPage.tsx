@@ -258,7 +258,7 @@ const EditAgendamentoPage: React.FC = () => {
             selectedCollaboratorId,
             selectedDate,
             totalDurationMinutes,
-            30, // slotIntervalMinutes
+            totalDurationMinutes, // Usar a duração do serviço como intervalo entre slots
             appointmentId // Pass the current appointment ID to exclude it from busy slots
           );
 

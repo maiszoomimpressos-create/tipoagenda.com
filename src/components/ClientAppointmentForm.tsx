@@ -17,6 +17,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, addMinutes, startOfDay, isBefore, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAvailableTimeSlots } from '@/utils/appointment-scheduling';
+import { checkWhatsAppMenuAccess } from '@/utils/checkWhatsAppMenuAccess'; // Importar verificação de acesso ao menu WhatsApp
 
 // Zod schema for new appointment registration
 const clientAppointmentSchema = z.object({
@@ -325,7 +326,8 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
             companyId,
             selectedCollaboratorId,
             normalizedSelectedDate,
-            totalDurationMinutes
+            totalDurationMinutes,
+            totalDurationMinutes // Usar a duração do serviço como intervalo entre slots
           );
           console.log('ClientAppointmentForm: Slots recebidos do backend:', slots);
           // `slots` vem como horários de início (HH:mm). Vamos montar "HH:mm às HH:mm" para exibição.
@@ -394,7 +396,8 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
             companyId,
             data.collaboratorId,
             normalizedAppointmentDate,
-            totalDurationMinutes
+            totalDurationMinutes,
+            totalDurationMinutes // Usar a duração do serviço como intervalo entre slots
           );
           
           console.log('Re-validação - refreshedSlots recebidos:', refreshedSlots);
@@ -486,33 +489,40 @@ const ClientAppointmentForm: React.FC<ClientAppointmentFormProps> = ({ companyId
       }
 
       // 3. Agendar mensagens WhatsApp (lembrete e agradecimento) se configurado
+      // IMPORTANTE: Só agendar se a empresa tiver acesso ao menu WhatsApp no plano
       try {
-        console.log('[ClientAppointmentForm] Agendando mensagens WhatsApp para appointment:', appointmentData.id);
-        const { data: scheduleResult, error: scheduleError } = await supabase.rpc(
-          'schedule_whatsapp_messages_for_appointment',
-          { p_appointment_id: appointmentData.id }
-        );
+        const hasWhatsAppAccess = await checkWhatsAppMenuAccess(supabase, companyId);
+        
+        if (hasWhatsAppAccess) {
+          console.log('[ClientAppointmentForm] Agendando mensagens WhatsApp para appointment:', appointmentData.id);
+          const { data: scheduleResult, error: scheduleError } = await supabase.rpc(
+            'schedule_whatsapp_messages_for_appointment',
+            { p_appointment_id: appointmentData.id }
+          );
 
-        if (scheduleError) {
-          console.error('[ClientAppointmentForm] ❌ ERRO ao agendar mensagens WhatsApp:', scheduleError);
-          console.error('[ClientAppointmentForm] Detalhes do erro:', JSON.stringify(scheduleError, null, 2));
-          // Não falha o processo, apenas loga o erro
+          if (scheduleError) {
+            console.error('[ClientAppointmentForm] ❌ ERRO ao agendar mensagens WhatsApp:', scheduleError);
+            console.error('[ClientAppointmentForm] Detalhes do erro:', JSON.stringify(scheduleError, null, 2));
+            // Não falha o processo, apenas loga o erro
+          } else {
+            console.log('[ClientAppointmentForm] ✅ Resultado do agendamento:', JSON.stringify(scheduleResult, null, 2));
+            if (scheduleResult && !scheduleResult.success) {
+              console.warn('[ClientAppointmentForm] ⚠️ Função retornou success=false:', scheduleResult.error || scheduleResult.message);
+            }
+            if (scheduleResult && scheduleResult.logs_created === 0) {
+              console.warn('[ClientAppointmentForm] ⚠️ Nenhum log foi criado. Verifique:', {
+                logs_created: scheduleResult.logs_created,
+                logs_skipped: scheduleResult.logs_skipped,
+                errors: scheduleResult.errors,
+                message: scheduleResult.message
+              });
+            }
+          }
         } else {
-          console.log('[ClientAppointmentForm] ✅ Resultado do agendamento:', JSON.stringify(scheduleResult, null, 2));
-          if (scheduleResult && !scheduleResult.success) {
-            console.warn('[ClientAppointmentForm] ⚠️ Função retornou success=false:', scheduleResult.error || scheduleResult.message);
-          }
-          if (scheduleResult && scheduleResult.logs_created === 0) {
-            console.warn('[ClientAppointmentForm] ⚠️ Nenhum log foi criado. Verifique:', {
-              logs_created: scheduleResult.logs_created,
-              logs_skipped: scheduleResult.logs_skipped,
-              errors: scheduleResult.errors,
-              message: scheduleResult.message
-            });
-          }
+          console.log('[ClientAppointmentForm] ⚠️ Empresa não tem acesso ao menu WhatsApp no plano. Mensagens não serão agendadas.');
         }
       } catch (scheduleErr: any) {
-        console.error('[ClientAppointmentForm] ❌ EXCEÇÃO ao agendar mensagens WhatsApp:', scheduleErr);
+        console.error('[ClientAppointmentForm] ❌ EXCEÇÃO ao verificar acesso ou agendar mensagens WhatsApp:', scheduleErr);
         console.error('[ClientAppointmentForm] Stack:', scheduleErr.stack);
         // Não falha o processo, apenas loga o erro
       }

@@ -382,90 +382,100 @@ const WhatsAppMessageQueuePage: React.FC = () => {
           <CardTitle className="text-lg">Mensagens Agendadas</CardTitle>
           <CardDescription>
             Visualize as mensagens pendentes, enviadas, falhas ou canceladas.
+            {filteredMessages.length > 0 && (
+              <span className="ml-2 text-gray-600">
+                ({filteredMessages.length} {filteredMessages.length === 1 ? 'mensagem' : 'mensagens'})
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0">
           {filteredMessages.length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               Nenhuma mensagem encontrada com os filtros atuais.
             </div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Telefone
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tipo de Mensagem
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data/Hora do Envio
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredMessages.map((msg) => {
-                  const clientName = msg.clients?.name || 'Cliente não identificado';
-                  const phone = msg.clients?.phone || '-';
-                  const typeLabel = getMessageTypeLabel(msg.message_kinds);
-                  const statusLabel = getStatusLabel(msg.status);
-
-                  const canCancel = msg.status === 'PENDING';
-
-                  return (
-                    <tr key={msg.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {clientName}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {phone}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {typeLabel}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                        {formatDateTimeBR(msg.scheduled_for)}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <Badge className={getStatusBadgeVariant(msg.status)}>
-                          {statusLabel}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right">
-                        {canCancel ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="!rounded-button border-red-500 text-red-600 hover:bg-red-50"
-                            onClick={() => handleCancelMessage(msg.id)}
-                            disabled={cancellingId === msg.id}
-                          >
-                            {cancellingId === msg.id ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <XCircle className="h-4 w-4 mr-2" />
-                            )}
-                            Cancelar Envio
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
+            <div className="overflow-x-auto">
+              {/* Container com altura máxima e scroll vertical */}
+              <div className="max-h-[600px] overflow-y-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        Cliente
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        Telefone
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        Tipo de Mensagem
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        Data/Hora do Envio
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        Status
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        Ações
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredMessages.map((msg) => {
+                      const clientName = msg.clients?.name || 'Cliente não identificado';
+                      const phone = msg.clients?.phone || '-';
+                      const typeLabel = getMessageTypeLabel(msg.message_kinds);
+                      const statusLabel = getStatusLabel(msg.status);
+
+                      const canCancel = msg.status === 'PENDING';
+
+                      return (
+                        <tr key={msg.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {clientName}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {phone}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {typeLabel}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                            {formatDateTimeBR(msg.scheduled_for)}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <Badge className={getStatusBadgeVariant(msg.status)}>
+                              {statusLabel}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right">
+                            {canCancel ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="!rounded-button border-red-500 text-red-600 hover:bg-red-50"
+                                onClick={() => handleCancelMessage(msg.id)}
+                                disabled={cancellingId === msg.id}
+                              >
+                                {cancellingId === msg.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                )}
+                                Cancelar Envio
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

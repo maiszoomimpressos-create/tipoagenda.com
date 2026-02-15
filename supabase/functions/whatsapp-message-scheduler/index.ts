@@ -17,6 +17,7 @@ type MessageKindRow = {
 
 type CompanyRow = {
   id: string;
+  name: string | null;
   whatsapp_messaging_enabled: boolean;
 };
 
@@ -287,15 +288,44 @@ async function sendViaProvider(
     // Usar application/json (padrão)
     headers['Content-Type'] = 'application/json';
     
-    // Substituir placeholders básicos no JSON do payload (usar telefone formatado sem +)
-    const payloadString = JSON.stringify(payloadTemplate)
-      .replace(/{phone}/g, formattedPhoneForAPI)
-      .replace(/{text}/g, text)
-      .replace(/\[PHONE\]/g, formattedPhoneForAPI)
-      .replace(/\[TEXT\]/g, text);
-
-    const payloadJson = JSON.parse(payloadString);
-    body = provider.http_method === 'GET' ? undefined : JSON.stringify(payloadJson);
+    // IMPORTANTE: Substituir placeholders ANTES de fazer JSON.stringify
+    // para evitar problemas com caracteres de controle inválidos
+    // Sanitizar o texto: remover caracteres de controle inválidos e escapar quebras de linha
+    const sanitizedText = text
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remover caracteres de controle inválidos (mantém \n, \r, \t)
+      .replace(/\r\n/g, '\n') // Normalizar quebras de linha
+      .replace(/\r/g, '\n'); // Converter \r para \n
+    
+    // Função recursiva para substituir placeholders em objetos aninhados
+    const replacePlaceholders = (obj: any): any => {
+      if (typeof obj === 'string') {
+        return obj
+          .replace(/{phone}/g, formattedPhoneForAPI)
+          .replace(/{text}/g, sanitizedText)
+          .replace(/\[PHONE\]/g, formattedPhoneForAPI)
+          .replace(/\[TEXT\]/g, sanitizedText);
+      } else if (Array.isArray(obj)) {
+        return obj.map(item => replacePlaceholders(item));
+      } else if (obj !== null && typeof obj === 'object') {
+        const result: any = {};
+        for (const key in obj) {
+          result[key] = replacePlaceholders(obj[key]);
+        }
+        return result;
+      }
+      return obj;
+    };
+    
+    // Substituir placeholders no objeto (cópia profunda)
+    const payloadJson = replacePlaceholders(JSON.parse(JSON.stringify(payloadTemplate)));
+    
+    try {
+      body = provider.http_method === 'GET' ? undefined : JSON.stringify(payloadJson);
+    } catch (e) {
+      console.error('❌ Erro ao fazer JSON.stringify do payload:', e);
+      console.error('Payload (primeiros 500 chars):', JSON.stringify(payloadJson).substring(0, 500));
+      throw new Error(`Erro ao serializar payload JSON: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   console.log(`sendViaProvider: Preparando requisição para: ${provider.base_url}`);
@@ -340,6 +370,9 @@ async function sendViaProvider(
 }
 
 serve(async (req) => {
+  const startTime = Date.now();
+  const executionId = crypto.randomUUID();
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -357,6 +390,84 @@ serve(async (req) => {
       },
     );
   }
+
+  // Verificar autenticação: deve ter Authorization header com service_role_key
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.error('❌ Acesso negado: Authorization header ausente ou inválido');
+    return new Response(
+      JSON.stringify({ error: 'Acesso negado. Authorization header requerido.' }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
+  }
+  
+  const providedKey = authHeader.replace('Bearer ', '');
+  
+  // Obter chave esperada: primeiro tenta variável de ambiente
+  const envKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  
+  // Verificar se a chave fornecida corresponde à variável de ambiente
+  let isValid = false;
+  
+  if (envKey && envKey !== '' && providedKey === envKey) {
+    isValid = true;
+    console.log('✅ Service role key validada via variável de ambiente');
+  } else {
+    // Se não corresponde à variável de ambiente, verificar se a chave fornecida é válida
+    // tentando ler a tabela app_config com ela (se conseguir ler, é uma service_role_key válida)
+    try {
+      const tempSupabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        providedKey, // Tentar usar a chave fornecida
+        { auth: { persistSession: false } },
+      );
+      
+      // Tentar ler a tabela app_config - se conseguir, a chave é válida
+      const { data: config, error: configError } = await tempSupabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'service_role_key')
+        .single();
+      
+      if (!configError && config?.value) {
+        // Se conseguiu ler a tabela, a chave é válida
+        // Verificar se a chave fornecida corresponde à chave armazenada na tabela
+        if (providedKey === config.value) {
+          isValid = true;
+          console.log('✅ Service role key validada via tabela app_config');
+        } else {
+          console.warn('⚠️ Chave fornecida não corresponde à chave na tabela app_config, mas é válida para leitura');
+          // Mesmo assim, se conseguiu ler a tabela, a chave é válida (service_role)
+          isValid = true;
+        }
+      } else {
+        // Se não conseguiu ler, a chave pode não ser válida
+        console.error('❌ Acesso negado: Service role key inválida (não conseguiu ler app_config)');
+        console.error('Erro:', configError?.message || 'Erro desconhecido');
+      }
+    } catch (e) {
+      console.error('❌ Acesso negado: Erro ao validar service role key:', e);
+    }
+  }
+  
+  if (!isValid) {
+    console.error('❌ Acesso negado: Service role key inválida');
+    console.error('Provided key length:', providedKey.length);
+    console.error('Env key length:', envKey.length);
+    return new Response(
+      JSON.stringify({ error: 'Acesso negado. Service role key inválida.' }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
+  }
+  
+  console.log(`✅ Autenticação válida. Execution ID: ${executionId}`);
 
   // IMPORTANTE: Trabalhar sempre com horário de BRASÍLIA
   // Obter hora atual em Brasília
@@ -395,10 +506,10 @@ serve(async (req) => {
     );
 
     console.log('1) Buscando empresas com whatsapp_messaging_enabled = true...');
-    // 1) Buscar empresas com módulo habilitado
+    // 1) Buscar empresas com módulo habilitado (incluindo nome para templates)
     const { data: companies, error: companiesError } = await supabaseAdmin
       .from<CompanyRow>('companies')
-      .select('id, whatsapp_messaging_enabled')
+      .select('id, name, whatsapp_messaging_enabled')
       .eq('whatsapp_messaging_enabled', true);
 
     if (companiesError) {
@@ -736,32 +847,183 @@ serve(async (req) => {
     }
 
     // 7) Buscar logs PENDING para envio
-    // SIMPLIFICAÇÃO: enviar TODAS as mensagens PENDING, independentemente de scheduled_for.
-    // Motivo: evitar qualquer problema de timezone/filtro que esteja impedindo o envio.
-    // O controle de duplicidade é feito pelo status (PENDING → SENT/FAILED).
-    console.log('Buscando logs PENDING (sem filtro de horário)...', {
+    // IMPORTANTE: Buscar apenas mensagens com scheduled_for <= NOW() (horário atual)
+    // scheduled_for está armazenado como TIMESTAMPTZ no banco, então usamos UTC para comparação
+    console.log('Buscando logs PENDING com scheduled_for <= NOW()...', {
       now_UTC: now.toISOString(),
+      now_BR: nowBR.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
     });
     
+    // Primeiro, verificar quantas mensagens PENDING existem (para debug)
+    const { count: pendingCount, error: countError } = await supabaseAdmin
+      .from<MessageSendLogRow>('message_send_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'PENDING');
+    
+    console.log(`DEBUG: Total de mensagens PENDING no banco: ${pendingCount}`, {
+      countError: countError?.message,
+    });
+    
+    // Buscar apenas mensagens PENDING com scheduled_for <= NOW()
+    // IMPORTANTE: scheduled_for é TIMESTAMPTZ no banco (armazenado em UTC)
+    // Precisamos comparar corretamente, considerando que o Supabase pode retornar
+    // scheduled_for como string ISO ou como Date object
+    const nowISOString = now.toISOString();
+    
+    console.log(`DEBUG: Comparando scheduled_for <= ${nowISOString} (UTC)`);
+    console.log(`DEBUG: now timestamp: ${now.getTime()}, now ISO: ${nowISOString}`);
+    
+    // Buscar mensagens PENDING que já deveriam ter sido enviadas
+    // Usar .lte() que funciona com TIMESTAMPTZ no Supabase
     const { data: pendingLogs, error: pendingError } = await supabaseAdmin
       .from<MessageSendLogRow>('message_send_log')
       .select('*')
-      .eq('status', 'PENDING');
+      .eq('status', 'PENDING')
+      .lte('scheduled_for', nowISOString); // Comparar com timestamp UTC
+    
+    // Se a query não retornou resultados, tentar buscar todas e filtrar manualmente
+    // para garantir que não estamos perdendo mensagens por problemas de timezone
+
+    console.log(`DEBUG: Mensagens PENDING encontradas pela query: ${pendingLogs?.length || 0}`, {
+      pendingError: pendingError?.message,
+      pendingErrorCode: pendingError?.code,
+      pendingErrorDetails: pendingError?.details,
+      nowISOString,
+      pendingLogsDetails: pendingLogs?.map(l => ({
+        id: l.id,
+        scheduled_for: l.scheduled_for,
+        status: l.status,
+      })),
+    });
 
     if (pendingError) {
-      console.error('Erro ao buscar logs pendentes para envio:', pendingError);
-      return new Response(JSON.stringify({ error: 'Erro ao buscar logs pendentes.' }), {
+      console.error('❌ ERRO ao buscar logs pendentes para envio:', pendingError);
+      return new Response(JSON.stringify({ error: 'Erro ao buscar logs pendentes.', details: pendingError }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!pendingLogs || pendingLogs.length === 0) {
-      console.log('Nenhuma mensagem PENDING para envio.');
+    // SEMPRE buscar todas as mensagens PENDING e filtrar manualmente para garantir
+    // que não perdemos nenhuma mensagem devido a problemas de timezone ou formato
+    let finalPendingLogs = pendingLogs || [];
+    
+    // Se a query inicial não retornou resultados OU se há mensagens PENDING no banco,
+    // buscar todas e filtrar manualmente
+    if (!finalPendingLogs || finalPendingLogs.length === 0 || (pendingCount && pendingCount > 0)) {
+      console.log(`⚠️ Query inicial retornou ${finalPendingLogs.length} mensagens, mas há ${pendingCount || 0} PENDING no banco. Buscando todas para filtrar manualmente...`);
+      
+      // Buscar TODAS as mensagens PENDING
+      const { data: allPending, error: allPendingError } = await supabaseAdmin
+        .from<MessageSendLogRow>('message_send_log')
+        .select('*')
+        .eq('status', 'PENDING');
+      
+      if (allPendingError) {
+        console.error('Erro ao buscar todas as mensagens PENDING:', allPendingError);
+      } else if (allPending && allPending.length > 0) {
+        console.log(`📋 Total de mensagens PENDING no banco: ${allPending.length}`);
+        
+        // Filtrar manualmente: mensagens com scheduled_for <= NOW()
+        // IMPORTANTE: log.scheduled_for pode vir como string ISO ou já como Date
+        const filtered = allPending.filter(log => {
+          if (!log.scheduled_for) {
+            console.warn(`⚠️ Mensagem ${log.id} não tem scheduled_for`);
+            return false;
+          }
+          
+          // Converter para Date se for string
+          let scheduledDate: Date;
+          try {
+            scheduledDate = typeof log.scheduled_for === 'string' 
+              ? new Date(log.scheduled_for) 
+              : (log.scheduled_for instanceof Date ? log.scheduled_for : new Date(log.scheduled_for));
+          } catch (e) {
+            console.error(`❌ Erro ao converter scheduled_for para Date na mensagem ${log.id}:`, log.scheduled_for, e);
+            return false;
+          }
+          
+          // Verificar se a data é válida
+          if (isNaN(scheduledDate.getTime())) {
+            console.error(`❌ scheduled_for inválido na mensagem ${log.id}:`, log.scheduled_for);
+            return false;
+          }
+          
+          // Comparar timestamps (em milissegundos)
+          const scheduledTime = scheduledDate.getTime();
+          const nowTime = now.getTime();
+          
+          // Adicionar tolerância de 2 minutos para evitar problemas de precisão
+          const isDue = scheduledTime <= (nowTime + 120000); // +2 minutos de tolerância
+          
+          if (isDue) {
+            const diffMinutes = (nowTime - scheduledTime) / 60000;
+            console.log(`✅ Mensagem ${log.id} está pronta para envio:`, {
+              scheduled_for: log.scheduled_for,
+              scheduledTime,
+              scheduledDateISO: scheduledDate.toISOString(),
+              nowTime,
+              nowISO: now.toISOString(),
+              diffMinutes: diffMinutes.toFixed(2),
+              appointment_id: log.appointment_id,
+            });
+          } else {
+            const diffMinutes = (scheduledTime - nowTime) / 60000;
+            if (diffMinutes < 60) { // Log apenas se faltar menos de 1 hora
+              console.log(`⏳ Mensagem ${log.id} ainda não é hora (faltam ${diffMinutes.toFixed(2)} minutos):`, {
+                scheduled_for: log.scheduled_for,
+                scheduledDateISO: scheduledDate.toISOString(),
+                nowISO: now.toISOString(),
+              });
+            }
+          }
+          
+          return isDue;
+        });
+        
+        console.log(`✅ Filtradas ${filtered.length} mensagens prontas para envio de ${allPending.length} total`);
+        
+        if (filtered.length > 0) {
+          finalPendingLogs = filtered;
+        } else if (allPending.length > 0) {
+          // Log detalhado das primeiras mensagens que não foram filtradas
+          console.log(`⚠️ Nenhuma mensagem foi filtrada. Exemplos das primeiras 5:`);
+          allPending.slice(0, 5).forEach(log => {
+            const scheduledDate = typeof log.scheduled_for === 'string' 
+              ? new Date(log.scheduled_for) 
+              : (log.scheduled_for instanceof Date ? log.scheduled_for : new Date(log.scheduled_for));
+            const diffMinutes = (scheduledDate.getTime() - now.getTime()) / 60000;
+            console.log(`  - ${log.id}: scheduled_for=${log.scheduled_for}, diff=${diffMinutes.toFixed(2)} minutos`);
+          });
+        }
+      }
+    }
+    
+    if (!finalPendingLogs || finalPendingLogs.length === 0) {
+      console.log(`⚠️ Nenhuma mensagem PENDING para envio. (Total no banco: ${pendingCount || 0})`);
+      
+      // Log adicional: verificar se há mensagens PENDING que não foram encontradas
+      if (pendingCount && pendingCount > 0) {
+        const { data: allPending, error: allPendingError } = await supabaseAdmin
+          .from<MessageSendLogRow>('message_send_log')
+          .select('id, scheduled_for, status')
+          .eq('status', 'PENDING')
+          .limit(5);
+        
+        console.log(`DEBUG: Exemplo de mensagens PENDING no banco (primeiras 5):`, {
+          allPending,
+          allPendingError: allPendingError?.message,
+          comparacao: `scheduled_for <= ${nowISOString}`,
+          now_UTC: now.toISOString(),
+          now_BR: nowBR.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        });
+      }
+      
       return new Response(
         JSON.stringify({
           message: 'Execução concluída sem mensagens a enviar.',
           insertedLogsCount: insertedLogs.length,
+          pendingCountInDB: pendingCount || 0,
         }),
         {
           status: 200,
@@ -770,9 +1032,17 @@ serve(async (req) => {
       );
     }
 
-    // Buscar dados adicionais de clientes e empresas para preencher templates
+    console.log(`✅ Encontradas ${finalPendingLogs.length} mensagens PENDING para processar`);
+    
+    // Usar finalPendingLogs daqui em diante (atualizar variável pendingLogs)
+    const pendingLogsToProcess = finalPendingLogs;
+
+    // Buscar dados adicionais de clientes, empresas e agendamentos para preencher templates
     const clientIds = Array.from(
-      new Set(pendingLogs.map((l) => l.client_id).filter((id): id is string => !!id)),
+      new Set(pendingLogsToProcess.map((l) => l.client_id).filter((id): id is string => !!id)),
+    );
+    const appointmentIds = Array.from(
+      new Set(pendingLogsToProcess.map((l) => l.appointment_id).filter((id): id is string => !!id)),
     );
 
     const { data: clients, error: clientsError } = await supabaseAdmin
@@ -784,17 +1054,30 @@ serve(async (req) => {
       console.error('Erro ao buscar clients:', clientsError);
     }
 
+    // Buscar dados dos agendamentos para formatar DATA_HORA
+    const { data: appointments, error: appointmentsError } = await supabaseAdmin
+      .from<AppointmentRow>('appointments')
+      .select('id, appointment_date, appointment_time')
+      .in('id', appointmentIds.length ? appointmentIds : ['00000000-0000-0000-0000-000000000000']);
+
+    if (appointmentsError) {
+      console.error('Erro ao buscar appointments:', appointmentsError);
+    }
+
     const companiesMap = new Map<string, CompanyRow>();
     companies.forEach((c) => companiesMap.set(c.id, c));
 
     const clientsMap = new Map<string, ClientRow>();
     (clients || []).forEach((c) => clientsMap.set(c.id, c));
 
+    const appointmentsMap = new Map<string, AppointmentRow>();
+    (appointments || []).forEach((a) => appointmentsMap.set(a.id, a));
+
     // Reaproveitar templates map
 
     const updates: any[] = [];
 
-    for (const log of pendingLogs) {
+    for (const log of pendingLogsToProcess) {
       const client = log.client_id ? clientsMap.get(log.client_id) : null;
       const template =
         templatesByCompanyAndKind.get(`${log.company_id}_${log.message_kind_id}`) || null;
@@ -820,14 +1103,50 @@ serve(async (req) => {
 
       const bodyTemplate = template?.body_template || 'Olá, [CLIENTE]! [EMPRESA]';
 
-      // TODO: buscar mais dados de appointment / empresa se precisar para [DATA_HORA], [EMPRESA], etc.
+      // Buscar dados da empresa e do agendamento para preencher placeholders
+      const company = companiesMap.get(log.company_id);
+      const appointment = log.appointment_id ? appointmentsMap.get(log.appointment_id) : null;
+
+      // Formatar DATA_HORA do agendamento (se disponível)
+      let dataHoraFormatada = '';
+      if (appointment && appointment.appointment_date && appointment.appointment_time) {
+        try {
+          // Extrair apenas HH:mm do appointment_time
+          const timeStr = appointment.appointment_time.length >= 5 
+            ? appointment.appointment_time.substring(0, 5) 
+            : appointment.appointment_time;
+          
+          // Formatar data: DD/MM/YYYY HH:mm
+          const [year, month, day] = appointment.appointment_date.split('-');
+          dataHoraFormatada = `${day}/${month}/${year} às ${timeStr}`;
+        } catch (e) {
+          console.warn('Erro ao formatar DATA_HORA:', e);
+          dataHoraFormatada = `${appointment.appointment_date} ${appointment.appointment_time}`;
+        }
+      }
+
+      // Preencher template com todas as informações
       const renderedText = applyTemplate(bodyTemplate, {
         CLIENTE: client?.name || '',
-        EMPRESA: '', // preencher quando tivermos o nome da empresa disponível aqui
-        DATA_HORA: '', // preencher quando buscarmos appointment detalhado, se necessário
+        EMPRESA: company?.name || '',
+        DATA_HORA: dataHoraFormatada,
       });
 
       const sendResult = await sendViaProvider(provider, formattedPhone, renderedText);
+
+      // Log detalhado do resultado
+      console.log(`Resultado do envio para log ${log.id}:`, {
+        ok: sendResult.ok,
+        status: sendResult.status,
+        response: sendResult.responseBody,
+        phone: formattedPhone,
+      });
+
+      // Se falhou com ERR_NO_WHATSAPP_CONNECTION, logar detalhes adicionais
+      if (!sendResult.ok && sendResult.responseBody?.error === 'ERR_NO_WHATSAPP_CONNECTION') {
+        console.error(`❌ ERRO: Conexão WhatsApp não está ativa no LiotPRO para user_id: ${provider.user_id}, queue_id: ${provider.queue_id}`);
+        console.error(`Verifique no painel do LiotPRO se a conexão WhatsApp está ativa e se user_id/queue_id estão corretos.`);
+      }
 
       updates.push({
         id: log.id,
@@ -858,21 +1177,58 @@ serve(async (req) => {
 
     const sentCount = updates.filter((u) => u.status === 'SENT').length;
     const failedCount = updates.filter((u) => u.status === 'FAILED').length;
+    const executionDuration = Date.now() - startTime;
     
     console.log('=== RESUMO DA EXECUÇÃO ===');
+    console.log(`Execution ID: ${executionId}`);
     console.log(`Logs inseridos na tabela: ${insertedLogs.length}`);
     console.log(`Logs processados: ${updates.length}`);
     console.log(`Logs enviados com sucesso: ${sentCount}`);
     console.log(`Logs com falha: ${failedCount}`);
+    console.log(`Tempo de execução: ${executionDuration}ms`);
     console.log('=== FIM DA EXECUÇÃO ===');
+
+    // Registrar log de execução na tabela worker_execution_logs
+    try {
+      const logStatus = failedCount > 0 && sentCount === 0 ? 'ERROR' : 
+                       failedCount > 0 ? 'PARTIAL' : 'SUCCESS';
+      
+      await supabaseAdmin
+        .from('worker_execution_logs')
+        .insert({
+          execution_time: new Date().toISOString(),
+          status: logStatus,
+          messages_processed: updates.length,
+          messages_sent: sentCount,
+          messages_failed: failedCount,
+          execution_duration_ms: executionDuration,
+          details: {
+            execution_id: executionId,
+            inserted_logs: insertedLogs.length,
+            pending_count: pendingCount || 0,
+            timestamp: new Date().toISOString(),
+          },
+          error_message: failedCount > 0 ? `${failedCount} mensagens falharam` : null,
+        });
+      
+      console.log(`✅ Log de execução registrado na tabela worker_execution_logs`);
+    } catch (logError) {
+      console.error('⚠️ Erro ao registrar log de execução:', logError);
+      // Não falhar a execução por causa do log
+    }
 
     return new Response(
       JSON.stringify({
-        message: 'Agendador de mensagens executado com sucesso.',
+        message: 'Worker executado com sucesso.',
+        execution_id: executionId,
+        execution_time: new Date().toISOString(),
+        execution_duration_ms: executionDuration,
         insertedLogsCount: insertedLogs.length,
         processedLogsCount: updates.length,
         sentCount,
         failedCount,
+        status: failedCount > 0 && sentCount === 0 ? 'ERROR' : 
+               failedCount > 0 ? 'PARTIAL' : 'SUCCESS',
       }),
       {
         status: 200,
@@ -880,10 +1236,44 @@ serve(async (req) => {
       },
     );
   } catch (error: any) {
+    const executionDuration = Date.now() - startTime;
     console.error('❌ ERRO CRÍTICO na Edge Function:', error);
     console.error('Mensagem:', error.message);
     console.error('Stack:', error.stack);
-    return new Response(JSON.stringify({ error: 'Erro interno: ' + error.message }), {
+    
+    // Registrar erro no log de execução
+    try {
+      const supabaseAdminError = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        { auth: { persistSession: false } },
+      );
+      
+      await supabaseAdminError
+        .from('worker_execution_logs')
+        .insert({
+          execution_time: new Date().toISOString(),
+          status: 'ERROR',
+          messages_processed: 0,
+          messages_sent: 0,
+          messages_failed: 0,
+          execution_duration_ms: executionDuration,
+          error_message: error.message || 'Erro desconhecido',
+          details: {
+            execution_id: executionId,
+            error_stack: error.stack,
+            timestamp: new Date().toISOString(),
+          },
+        });
+    } catch (logError) {
+      console.error('⚠️ Erro ao registrar log de erro:', logError);
+    }
+    
+    return new Response(JSON.stringify({ 
+      error: 'Erro interno: ' + error.message,
+      execution_id: executionId,
+      execution_duration_ms: executionDuration,
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

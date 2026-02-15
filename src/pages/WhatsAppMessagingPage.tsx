@@ -288,11 +288,21 @@ const WhatsAppMessagingPage: React.FC = () => {
 
     setSaving(true);
     try {
+      // Buscar o tipo de mensagem selecionado para determinar se o offset deve ser negativo
+      const selectedKind = messageKinds.find(k => k.id === scheduleForm.message_kind_id);
+      const isReminder = selectedKind?.code === 'APPOINTMENT_REMINDER';
+      
+      // Se for lembrete, o offset deve ser negativo (antes do agendamento)
+      // Se for outro tipo, o offset deve ser positivo (depois do agendamento)
+      const finalOffsetValue = isReminder 
+        ? -Math.abs(scheduleForm.offset_value) 
+        : Math.abs(scheduleForm.offset_value);
+
       const data = {
         company_id: primaryCompanyId,
         message_kind_id: scheduleForm.message_kind_id,
         channel: 'WHATSAPP',
-        offset_value: scheduleForm.offset_value,
+        offset_value: finalOffsetValue,
         offset_unit: scheduleForm.offset_unit,
         reference: scheduleForm.reference,
         is_active: scheduleForm.is_active,
@@ -329,9 +339,10 @@ const WhatsAppMessagingPage: React.FC = () => {
 
   const handleEditSchedule = (schedule: MessageSchedule) => {
     setEditingSchedule(schedule);
+    // Ao editar, exibir o valor absoluto do offset (o usuário sempre digita positivo)
     setScheduleForm({
       message_kind_id: schedule.message_kind_id,
-      offset_value: schedule.offset_value,
+      offset_value: Math.abs(schedule.offset_value),
       offset_unit: schedule.offset_unit,
       reference: schedule.reference,
       is_active: schedule.is_active,
@@ -584,8 +595,8 @@ const WhatsAppMessagingPage: React.FC = () => {
                           )}
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Enviar <strong>{schedule.offset_value}</strong> {formatOffsetUnit(schedule.offset_unit)}{' '}
-                          {schedule.offset_value > 1 ? '' : ''} {schedule.offset_unit === 'DAYS' ? 'antes' : schedule.offset_unit === 'HOURS' ? 'antes' : 'antes'} do{' '}
+                          Enviar <strong>{Math.abs(schedule.offset_value)}</strong> {formatOffsetUnit(schedule.offset_unit)}{' '}
+                          {schedule.offset_value < 0 ? 'antes' : 'depois'} do{' '}
                           <strong>{formatReference(schedule.reference).toLowerCase()}</strong>
                         </p>
                       </div>

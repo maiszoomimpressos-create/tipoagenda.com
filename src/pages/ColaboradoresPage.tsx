@@ -11,6 +11,8 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { Edit, Trash2, Clock, Briefcase, Shield } from 'lucide-react'; // Importar ícones
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"; // Importar componentes de diálogo
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Importar componentes de tooltip
+import { PermissionsAlertModal } from '@/components/PermissionsAlertModal';
+import { ALERT_KEYS, hasSeenAlert, markAlertAsSeen } from '@/utils/onboardingAlerts';
 
 interface Collaborator {
   id: string;
@@ -34,6 +36,7 @@ const ColaboradoresPage: React.FC = () => {
   const [loadingCollaborators, setLoadingCollaborators] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [collaboratorToDelete, setCollaboratorToDelete] = useState<string | null>(null);
+  const [showPermissionsAlert, setShowPermissionsAlert] = useState(false);
 
   const fetchCollaborators = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany) {
@@ -88,6 +91,23 @@ const ColaboradoresPage: React.FC = () => {
   useEffect(() => {
     fetchCollaborators();
   }, [fetchCollaborators]);
+
+  // Verificar se deve mostrar alerta de permissões na primeira visita
+  useEffect(() => {
+    if (!sessionLoading && !loadingPrimaryCompany && session?.user && primaryCompanyId) {
+      const userId = session.user.id;
+      const shouldShowAlert = !hasSeenAlert(ALERT_KEYS.COLLABORATORS_MENU, userId, primaryCompanyId);
+      
+      if (shouldShowAlert) {
+        // Mostrar alerta após um pequeno delay para garantir que a página carregou
+        const timer = setTimeout(() => {
+          setShowPermissionsAlert(true);
+        }, 500);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [sessionLoading, loadingPrimaryCompany, session, primaryCompanyId]);
 
   const handleDeleteClick = (collaboratorId: string) => {
     setCollaboratorToDelete(collaboratorId);
@@ -294,6 +314,25 @@ const ColaboradoresPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Permissions Alert Modal */}
+      <PermissionsAlertModal
+        open={showPermissionsAlert}
+        onClose={() => {
+          setShowPermissionsAlert(false);
+        }}
+        onGoToPermissions={() => {
+          setShowPermissionsAlert(false);
+          navigate('/menu-permissions');
+        }}
+        onDontShowAgain={(dontShow) => {
+          if (dontShow && session?.user && primaryCompanyId) {
+            markAlertAsSeen(ALERT_KEYS.COLLABORATORS_MENU, session.user.id, primaryCompanyId, true);
+          }
+        }}
+        title="Configure as Permissões de Menu"
+        message="É importante configurar as permissões de menu para definir quais funções (roles) têm acesso a quais menus na sua empresa. Clique no botão 'Permissões de Menu' acima para começar."
+      />
     </div>
   );
 };

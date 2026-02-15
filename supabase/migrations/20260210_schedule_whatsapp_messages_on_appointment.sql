@@ -47,7 +47,8 @@ BEGIN
         a.client_id,
         a.appointment_date,
         a.appointment_time,
-        a.status
+        a.status,
+        a.created_at
     INTO v_appointment
     FROM appointments a
     WHERE a.id = p_appointment_id;
@@ -164,8 +165,7 @@ BEGIN
     FROM company_message_schedules cms
     WHERE cms.company_id = v_appointment.company_id
       AND cms.channel = 'WHATSAPP'
-      AND cms.is_active = TRUE
-      AND cms.reference = 'APPOINTMENT_START';
+      AND cms.is_active = TRUE;
     
     IF v_total_schedules = 0 THEN
         RETURN jsonb_build_object(
@@ -188,38 +188,49 @@ BEGIN
         WHERE cms.company_id = v_appointment.company_id
           AND cms.channel = 'WHATSAPP'
           AND cms.is_active = TRUE
-          AND cms.reference = 'APPOINTMENT_START' -- Por enquanto só implementamos APPOINTMENT_START
+          -- Removido filtro de reference para iterar sobre todas as regras ativas
     LOOP
         BEGIN
-            -- 7. Calcular data/hora de referência (início do agendamento)
-            -- O appointment_date vem como 'YYYY-MM-DD' e appointment_time como 'HH:mm' ou 'HH:mm:ss'
-            -- Assumimos que está em horário de Brasília (UTC-3)
-            -- Extrair apenas HH:mm do appointment_time (convertendo TIME para TEXT primeiro)
-            v_time_str := SUBSTRING(v_appointment.appointment_time::TEXT FROM 1 FOR 5);
-            
-            -- Extrair componentes da data
-            v_year := EXTRACT(YEAR FROM v_appointment.appointment_date::DATE);
-            v_month := EXTRACT(MONTH FROM v_appointment.appointment_date::DATE);
-            v_day := EXTRACT(DAY FROM v_appointment.appointment_date::DATE);
-            v_hour := CAST(SPLIT_PART(v_time_str, ':', 1) AS INTEGER);
-            v_minute := CAST(SPLIT_PART(v_time_str, ':', 2) AS INTEGER);
-            
-            -- Criar timestamp em horário de Brasília (UTC-3)
-            -- Formato: YYYY-MM-DDTHH:mm:00-03:00
-            BEGIN
-                v_reference_date := (
-                    v_year || '-' || 
-                    LPAD(v_month::TEXT, 2, '0') || '-' || 
-                    LPAD(v_day::TEXT, 2, '0') || 'T' || 
-                    LPAD(v_hour::TEXT, 2, '0') || ':' || 
-                    LPAD(v_minute::TEXT, 2, '0') || ':00-03:00'
-                )::TIMESTAMPTZ;
-            EXCEPTION
-                WHEN OTHERS THEN
-                    v_errors := array_append(v_errors, 'Erro ao calcular data de referência: ' || SQLERRM);
-                    v_logs_skipped := v_logs_skipped + 1;
-                    CONTINUE;
-            END;
+            -- 7. Calcular data/hora de referência (início do agendamento ou criação)
+            IF v_schedules.reference = 'APPOINTMENT_START' THEN
+                -- Lógica existente para APPOINTMENT_START
+                -- O appointment_date vem como 'YYYY-MM-DD' e appointment_time como 'HH:mm' ou 'HH:mm:ss'
+                -- Assumimos que está em horário de Brasília (UTC-3)
+                -- Extrair apenas HH:mm do appointment_time (convertendo TIME para TEXT primeiro)
+                v_time_str := SUBSTRING(v_appointment.appointment_time::TEXT FROM 1 FOR 5);
+                
+                -- Extrair componentes da data
+                v_year := EXTRACT(YEAR FROM v_appointment.appointment_date::DATE);
+                v_month := EXTRACT(MONTH FROM v_appointment.appointment_date::DATE);
+                v_day := EXTRACT(DAY FROM v_appointment.appointment_date::DATE);
+                v_hour := CAST(SPLIT_PART(v_time_str, ':', 1) AS INTEGER);
+                v_minute := CAST(SPLIT_PART(v_time_str, ':', 2) AS INTEGER);
+                
+                -- Criar timestamp em horário de Brasília (UTC-3)
+                -- Formato: YYYY-MM-DDTHH:mm:00-03:00
+                BEGIN
+                    v_reference_date := (
+                        v_year || '-' || 
+                        LPAD(v_month::TEXT, 2, '0') || '-' || 
+                        LPAD(v_day::TEXT, 2, '0') || 'T' || 
+                        LPAD(v_hour::TEXT, 2, '0') || ':' || 
+                        LPAD(v_minute::TEXT, 2, '0') || ':00-03:00'
+                    )::TIMESTAMPTZ;
+                EXCEPTION
+                    WHEN OTHERS THEN
+                        v_errors := array_append(v_errors, 'Erro ao calcular data de referência para APPOINTMENT_START: ' || SQLERRM);
+                        v_logs_skipped := v_logs_skipped + 1;
+                        CONTINUE;
+                END;
+            ELSIF v_schedules.reference = 'APPOINTMENT_CREATION' THEN
+                -- Usar created_at como referência para APPOINTMENT_CREATION
+                v_reference_date := v_appointment.created_at;
+            ELSE
+                -- Caso de referência não tratada (para futura expansão)
+                v_errors := array_append(v_errors, 'Tipo de referência de agendamento não tratado: ' || v_schedules.reference);
+                v_logs_skipped := v_logs_skipped + 1;
+                CONTINUE;
+            END IF;
 
             -- 8. Calcular scheduled_for aplicando o offset
             -- IMPORTANTE: A Edge Function usa addOffsetToDate que ADICIONA o offset.
