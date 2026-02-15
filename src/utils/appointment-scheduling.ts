@@ -38,9 +38,11 @@ export async function getAvailableTimeSlots(
   collaboratorId: string,
   date: Date,
   requiredDuration: number,
-  slotIntervalMinutes: number = 30, // Intervalo de slots, por exemplo, 30 minutos
+  slotIntervalMinutes: number | undefined = undefined, // Se não especificado, usa a duração do serviço
   excludeAppointmentId?: string // Novo parâmetro opcional
 ): Promise<string[]> {
+  // Se slotIntervalMinutes não foi especificado, usar a duração do serviço como intervalo
+  const interval = slotIntervalMinutes ?? requiredDuration;
   const availableSlots: string[] = [];
   // Normalizar a data para garantir que está no início do dia - PRESERVAR A DATA ORIGINAL
   // Usar função customizada para evitar problemas de timezone
@@ -61,7 +63,7 @@ export async function getAvailableTimeSlots(
     normalizedDateISO: normalizedDate.toISOString(),
     normalizedDateComponents: { year: normalizedDate.getFullYear(), month: normalizedDate.getMonth(), day: normalizedDate.getDate() },
     requiredDuration, 
-    slotIntervalMinutes, 
+    slotIntervalMinutes: interval, 
     excludeAppointmentId 
   });
 
@@ -224,7 +226,7 @@ export async function getAvailableTimeSlots(
     
     if (isToday) {
       const now = new Date();
-      const nextSlotAfterNow = setMinutes(setHours(now, now.getHours()), Math.ceil(now.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+      const nextSlotAfterNow = setMinutes(setHours(now, now.getHours()), Math.ceil(now.getMinutes() / interval) * interval);
       // Criar data/hora do próximo slot na data selecionada para comparação correta
       const nextSlotOnSelectedDate = new Date(selectedDateStart.getTime());
       nextSlotOnSelectedDate.setHours(nextSlotAfterNow.getHours(), nextSlotAfterNow.getMinutes(), 0, 0);
@@ -270,7 +272,7 @@ export async function getAvailableTimeSlots(
         if (slotStartTime < busyEndTime && slotEndTime > busyStartTime) {
           isSlotFree = false;
           console.log(`    ❌ Overlap detected: ${format(slotStart, 'HH:mm')}-${format(slotEnd, 'HH:mm')} overlaps with ${format(busy.start, 'HH:mm')}-${format(busy.end, 'HH:mm')}`);
-          const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / slotIntervalMinutes) * slotIntervalMinutes);
+          const busyEndAligned = setMinutes(setHours(busy.end, busy.end.getHours()), Math.ceil(busy.end.getMinutes() / interval) * interval);
           currentTime = isAfter(currentTime, busyEndAligned) ? currentTime : busyEndAligned;
           console.log(`    Advanced currentTime to: ${format(currentTime, 'HH:mm')}`);
           break;
@@ -287,7 +289,7 @@ export async function getAvailableTimeSlots(
       }
       
       // Sempre avançar para o próximo slot, independente de estar livre ou não
-      currentTime = addMinutes(currentTime, slotIntervalMinutes);
+      currentTime = addMinutes(currentTime, interval);
     }
   }
 

@@ -202,6 +202,7 @@ const GuestAppointmentPage: React.FC = () => {
         selectedCollaboratorId === "any" ? null : selectedCollaboratorId! ,
         selectedDate,
         service.duration_minutes,
+        service.duration_minutes // Usar a duração do serviço como intervalo entre slots
       );
 
       const formattedSlots = slots.map((startTime) => {

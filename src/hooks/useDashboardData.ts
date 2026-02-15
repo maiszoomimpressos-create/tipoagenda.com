@@ -177,21 +177,40 @@ export function useDashboardData() {
       const revenueChange = reportsData.revenue.comparison;
 
       // --- 6. Fetch Monthly Revenue Data for Chart ---
+      // IMPORTANTE: Usar cash_movements com transaction_date para refletir o faturamento real
+      // O faturamento só existe quando há um recebimento registrado em cash_movements
+      // Usar endOfDay para incluir todo o dia atual
+      const currentMonthEndWithTime = format(endOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss");
+      
       const { data: monthlyRevenueRaw, error: monthlyRevenueError } = await supabase
-        .from('appointments')
-        .select('appointment_date, total_price')
+        .from('cash_movements')
+        .select('transaction_date, total_amount')
         .eq('company_id', primaryCompanyId)
-        .gte('appointment_date', currentMonthStart)
-        .lte('appointment_date', currentMonthEnd)
-        .neq('status', 'cancelado') // Excluir agendamentos cancelados do faturamento
-        .order('appointment_date', { ascending: true });
+        .eq('transaction_type', 'recebimento') // Apenas recebimentos
+        .gte('transaction_date', `${currentMonthStart}T00:00:00`)
+        .lte('transaction_date', currentMonthEndWithTime)
+        .order('transaction_date', { ascending: true });
 
-      if (monthlyRevenueError) throw monthlyRevenueError;
+      if (monthlyRevenueError) {
+        console.error('[useDashboardData] Erro ao buscar faturamento mensal:', monthlyRevenueError);
+        throw monthlyRevenueError;
+      }
 
-      // Aggregate daily revenue
+      console.log('[useDashboardData] Recebimentos encontrados:', {
+        count: monthlyRevenueRaw?.length || 0,
+        currentMonthStart,
+        currentMonthEndWithTime,
+        sample: monthlyRevenueRaw?.slice(0, 3),
+      });
+
+      // Aggregate daily revenue by transaction_date (data do recebimento, não do agendamento)
       const dailyRevenueMap = monthlyRevenueRaw.reduce((acc: Map<string, number>, item: any) => {
-        const date = item.appointment_date;
-        acc.set(date, (acc.get(date) || 0) + item.total_price);
+        // Extrair apenas a data (YYYY-MM-DD) do timestamp
+        const date = item.transaction_date ? item.transaction_date.split('T')[0] : null;
+        if (date) {
+          const amount = parseFloat(item.total_amount) || 0;
+          acc.set(date, (acc.get(date) || 0) + amount);
+        }
         return acc;
       }, new Map<string, number>());
 

@@ -14,6 +14,8 @@ import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { validateCnpj, formatCnpjInput, formatZipCodeInput } from '@/utils/validation';
 import ContractAcceptanceModal from '@/components/ContractAcceptanceModal';
+import { PermissionsAlertModal } from '@/components/PermissionsAlertModal';
+import { ALERT_KEYS, hasSeenAlert, markAlertAsSeen } from '@/utils/onboardingAlerts';
 
 // Zod schema for company registration
 const companySchema = z.object({
@@ -66,6 +68,8 @@ const CompanyRegistrationPage: React.FC = () => {
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [segmentOptions, setSegmentOptions] = useState<SegmentOption[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
+  const [showPermissionsAlert, setShowPermissionsAlert] = useState(false);
+  const [newCompanyId, setNewCompanyId] = useState<string | null>(null);
   // isAddressFieldsDisabled was removed as it was unused
 
   const {
@@ -455,13 +459,30 @@ const CompanyRegistrationPage: React.FC = () => {
       } else {
         console.log('[CompanyRegistration] type_user atualizado com sucesso para PROPRIETARIO');
       }
+
+      // Verificar se deve mostrar alerta de permissões (primeira vez)
+      const userId = session.user.id;
+      const companyId = companyData.id;
+      setNewCompanyId(companyId);
+      
+      const shouldShowAlert = !hasSeenAlert(ALERT_KEYS.COMPANY_REGISTRATION, userId, companyId);
+      
+      showSuccess('Empresa cadastrada com sucesso e você foi definido como proprietário!');
+      setIsContractModalOpen(false);
+      setPendingCompanyData(null);
+      setPendingImageUrl(null);
+      
+      if (shouldShowAlert) {
+        // Mostrar alerta após um pequeno delay para não sobrepor a mensagem de sucesso
+        setTimeout(() => {
+          setShowPermissionsAlert(true);
+        }, 1000);
+      } else {
+        // Se não precisa mostrar alerta, navegar normalmente
+        navigate('/dashboard');
+      }
     }
 
-    showSuccess('Empresa cadastrada com sucesso e você foi definido como proprietário!');
-    setIsContractModalOpen(false);
-    setPendingCompanyData(null);
-    setPendingImageUrl(null);
-    navigate('/dashboard');
     setLoading(false);
   };
 
@@ -730,6 +751,25 @@ const CompanyRegistrationPage: React.FC = () => {
           loading={loading}
         />
       )}
+
+      <PermissionsAlertModal
+        open={showPermissionsAlert}
+        onClose={() => {
+          setShowPermissionsAlert(false);
+          navigate('/dashboard');
+        }}
+        onGoToPermissions={() => {
+          setShowPermissionsAlert(false);
+          navigate('/menu-permissions');
+        }}
+        onDontShowAgain={(dontShow) => {
+          if (dontShow && session?.user && newCompanyId) {
+            markAlertAsSeen(ALERT_KEYS.COMPANY_REGISTRATION, session.user.id, newCompanyId, true);
+          }
+        }}
+        title="Configure as Permissões de Menu"
+        message="Agora que sua empresa foi cadastrada, é importante configurar as permissões de menu para definir quais funções (roles) têm acesso a quais menus na sua empresa."
+      />
     </div>
   );
 };

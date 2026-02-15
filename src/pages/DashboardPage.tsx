@@ -58,6 +58,12 @@ const DashboardPage: React.FC = () => {
     return key === 'financeiro' || key === 'caixa' || path.includes('financeiro') || path.includes('caixa');
   });
 
+  const hasStockPermission = dynamicMenuItems.some((menu) => {
+    const key = (menu.menu_key || '').toLowerCase();
+    const path = (menu.path || '').toLowerCase();
+    return key === 'estoque' || path.includes('estoque');
+  });
+
   const kpis = [
     { 
       title: 'Faturamento do Mês', 
@@ -80,13 +86,13 @@ const DashboardPage: React.FC = () => {
       icon: 'fas fa-crown', 
       color: 'yellow' 
     },
-    { 
+    ...(hasStockPermission ? [{
       title: 'Estoque Crítico', 
       value: `${data.criticalStockCount} itens`, 
       change: data.criticalStockCount > 0 ? 'Atenção' : 'OK', 
       icon: 'fas fa-exclamation-triangle', 
       color: data.criticalStockCount > 0 ? 'red' : 'green' 
-    }
+    }] : [])
   ];
 
   return (
@@ -143,7 +149,7 @@ const DashboardPage: React.FC = () => {
         </Card>
       </div>
 
-      <CriticalStockReport products={data.criticalProducts} />
+      {hasStockPermission && <CriticalStockReport products={data.criticalProducts} />}
 
       {console.log('DashboardPage: data.criticalProducts', data.criticalProducts)} {/* DEBUG LOG */}
 

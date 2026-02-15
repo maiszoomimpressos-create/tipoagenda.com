@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useMenuItems } from '@/hooks/useMenuItems';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -28,11 +29,17 @@ const FinanceiroPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { menuItems } = useMenuItems();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [isSellProductModalOpen, setIsSellProductModalOpen] = useState(false);
   const [entradas, setEntradas] = useState(0);
   const [saidas, setSaidas] = useState(0);
+
+  // Verifica se o usuário/empresa tem acesso ao menu de produtos/estoque
+  const hasProductMenuAccess = menuItems.some(
+    (menu) => menu.menu_key === 'estoque' || menu.path === '/estoque'
+  );
 
   const fetchTransactions = useCallback(async () => {
     if (sessionLoading || loadingPrimaryCompany || !primaryCompanyId) {
@@ -108,7 +115,7 @@ const FinanceiroPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Financeiro</h1>
         <div className="flex gap-3">
           {createButton(() => {}, 'fas fa-download', 'Exportar PDF', 'outline')}
-          {createButton(() => setIsSellProductModalOpen(true), 'fas fa-cash-register', 'Vender Produto Avulso')}
+          {hasProductMenuAccess && createButton(() => setIsSellProductModalOpen(true), 'fas fa-cash-register', 'Vender Produto Avulso')}
           {createButton(() => navigate('/nova-transacao'), 'fas fa-plus', 'Nova Transação')}
         </div>
       </div>
