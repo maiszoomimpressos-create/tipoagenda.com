@@ -100,10 +100,15 @@ const MenuManagementPage: React.FC = () => {
         const menuIds = data.map(m => m.id);
         const { data: menuPlansData, error: plansError } = await supabase
           .from('menu_plans')
-          .select('menu_id, plan_id, plans(id, name)')
+          .select('menu_id, plan_id, subscription_plans(id, name, status)')
           .in('menu_id', menuIds);
 
+        if (plansError) {
+          console.error('[MenuManagementPage] Erro ao buscar planos vinculados:', plansError);
+        }
+
         if (!plansError && menuPlansData) {
+          console.log('[MenuManagementPage] Planos vinculados encontrados:', menuPlansData);
           const plansMap: Record<string, string[]> = {};
           menuPlansData.forEach((mp: any) => {
             if (!plansMap[mp.menu_id]) {
@@ -111,7 +116,10 @@ const MenuManagementPage: React.FC = () => {
             }
             plansMap[mp.menu_id].push(mp.plan_id);
           });
+          console.log('[MenuManagementPage] Mapa de planos por menu:', plansMap);
           setMenuPlans(plansMap);
+        } else {
+          console.warn('[MenuManagementPage] Nenhum plano vinculado encontrado ou erro na busca');
         }
       }
     } catch (error: any) {
@@ -578,6 +586,15 @@ const MenuManagementPage: React.FC = () => {
                 {menus.map((menu) => {
                   const linkedPlans = menuPlans[menu.id] || [];
                   const linkedPlanData = plans.filter(p => linkedPlans.includes(p.id));
+                  
+                  // Debug: Log para verificar o que está sendo exibido
+                  if (linkedPlans.length > 0 && linkedPlanData.length === 0) {
+                    console.warn(`[MenuManagementPage] Menu ${menu.label} tem ${linkedPlans.length} planos vinculados, mas nenhum encontrado na lista de planos ativos.`, {
+                      menuId: menu.id,
+                      linkedPlanIds: linkedPlans,
+                      availablePlanIds: plans.map(p => p.id),
+                    });
+                  }
 
                   return (
                     <Card key={menu.id} className="border-gray-200 dark:border-gray-700">
