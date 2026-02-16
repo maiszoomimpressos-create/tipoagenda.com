@@ -63,3 +63,4 @@ FROM message_send_log
 WHERE status = 'PENDING';
 
 
+

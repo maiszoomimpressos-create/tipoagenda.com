@@ -54,3 +54,4 @@ WHERE menu_key = 'planos'
   AND is_active = true
   AND (description IS NULL OR description = '' OR description LIKE '%por?%' OR description = 'por?');
 
+

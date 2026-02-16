@@ -11,6 +11,7 @@ const STORAGE_PREFIX = 'onboarding_alert_';
 export const ALERT_KEYS = {
   COMPANY_REGISTRATION: 'company_registration_permissions',
   COLLABORATORS_MENU: 'collaborators_menu_permissions',
+  FIRST_COLLABORATOR: 'first_collaborator_setup',
 } as const;
 
 /**
@@ -95,5 +96,6 @@ function buildStorageKey(
   
   return key;
 }
+
 
 

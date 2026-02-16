@@ -161,3 +161,4 @@ Após fazer a vinculação, verifique:
 3. **`DIAGNOSTICO_COMPLETO_MENU_PLANOS.md`** (este arquivo)
    - Documentação do problema e soluções
 
+

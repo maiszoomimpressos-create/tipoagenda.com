@@ -13,6 +13,8 @@ import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { CollaboratorSetupAlertModal } from '@/components/CollaboratorSetupAlertModal';
+import { ALERT_KEYS, hasSeenAlert, markAlertAsSeen } from '@/utils/onboardingAlerts';
 
 // Zod schema for collaborator registration
 const collaboratorSchema = z.object({
@@ -54,6 +56,9 @@ const CollaboratorFormPage: React.FC = () => {
   const [loadingRoleTypes, setLoadingRoleTypes] = useState(true);
   const [currentCollaboratorData, setCurrentCollaboratorData] = useState<any>(null); // State to hold fetched data for editing
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null); // New state for selected file name
+  const [showSetupAlert, setShowSetupAlert] = useState(false);
+  const [newCollaboratorId, setNewCollaboratorId] = useState<string | null>(null);
+  const [newCollaboratorName, setNewCollaboratorName] = useState<string>('');
   const isEditing = !!collaboratorId;
 
   console.log('Estados de carregamento/sessão:', { loading, sessionLoading, loadingPrimaryCompany, loadingRoleTypes });
@@ -382,6 +387,22 @@ const CollaboratorFormPage: React.FC = () => {
 
         error = updateError;
       } else {
+        // Verificar se é o primeiro colaborador (antes de cadastrar)
+        let isFirstCollaborator = false;
+        try {
+          const { count, error: countError } = await supabase
+            .from('collaborators')
+            .select('*', { count: 'exact', head: true })
+            .eq('company_id', primaryCompanyId);
+
+          if (!countError) {
+            isFirstCollaborator = (count || 0) === 0;
+            console.log('[CollaboratorFormPage] Total de colaboradores antes do cadastro:', count, 'É o primeiro?', isFirstCollaborator);
+          }
+        } catch (countErr) {
+          console.warn('[CollaboratorFormPage] Erro ao contar colaboradores (continuando):', countErr);
+        }
+
         // Call Edge Function to invite and register new collaborator
         // SEGURANÇA: Não enviar companyId - será capturado automaticamente no backend
         console.log('Chamando Edge Function invite-collaborator com:', {
@@ -475,6 +496,34 @@ const CollaboratorFormPage: React.FC = () => {
           }
           
           throw new Error(edgeFunctionErrorMessage);
+        }
+
+        // Se foi cadastrado com sucesso e é o primeiro colaborador, preparar para mostrar alerta
+        if (isFirstCollaborator && response.data) {
+          // A Edge Function retorna collaborator no response.data
+          const collaboratorData = (response.data as any)?.collaborator;
+          const collaboratorIdFromResponse = collaboratorData?.id;
+          const collaboratorName = `${data.first_name} ${data.last_name}`;
+          
+          if (collaboratorIdFromResponse) {
+            setNewCollaboratorId(collaboratorIdFromResponse);
+            setNewCollaboratorName(collaboratorName);
+            
+            // Verificar se já viu o alerta
+            const userId = session.user.id;
+            const shouldShowAlert = !hasSeenAlert(ALERT_KEYS.FIRST_COLLABORATOR, userId, primaryCompanyId);
+            
+            if (shouldShowAlert) {
+              // Mostrar alerta após um pequeno delay
+              setTimeout(() => {
+                setShowSetupAlert(true);
+              }, 1000);
+              // Não navegar imediatamente se for mostrar o alerta
+              showSuccess('Colaborador cadastrado com sucesso!');
+              reset();
+              return;
+            }
+          }
         }
       }
 
@@ -676,6 +725,32 @@ const CollaboratorFormPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Alerta de Configuração do Primeiro Colaborador */}
+      {newCollaboratorId && (
+        <CollaboratorSetupAlertModal
+          open={showSetupAlert}
+          onClose={() => {
+            setShowSetupAlert(false);
+            navigate('/colaboradores');
+          }}
+          collaboratorId={newCollaboratorId}
+          collaboratorName={newCollaboratorName}
+          onGoToSchedule={() => {
+            setShowSetupAlert(false);
+            navigate(`/colaboradores/${newCollaboratorId}/schedule`);
+          }}
+          onGoToServices={() => {
+            setShowSetupAlert(false);
+            navigate(`/colaboradores/${newCollaboratorId}/servicos`);
+          }}
+          onDontShowAgain={(dontShow) => {
+            if (dontShow && session?.user && primaryCompanyId) {
+              markAlertAsSeen(ALERT_KEYS.FIRST_COLLABORATOR, session.user.id, primaryCompanyId, true);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
