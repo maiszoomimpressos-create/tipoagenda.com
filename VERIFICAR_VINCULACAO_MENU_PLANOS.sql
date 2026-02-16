@@ -89,3 +89,4 @@ FROM menu_plans mp
 LEFT JOIN subscription_plans sp ON sp.id = mp.plan_id
 WHERE sp.id IS NULL;
 
+

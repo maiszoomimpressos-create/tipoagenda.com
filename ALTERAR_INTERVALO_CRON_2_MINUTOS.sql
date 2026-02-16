@@ -69,3 +69,4 @@ FROM cron.job
 WHERE jobname = 'whatsapp-message-scheduler-worker';
 
 
+
