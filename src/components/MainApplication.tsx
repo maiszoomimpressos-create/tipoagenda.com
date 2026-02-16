@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Link, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useSession } from './SessionContextProvider';
@@ -23,6 +23,7 @@ import { ptBR } from 'date-fns/locale';
 import { useNotifications } from '@/hooks/useNotifications';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import NotificationList from './NotificationList'; // Importar novo componente
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const MainApplication: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -34,6 +35,7 @@ const MainApplication: React.FC = () => {
   const { isCollaborator, loading: loadingCollaboratorCheck } = useIsCollaborator();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const { companyDetails, loading: loadingCompanyDetails } = useCompanyDetails(primaryCompanyId); // Usar o novo hook
+  const isMobile = useIsMobile();
   
   // Novo: Status da Assinatura
   const { status: subscriptionStatus, endDate, loading: loadingSubscription } = useSubscriptionStatus();
@@ -69,6 +71,13 @@ const MainApplication: React.FC = () => {
     isAppPath,
     currentPath: location.pathname
   });
+
+  // Em telas móveis, mantemos a sidebar recolhida por padrão
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
+  }, [isMobile]);
 
   const handleMenuItemClick = (path: string) => {
     navigate(path);
@@ -229,9 +238,17 @@ const MainApplication: React.FC = () => {
 
       <div className="flex flex-1 pt-16">
         {isAppPath && (
-          <aside className={`bg-gray-900 text-white transition-all duration-300 ${
-            sidebarCollapsed ? 'w-16' : 'w-64'
-          } min-h-full`}>
+          <aside
+            className={`bg-gray-900 text-white transition-all duration-300 ${
+              isMobile
+                ? sidebarCollapsed
+                  ? 'hidden'
+                  : 'fixed inset-y-16 left-0 w-64 z-40'
+                : sidebarCollapsed
+                  ? 'w-16'
+                  : 'w-64'
+            } min-h-full`}
+          >
             <nav className="p-4">
               <ul className="space-y-2">
                 {(() => {
