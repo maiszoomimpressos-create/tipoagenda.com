@@ -132,9 +132,9 @@ const RelatoriosPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Relatórios</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 md:justify-end">
           <Select onValueChange={(value) => setDateRangeKey(value as DateRangeKey)} value={dateRangeKey}>
             <SelectTrigger className="w-[180px] px-4 py-2 border border-gray-300 rounded-lg text-sm">
               <SelectValue placeholder="Selecione o período" />

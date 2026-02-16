@@ -636,9 +636,17 @@ const SubscriptionPlansPage: React.FC = () => {
             </p>
           )}
           {validatedCoupon && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 flex justify-between items-center">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span>Cupom {validatedCoupon.id.substring(0, 8)}... aplicado.</span>
-              <Button variant="ghost" size="sm" onClick={() => { setValidatedCoupon(null); setCouponCode(''); setCouponValidationMessage(null); }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setValidatedCoupon(null);
+                  setCouponCode('');
+                  setCouponValidationMessage(null);
+                }}
+              >
                 <X className="h-4 w-4 text-green-800" />
               </Button>
             </div>
@@ -649,7 +657,7 @@ const SubscriptionPlansPage: React.FC = () => {
 
       {/* Planos Disponíveis */}
       <div className="flex flex-col gap-4 pt-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-2xl font-bold text-gray-900">Escolha o Melhor Plano</h2>
           <div className="flex items-center">
             <ToggleGroup 

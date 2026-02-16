@@ -8,7 +8,7 @@ import { getStatusColor } from '@/lib/dashboard-utils';
 const FidelidadePage: React.FC = () => {
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Fidelidade e Promoções</h1>
         <Button className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black">
           <i className="fas fa-plus mr-2"></i>

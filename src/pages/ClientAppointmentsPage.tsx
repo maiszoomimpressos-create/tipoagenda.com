@@ -239,11 +239,11 @@ const ClientAppointmentsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Meus Agendamentos</h1>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Meus Agendamentos</h1>
+        <div className="flex flex-wrap items-center gap-2 md:gap-4">
           <Select onValueChange={(value: 'appointment_date' | 'appointment_time') => { setOrderBy(value); fetchAppointments(); }} value={orderBy}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="Ordenar por" />
             </SelectTrigger>
             <SelectContent>
@@ -256,7 +256,7 @@ const ClientAppointmentsPage: React.FC = () => {
           </Select>
 
           <Select onValueChange={(value: string) => { setOrderAscending(value === 'asc'); fetchAppointments(); }} value={orderAscending ? 'asc' : 'desc'}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-full md:w-[150px]">
               <SelectValue placeholder="Ordem" />
             </SelectTrigger>
             <SelectContent>
@@ -268,7 +268,7 @@ const ClientAppointmentsPage: React.FC = () => {
             </SelectContent>
           </Select>
           <Button
-            className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black"
+            className="!rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black w-full md:w-auto"
             onClick={handleNewAppointmentClick}
           >
             <i className="fas fa-plus mr-2"></i>
@@ -301,28 +301,27 @@ const ClientAppointmentsPage: React.FC = () => {
             return (
               <Card key={agendamento.id} className="border-gray-200 hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 w-1/2">
-                      <div className={`w-4 h-4 rounded-full ${getStatusColor(agendamento.status)}`}></div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                      <div className={`w-4 h-4 rounded-full flex-shrink-0 ${getStatusColor(agendamento.status)}`}></div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 truncate">
                           {agendamento.client_nickname || clientName}
                         </h3>
-                        <p className="text-sm text-gray-600">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
-                        <p className="text-xs text-gray-500">Empresa: {companyName}</p> {/* Display company name */}
+                        <p className="text-sm text-gray-600 truncate">{serviceNames || 'Serviço(s) Desconhecido(s)'}</p>
+                        <p className="text-xs text-gray-500 truncate">Empresa: {companyName}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end w-1/4">
-                      <p className="font-semibold text-gray-900">{formattedDate}</p> {/* Display date here */}
-                      <p className="font-semibold text-gray-900">{formattedTimeRange}</p>
-                      <p className="text-sm text-gray-600">{collaboratorName}</p>
+                    <div className="flex flex-row md:flex-col items-start md:items-end gap-2 md:gap-1 md:w-1/4">
+                      <p className="font-semibold text-gray-900 text-sm md:text-base">{formattedDate}</p>
+                      <p className="font-semibold text-gray-900 text-sm md:text-base">{formattedTimeRange}</p>
+                      <p className="text-xs md:text-sm text-gray-600">{collaboratorName}</p>
                     </div>
-                    <div className="text-right w-1/4 flex flex-col items-end gap-1">
-                      <p className="font-bold text-yellow-600">R$ {agendamento.total_price.toFixed(2).replace('.', ',')}</p>
+                    <div className="text-left md:text-right flex flex-row md:flex-col items-start md:items-end gap-2 md:gap-1 md:w-1/4">
+                      <p className="font-bold text-yellow-600 text-base md:text-lg">R$ {agendamento.total_price.toFixed(2).replace('.', ',')}</p>
                       <Badge className={`${getStatusColor(agendamento.status)} text-white text-xs`}>
                         {agendamento.status}
                       </Badge>
-                      {/* Botão de cancelar temporariamente oculto */}
                     </div>
                   </div>
                 </CardContent>

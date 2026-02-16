@@ -117,9 +117,9 @@ const FinanceiroPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Financeiro</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 md:justify-end">
           {createButton(handleExportPdf, 'fas fa-download', 'Exportar PDF', 'outline')}
           {hasProductMenuAccess && createButton(() => setIsSellProductModalOpen(true), 'fas fa-cash-register', 'Vender Produto Avulso')}
           {createButton(() => navigate('/nova-transacao'), 'fas fa-plus', 'Nova Transação')}
