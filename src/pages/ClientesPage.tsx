@@ -150,12 +150,12 @@ const ClientesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Clientes</h1>
         {createButton(() => navigate('/novo-cliente'), 'fas fa-user-plus', 'Cadastrar Cliente')}
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-3 md:flex-row md:gap-4">
         <div className="flex-1">
           <Input
             placeholder="Buscar cliente..."

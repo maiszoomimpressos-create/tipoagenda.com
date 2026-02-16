@@ -426,9 +426,9 @@ const GuestAppointmentPage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-2xl bg-white shadow-md rounded-lg mt-10">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Agendamento para Convidado</h1>
-      <p className="text-gray-700 mb-6 text-center">Por favor, preencha seus dados e escolha o serviço para agendar.</p>
+    <div className="container mx-auto p-4 md:p-6 max-w-2xl bg-white shadow-md rounded-lg mt-4 md:mt-10">
+      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4 md:mb-6 text-center">Agendamento para Convidado</h1>
+      <p className="text-sm md:text-base text-gray-700 mb-4 md:mb-6 text-center px-2">Por favor, preencha seus dados e escolha o serviço para agendar.</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Dados do Convidado */}
@@ -545,7 +545,7 @@ const GuestAppointmentPage: React.FC = () => {
             </div>
             <div className="flex-grow space-y-4">
               <Label htmlFor="selectedTime" className="block text-sm font-medium text-gray-700 mb-2">Horário *</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {fetchingTimes ? (
                   <p className="text-gray-500 col-span-3 text-center">Buscando horários...</p>
                 ) : availableTimes.length > 0 ? (
