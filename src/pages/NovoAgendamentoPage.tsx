@@ -101,11 +101,13 @@ const NovoAgendamentoPage: React.FC = () => {
 
     setLoadingData(true);
     try {
-      // Fetch Clients: Inclui clientes associados à empresa primária OU clientes que não têm company_id (auto-registrados)
+      // Fetch Clients: Apenas clientes cadastrados pela empresa atual
+      // Nota: Clientes auto-registrados (company_id = null) ainda podem fazer agendamentos
+      // via outras rotas (GuestAppointmentPage, ClientAppointmentForm), mas não aparecem neste filtro
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('id, name')
-        .or(`company_id.eq.${currentCompanyId},company_id.is.null`)
+        .eq('company_id', currentCompanyId)
         .order('name', { ascending: true });
 
       if (clientsError) throw clientsError;
