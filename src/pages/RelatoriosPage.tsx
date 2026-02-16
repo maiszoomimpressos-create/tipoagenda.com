@@ -117,6 +117,12 @@ const RelatoriosPage: React.FC = () => {
     },
   ];
 
+  const handleExportReports = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
   const handleOpenServiceCommissionModal = (collaboratorId: string, collaboratorName: string) => {
     setSelectedCollaboratorForModal(collaboratorId);
     setSelectedCollaboratorNameForModal(collaboratorName);
@@ -139,7 +145,11 @@ const RelatoriosPage: React.FC = () => {
               <SelectItem value="last_year">Último ano</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="!rounded-button whitespace-nowrap cursor-pointer">
+          <Button
+            variant="outline"
+            className="!rounded-button whitespace-nowrap cursor-pointer"
+            onClick={handleExportReports}
+          >
             <i className="fas fa-download mr-2"></i>
             Exportar
           </Button>
