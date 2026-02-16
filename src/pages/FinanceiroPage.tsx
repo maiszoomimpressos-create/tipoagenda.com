@@ -87,6 +87,12 @@ const FinanceiroPage: React.FC = () => {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  const handleExportPdf = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
   const financeCards = [
     { title: 'Entradas', value: `R$ ${entradas.toFixed(2).replace('.', ',')}`, icon: 'fas fa-arrow-up', color: 'green' },
     { title: 'Saídas', value: `R$ ${saidas.toFixed(2).replace('.', ',')}`, icon: 'fas fa-arrow-down', color: 'red' },
@@ -114,7 +120,7 @@ const FinanceiroPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Financeiro</h1>
         <div className="flex gap-3">
-          {createButton(() => {}, 'fas fa-download', 'Exportar PDF', 'outline')}
+          {createButton(handleExportPdf, 'fas fa-download', 'Exportar PDF', 'outline')}
           {hasProductMenuAccess && createButton(() => setIsSellProductModalOpen(true), 'fas fa-cash-register', 'Vender Produto Avulso')}
           {createButton(() => navigate('/nova-transacao'), 'fas fa-plus', 'Nova Transação')}
         </div>
