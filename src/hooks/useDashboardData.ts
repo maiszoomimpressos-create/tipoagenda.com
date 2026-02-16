@@ -4,7 +4,7 @@ import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from './usePrimaryCompany';
 import { useReportsData } from './useReportsData';
-import { format, startOfDay, endOfDay, parse, addMinutes, startOfMonth } from 'date-fns';
+import { format, startOfDay, endOfDay, parse, addMinutes, startOfMonth, subMonths, endOfMonth } from 'date-fns';
 
 interface MonthlyRevenueDataPoint {
   date: string; // Ex: 'YYYY-MM-DD'
@@ -172,11 +172,7 @@ export function useDashboardData() {
 
       console.log('useDashboardData: Produtos Críticos', criticalProducts); // DEBUG LOG
 
-      // --- 5. Integrate Revenue KPI from useReportsData (last_month) ---
-      const revenue = reportsData.revenue.value;
-      const revenueChange = reportsData.revenue.comparison;
-
-      // --- 6. Fetch Monthly Revenue Data for Chart ---
+      // --- 5. Fetch Monthly Revenue Data for Chart and Calculate Current Month Revenue ---
       // IMPORTANTE: Usar cash_movements com transaction_date para refletir o faturamento real
       // O faturamento só existe quando há um recebimento registrado em cash_movements
       // Usar endOfDay para incluir todo o dia atual
@@ -203,6 +199,42 @@ export function useDashboardData() {
         sample: monthlyRevenueRaw?.slice(0, 3),
       });
 
+      // Calculate current month total revenue
+      const currentMonthRevenue = (monthlyRevenueRaw || []).reduce((sum: number, item: any) => {
+        const amount = parseFloat(item.total_amount) || 0;
+        return sum + amount;
+      }, 0);
+
+      // Fetch previous month revenue for comparison
+      const previousMonthDate = subMonths(new Date(), 1);
+      const previousMonthStart = format(startOfMonth(previousMonthDate), 'yyyy-MM-dd');
+      const previousMonthEnd = format(endOfDay(endOfMonth(previousMonthDate)), "yyyy-MM-dd'T'HH:mm:ss");
+      
+      const { data: previousMonthRevenueRaw, error: previousMonthError } = await supabase
+        .from('cash_movements')
+        .select('total_amount')
+        .eq('company_id', primaryCompanyId)
+        .eq('transaction_type', 'recebimento')
+        .gte('transaction_date', `${previousMonthStart}T00:00:00`)
+        .lte('transaction_date', previousMonthEnd);
+
+      if (previousMonthError) {
+        console.warn('[useDashboardData] Erro ao buscar faturamento do mês anterior (continuando):', previousMonthError);
+      }
+
+      const previousMonthRevenue = (previousMonthRevenueRaw || []).reduce((sum: number, item: any) => {
+        const amount = parseFloat(item.total_amount) || 0;
+        return sum + amount;
+      }, 0);
+
+      // Calculate percentage change
+      let revenueChange = 0;
+      if (previousMonthRevenue > 0) {
+        revenueChange = ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100;
+      } else if (currentMonthRevenue > 0) {
+        revenueChange = 100; // 100% increase if previous was 0
+      }
+
       // Aggregate daily revenue by transaction_date (data do recebimento, não do agendamento)
       const dailyRevenueMap = monthlyRevenueRaw.reduce((acc: Map<string, number>, item: any) => {
         // Extrair apenas a data (YYYY-MM-DD) do timestamp
@@ -217,6 +249,9 @@ export function useDashboardData() {
       const monthlyRevenueData: MonthlyRevenueDataPoint[] = Array.from(dailyRevenueMap.entries())
         .map(([date, revenue]) => ({ date, revenue }))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Use current month revenue instead of last_month from reportsData
+      const revenue = currentMonthRevenue;
 
 
       setData({
@@ -238,7 +273,7 @@ export function useDashboardData() {
     } finally {
       setLoading(false);
     }
-  }, [primaryCompanyId, session?.user, loadingReports, reportsData.revenue.value, reportsData.revenue.comparison]);
+  }, [primaryCompanyId, session?.user, loadingReports]);
 
   useEffect(() => {
     if (!loadingPrimaryCompany) {
