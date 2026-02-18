@@ -83,6 +83,8 @@ const calculateComparison = (currentValue: number, previousValue: number, isInve
 // Main function to fetch and calculate metrics for a given date range
 async function fetchMetrics(companyId: string, range: DateRange) {
   const { startDateDb, endDateDb } = range;
+  const startDateTimeDb = `${startDateDb}T00:00:00`;
+  const endDateTimeDb = format(range.endDate, "yyyy-MM-dd'T'HH:mm:ss");
 
   // 1. Fetch all relevant appointments (completed and cancelled)
   const { data: appointmentsData, error: appError } = await supabase
@@ -100,8 +102,8 @@ async function fetchMetrics(companyId: string, range: DateRange) {
     .select('total_amount, transaction_type')
     .eq('company_id', companyId)
     .eq('transaction_type', 'recebimento')
-    .gte('transaction_date', startDateDb)
-    .lte('transaction_date', endDateDb);
+    .gte('transaction_date', startDateTimeDb)
+    .lte('transaction_date', endDateTimeDb);
 
   if (cmError) throw cmError;
 
@@ -142,7 +144,10 @@ async function fetchMetrics(companyId: string, range: DateRange) {
   // --- Calculations ---
 
   // Revenue
-  const totalRevenue = cashMovementsData.reduce((sum, cm) => sum + cm.total_amount, 0);
+  const totalRevenue = (cashMovementsData || []).reduce((sum: number, cm: any) => {
+    const amount = parseFloat(cm.total_amount) || 0;
+    return sum + amount;
+  }, 0);
 
   // Completed Appointments
   const completedAppointments = appointmentsData.filter(a => a.status === 'concluido');
@@ -189,8 +194,8 @@ async function fetchMetrics(companyId: string, range: DateRange) {
     .eq('company_id', companyId)
     .eq('transaction_type', 'despesa')
     .not('appointment_id', 'is', null)
-    .gte('transaction_date', startDateDb)
-    .lte('transaction_date', endDateDb);
+    .gte('transaction_date', startDateTimeDb)
+    .lte('transaction_date', endDateTimeDb);
 
   // DEBUG: Log do resultado da busca
   console.log('[DEBUG Relatório] Resultado da busca de comissões:', {
@@ -279,7 +284,7 @@ async function fetchMetrics(companyId: string, range: DateRange) {
 
     const current = collabPerformanceMap.get(collabId) || { appointments: 0, revenue: 0, commission: 0 };
     current.appointments += 1;
-    current.revenue += app.total_price;
+    current.revenue += parseFloat(app.total_price as any) || 0;
     collabPerformanceMap.set(collabId, current);
   });
 
@@ -298,7 +303,7 @@ async function fetchMetrics(companyId: string, range: DateRange) {
 }
 
 
-export function useReportsData(dateRangeKey: DateRangeKey = 'last_month') {
+export function useReportsData(dateRangeKey: DateRangeKey = 'current_month') {
   const { session } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [reportsData, setReportsData] = useState<ReportsData>(initialReportsData);

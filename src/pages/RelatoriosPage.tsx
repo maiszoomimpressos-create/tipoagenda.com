@@ -51,7 +51,7 @@ const RelatoriosPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
-  const [dateRangeKey, setDateRangeKey] = useState<DateRangeKey>('last_month');
+  const [dateRangeKey, setDateRangeKey] = useState<DateRangeKey>('current_month');
   const { reportsData, loading, collaborators } = useReportsData(dateRangeKey);
 
   // Estados para o modal de detalhes de comissão por serviço
@@ -140,6 +140,7 @@ const RelatoriosPage: React.FC = () => {
               <SelectValue placeholder="Selecione o período" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="current_month">Mês atual</SelectItem>
               <SelectItem value="last_month">Últimos 30 dias</SelectItem>
               <SelectItem value="last_3_months">Últimos 3 meses</SelectItem>
               <SelectItem value="last_year">Último ano</SelectItem>
