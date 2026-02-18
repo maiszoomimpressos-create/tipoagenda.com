@@ -27,6 +27,7 @@ import { useIsClient } from '@/hooks/useIsClient';
 import { useIsCollaborator } from '@/hooks/useIsCollaborator';
 import { useUserValidation } from '@/hooks/useUserValidation';
 import { supabase } from '@/integrations/supabase/client';
+import { useMenuItems } from '@/hooks/useMenuItems';
 import LandingPage from './LandingPage';
 
 const IndexPage: React.FC = () => {
@@ -38,6 +39,7 @@ const IndexPage: React.FC = () => {
   const { isGlobalAdmin, loadingGlobalAdminCheck } = useIsGlobalAdmin();
   const { isClient, loadingClientCheck } = useIsClient();
   const { isCollaborator, loading: loadingCollaboratorCheck } = useIsCollaborator();
+  const { menuItems: dynamicMenuItems, loading: loadingMenus } = useMenuItems();
   const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck || loadingCollaboratorCheck;
   const hasRedirectedRef = useRef(false);
 
@@ -106,6 +108,20 @@ const IndexPage: React.FC = () => {
     // PRIORIDADE 4: Colaborador
     // Verificar se o colaborador tem role_type (primeiro na empresa primária, depois em qualquer empresa, depois na tabela collaborators)
     if (isCollaborator === true) {
+      // Para colaboradores, também precisamos aguardar os menus dinâmicos,
+      // pois o redirecionamento passa a respeitar as permissões de menu
+      if (loadingMenus) {
+        console.log('[IndexPage] Aguardando carregamento de menus para colaborador antes de redirecionar...');
+        return;
+      }
+
+      console.log('[IndexPage] Menus carregados para colaborador:', dynamicMenuItems.map(m => ({
+        id: m.id,
+        key: m.menu_key,
+        label: m.label,
+        path: m.path,
+      })));
+
       const checkCollaboratorRole = async () => {
         try {
           // 1. Tentar buscar role_type na empresa primária
@@ -145,9 +161,19 @@ const IndexPage: React.FC = () => {
 
           // 4. Decisão final baseada no que foi encontrado
           if (hasRoleType) {
-            console.log('[IndexPage] COLABORADOR com role_type detectado - redirecionando para /dashboard');
+            // Novo comportamento: respeitar permissões de menu do colaborador
+            // 1) Se tiver menu de dashboard liberado, manda para /dashboard
+            const dashboardMenu = dynamicMenuItems.find(m => m.path && m.path.includes('/dashboard'));
+            // 2) Caso contrário, usar o primeiro menu permitido como rota inicial
+            const firstAllowedMenuPath = dashboardMenu?.path || dynamicMenuItems[0]?.path || '/colaborador/agendamentos';
+
+            console.log('[IndexPage] COLABORADOR com role_type detectado - redirecionando para rota permitida:', {
+              hasDashboardMenu: !!dashboardMenu,
+              targetPath: firstAllowedMenuPath,
+            });
+
             hasRedirectedRef.current = true;
-            navigate('/dashboard', { replace: true });
+            navigate(firstAllowedMenuPath, { replace: true });
           } else {
             // Se não tem role_type em nenhum lugar, é um colaborador básico
             console.log('[IndexPage] COLABORADOR sem role_type detectado - redirecionando para /colaborador/agendamentos');
