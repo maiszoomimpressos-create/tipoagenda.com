@@ -17,7 +17,9 @@ interface CollaboratorPerformance {
   name: string;
   appointments: number;
   revenue: number;
-  commission: number;
+  commission: number; // Total gerado
+  paid_amount: number; // Valor já pago
+  pending_amount: number; // Valor pendente
 }
 
 interface ServiceCommissionDetail {
@@ -347,16 +349,62 @@ export function useReportsData(dateRangeKey: DateRangeKey = 'current_month') {
 
       if (collabNamesError) throw collabNamesError;
 
+      // Buscar comissões do período para obter os IDs e verificar pagamentos
+      const { startDateDb, endDateDb } = currentRange;
+      const startDateTimeDb = `${startDateDb}T00:00:00`;
+      const endDateTimeDb = `${endDateDb}T23:59:59`;
+      
+      const { data: commissionMovementsForPayments, error: commissionPaymentsError } = await supabase
+        .from('cash_movements')
+        .select('id, appointments!inner(collaborator_id)')
+        .eq('company_id', primaryCompanyId)
+        .eq('transaction_type', 'despesa')
+        .not('appointment_id', 'is', null)
+        .gte('transaction_date', startDateTimeDb)
+        .lte('transaction_date', endDateTimeDb);
+
+      if (commissionPaymentsError) {
+        console.warn('[useReportsData] Erro ao buscar comissões para verificar pagamentos:', commissionPaymentsError);
+      }
+
+      // Buscar pagamentos realizados para essas comissões
+      let paymentsMap = new Map<string, number>();
+      if (commissionMovementsForPayments && commissionMovementsForPayments.length > 0) {
+        const commissionCashMovementIds = commissionMovementsForPayments.map((cm: any) => cm.id);
+        
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('commission_payments')
+          .select('cash_movement_id, amount_paid, collaborator_id')
+          .in('cash_movement_id', commissionCashMovementIds)
+          .eq('company_id', primaryCompanyId);
+
+        if (paymentsError) {
+          console.warn('[useReportsData] Erro ao buscar pagamentos de comissões:', paymentsError);
+        } else if (paymentsData) {
+          // Agrupar pagamentos por colaborador
+          paymentsData.forEach((payment: any) => {
+            const collabId = payment.collaborator_id;
+            const currentPaid = paymentsMap.get(collabId) || 0;
+            paymentsMap.set(collabId, currentPaid + parseFloat(payment.amount_paid));
+          });
+        }
+      }
+
       const collaboratorPerformance: CollaboratorPerformance[] = collabNames
         .map(collab => {
           const metrics = currentMetrics.collabPerformanceMap.get(collab.id) || { appointments: 0, revenue: 0, commission: 0 };
+          const totalCommission = metrics.commission || 0;
+          const paidAmount = paymentsMap.get(collab.id) || 0;
+          const pendingAmount = totalCommission - paidAmount;
           
           return {
             id: collab.id,
             name: `${collab.first_name} ${collab.last_name}`,
             appointments: metrics.appointments,
             revenue: metrics.revenue,
-            commission: metrics.commission || 0, // Usar comissão real do map
+            commission: totalCommission, // Total gerado
+            paid_amount: paidAmount, // Valor já pago
+            pending_amount: pendingAmount, // Valor pendente
           };
         })
         .filter(collab => collab.commission > 0) // Filtrar apenas colaboradores com comissão > 0

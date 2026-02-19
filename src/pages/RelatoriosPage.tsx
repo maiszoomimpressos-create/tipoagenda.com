@@ -184,7 +184,11 @@ const RelatoriosPage: React.FC = () => {
               {collaborators.length === 0 ? (
                 <p className="text-gray-600">Nenhum colaborador com comissões geradas no período.</p>
               ) : (
-                collaborators.map((colaborador) => (
+                collaborators.map((colaborador) => {
+                  const isFullyPaid = colaborador.pending_amount <= 0;
+                  const isPartiallyPaid = colaborador.paid_amount > 0 && colaborador.pending_amount > 0;
+                  
+                  return (
                   <div key={colaborador.id} className="p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -193,11 +197,41 @@ const RelatoriosPage: React.FC = () => {
                             {colaborador.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium text-gray-900">{colaborador.name}</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">{colaborador.name}</span>
+                            {isFullyPaid && (
+                              <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                <i className="fas fa-check-circle mr-1"></i>
+                                Pago
+                              </span>
+                            )}
+                            {isPartiallyPaid && (
+                              <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                <i className="fas fa-exclamation-circle mr-1"></i>
+                                Parcial
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-gray-900">{colaborador.appointments} atendimentos</p>
-                        <p className="text-sm font-bold text-yellow-600">Comissão Total: R$ {colaborador.commission.toFixed(2).replace('.', ',')}</p>
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-yellow-600">
+                            Comissão Total: R$ {colaborador.commission.toFixed(2).replace('.', ',')}
+                          </p>
+                          {colaborador.paid_amount > 0 && (
+                            <p className="text-xs text-green-600">
+                              Pago: R$ {colaborador.paid_amount.toFixed(2).replace('.', ',')}
+                            </p>
+                          )}
+                          {colaborador.pending_amount > 0 && (
+                            <p className="text-xs text-red-600">
+                              Pendente: R$ {colaborador.pending_amount.toFixed(2).replace('.', ',')}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {reportsData.serviceCommissionsByCollaborator[colaborador.id]?.length > 0 && (
@@ -211,7 +245,8 @@ const RelatoriosPage: React.FC = () => {
                       </Button>
                     )}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </CardContent>

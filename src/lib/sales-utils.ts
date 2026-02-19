@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
+import { isPeriodClosed } from '@/utils/cash-closure-utils';
 
 interface RegisterProductSaleParams {
   companyId: string;
@@ -25,9 +26,13 @@ export const registerProductSale = async ({
   const totalAmount = quantity * unitPrice;
 
   try {
-    // 1. Iniciar uma transação (ou simular uma com locks se o Supabase não suportar transações ACID completas em nível de API)
-    // Para simplificar, faremos operações sequenciais e lidaremos com erros individualmente.
-    // Em um cenário de alta concorrência, uma função de banco de dados seria preferível.
+    // 1. Verificar se o período está fechado
+    const transactionDate = new Date();
+    const closed = await isPeriodClosed(companyId, transactionDate);
+    
+    if (closed) {
+      return { success: false, error: 'Não é possível registrar vendas em períodos já fechados. O período atual está fechado.' };
+    }
 
     // 2. Obter o produto e verificar o estoque
     const { data: productData, error: productError } = await supabase

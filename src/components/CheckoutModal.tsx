@@ -17,6 +17,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { PlusCircle, MinusCircle, Package } from 'lucide-react';
 import { useMenuItems } from '@/hooks/useMenuItems';
+import { isPeriodClosed } from '@/utils/cash-closure-utils';
 
 interface Product {
   id: string;
@@ -200,6 +201,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (appointmentDetails.status === 'concluido') {
       showError('Este agendamento já foi concluído.');
       return;
+    }
+
+    // Verificar se o período do agendamento está fechado
+    if (appointmentDetails.appointment_date) {
+      const appointmentDate = new Date(appointmentDetails.appointment_date);
+      const closed = await isPeriodClosed(companyId, appointmentDate);
+      
+      if (closed) {
+        showError('Não é possível finalizar agendamentos em períodos já fechados. O período deste agendamento está fechado.');
+        return;
+      }
     }
 
     setLoading(true);

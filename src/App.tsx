@@ -58,6 +58,8 @@ import GuestAppointmentConfirmationPage from "./pages/GuestAppointmentConfirmati
 import BannerManagementPage from "./pages/BannerManagementPage"; // Importar nova página de gerenciamento de banners
 import CollaboratorServicesPage from "./pages/CollaboratorServicesPage";
 import NovaTransacaoPage from "./pages/NovaTransacaoPage";
+import CommissionPaymentPage from "./pages/CommissionPaymentPage";
+import CashClosuresPage from "./pages/CashClosuresPage";
 import CompanySelectionPage from "./pages/CompanySelectionPage";
 import EditMyCompanyPage from "./pages/EditMyCompanyPage";
 import WhatsAppMessagingPage from "./pages/WhatsAppMessagingPage"; // Importar nova página de mensagens WhatsApp
@@ -259,6 +261,8 @@ const App = () => (
               <Route path="colaboradores/:collaboratorId/schedule" element={<ProtectedRoute><CollaboratorSchedulePage /></ProtectedRoute>} />
               <Route path="colaboradores/:collaboratorId/servicos" element={<ProtectedRoute><CollaboratorServicesPage /></ProtectedRoute>} />
               <Route path="financeiro" element={<ProtectedRoute><FinanceiroPage /></ProtectedRoute>} />
+              <Route path="financeiro/pagamento-comissoes" element={<ProtectedRoute><CommissionPaymentPage /></ProtectedRoute>} />
+              <Route path="financeiro/fechamentos" element={<ProtectedRoute><CashClosuresPage /></ProtectedRoute>} />
               <Route path="estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
               <Route path="estoque/new" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
               <Route path="estoque/edit/:productId" element={<ProtectedRoute><ProductFormPage /></ProtectedRoute>} />
