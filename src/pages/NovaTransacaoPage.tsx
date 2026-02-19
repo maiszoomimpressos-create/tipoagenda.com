@@ -14,7 +14,9 @@ import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useIsPeriodClosed } from '@/hooks/useCashClosure';
 import { format } from 'date-fns';
+import { isPeriodClosed } from '@/utils/cash-closure-utils';
 
 // Zod schema for new transaction
 const newTransactionSchema = z.object({
@@ -42,6 +44,12 @@ const NovaTransacaoPage: React.FC = () => {
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const [loading, setLoading] = useState(false);
+  const [transactionDate, setTransactionDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  
+  // Verificar se o período da transação está fechado
+  const { isClosed: isPeriodClosed, loading: loadingPeriodCheck } = useIsPeriodClosed(
+    transactionDate ? new Date(transactionDate) : null
+  );
 
   const {
     register,
@@ -67,6 +75,16 @@ const NovaTransacaoPage: React.FC = () => {
     setLoading(true);
     if (!session?.user || !primaryCompanyId) {
       showError('Erro de autenticação ou empresa primária não encontrada.');
+      setLoading(false);
+      return;
+    }
+
+    // Verificar se o período está fechado
+    const transactionDateObj = new Date(data.transaction_date);
+    const closed = await isPeriodClosed(primaryCompanyId, transactionDateObj);
+    
+    if (closed) {
+      showError('Não é possível criar transações em períodos já fechados. Selecione uma data de um período aberto.');
       setLoading(false);
       return;
     }
@@ -209,8 +227,18 @@ const NovaTransacaoPage: React.FC = () => {
                     id="transaction_date"
                     type="date"
                     {...register('transaction_date')}
+                    onChange={(e) => {
+                      setTransactionDate(e.target.value);
+                      setValue('transaction_date', e.target.value);
+                    }}
                     className="mt-1 border-gray-300 text-sm"
                   />
+                  {isPeriodClosed && !loadingPeriodCheck && (
+                    <p className="text-red-500 text-xs mt-1">
+                      <i className="fas fa-lock mr-1"></i>
+                      Este período está fechado. Não é possível criar transações.
+                    </p>
+                  )}
                   {errors.transaction_date && <p className="text-red-500 text-xs mt-1">{errors.transaction_date.message}</p>}
                 </div>
               </div>

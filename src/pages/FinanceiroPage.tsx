@@ -132,6 +132,72 @@ const FinanceiroPage: React.FC = () => {
         )}
       </div>
 
+      {/* Cards de Ações Rápidas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Card de Pagamento de Comissões */}
+        <Card 
+          className="border-gray-200 cursor-pointer hover:border-yellow-600 hover:shadow-md transition-all"
+          onClick={() => navigate('/financeiro/pagamento-comissoes')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-money-bill-wave text-blue-600 text-xl"></i>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Pagamento de Comissões</h3>
+                  <p className="text-sm text-gray-600">Efetuar pagamentos de comissões aos colaboradores</p>
+                </div>
+              </div>
+              <i className="fas fa-chevron-right text-gray-400 text-xl"></i>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card de Fechar Caixa */}
+        <Card 
+          className="border-gray-200 cursor-pointer hover:border-yellow-600 hover:shadow-md transition-all"
+          onClick={() => navigate('/fechar-caixa')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-cash-register text-yellow-600 text-xl"></i>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Fechar Caixa</h3>
+                  <p className="text-sm text-gray-600">Fechar caixa por período (dia, semana, quinzena ou mês)</p>
+                </div>
+              </div>
+              <i className="fas fa-chevron-right text-gray-400 text-xl"></i>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card de Histórico de Fechamentos */}
+        <Card 
+          className="border-gray-200 cursor-pointer hover:border-yellow-600 hover:shadow-md transition-all"
+          onClick={() => navigate('/financeiro/fechamentos')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-history text-green-600 text-xl"></i>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Histórico de Fechamentos</h3>
+                  <p className="text-sm text-gray-600">Visualizar histórico de fechamentos realizados</p>
+                </div>
+              </div>
+              <i className="fas fa-chevron-right text-gray-400 text-xl"></i>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="border-gray-200">
         <CardHeader><CardTitle className="text-gray-900">Transações Recentes</CardTitle></CardHeader>
         <CardContent>
