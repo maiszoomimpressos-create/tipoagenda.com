@@ -61,9 +61,34 @@ const FecharCaixaPage: React.FC = () => {
     period?.startDate || new Date(), 
     period?.endDate || new Date()
   );
-  const { isClosed, loading: loadingClosureCheck } = useCheckPeriodClosed(
+  const { isClosed, loading: loadingClosureCheck, refetch: refetchPeriodCheck } = useCheckPeriodClosed(
     primaryCompanyId && period ? period : null
   );
+
+  // Atualizar verificação quando a página recebe foco (útil quando o caixa é reaberto em outra aba)
+  React.useEffect(() => {
+    const handleFocus = () => {
+      if (primaryCompanyId && period) {
+        // Forçar uma nova verificação quando a página recebe foco
+        setTimeout(() => {
+          refetchPeriodCheck?.();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [primaryCompanyId, period, refetchPeriodCheck]);
+
+  // Atualizar verificação quando o período muda
+  React.useEffect(() => {
+    if (primaryCompanyId && period) {
+      // Forçar verificação quando o período muda
+      setTimeout(() => {
+        refetchPeriodCheck?.();
+      }, 100);
+    }
+  }, [primaryCompanyId, period?.startDateDb, period?.endDateDb, refetchPeriodCheck]);
 
   const {
     register,
@@ -281,12 +306,54 @@ const FecharCaixaPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Fechamento de Caixa</h1>
       </div>
       
-      {isClosed && (
+      {isClosed && !loadingClosureCheck && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Caixa Já Fechado!</strong>
-          <span className="block sm:inline ml-2">
-            O caixa já foi fechado para o período de {dateFnsFormat(period.startDate, 'dd/MM/yyyy', { locale: ptBR })} a {dateFnsFormat(period.endDate, 'dd/MM/yyyy', { locale: ptBR })}.
-          </span>
+          <div className="flex items-center justify-between">
+            <div>
+              <strong className="font-bold">Caixa Já Fechado!</strong>
+              <span className="block sm:inline ml-2">
+                O caixa já foi fechado para o período de {dateFnsFormat(period.startDate, 'dd/MM/yyyy', { locale: ptBR })} a {dateFnsFormat(period.endDate, 'dd/MM/yyyy', { locale: ptBR })}.
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (!primaryCompanyId || !period) return;
+                
+                // Fazer uma verificação direta no banco para garantir
+                try {
+                  const { data, error } = await supabase
+                    .from('cash_register_closures')
+                    .select('id, start_date, end_date')
+                    .eq('company_id', primaryCompanyId)
+                    .eq('start_date', period.startDateDb)
+                    .eq('end_date', period.endDateDb)
+                    .limit(1)
+                    .maybeSingle();
+
+                  console.log('[FecharCaixaPage] Verificação manual:', {
+                    found: !!data,
+                    closureId: data?.id || null,
+                    startDate: period.startDateDb,
+                    endDate: period.endDateDb
+                  });
+
+                  // Sempre atualizar o hook após a verificação manual
+                  await refetchPeriodCheck?.();
+                } catch (err) {
+                  console.error('[FecharCaixaPage] Erro na verificação manual:', err);
+                  await refetchPeriodCheck?.();
+                }
+              }}
+              disabled={loadingClosureCheck}
+              className="ml-4"
+              title="Atualizar verificação de período"
+            >
+              <i className={`fas fa-sync-alt ${loadingClosureCheck ? 'fa-spin' : ''}`}></i>
+            </Button>
+          </div>
         </div>
       )}
 

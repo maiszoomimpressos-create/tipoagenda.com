@@ -22,7 +22,7 @@ export async function isPeriodClosed(
     // start_date <= dateStr <= end_date
     const { data, error } = await supabase
       .from('cash_register_closures')
-      .select('id')
+      .select('id, start_date, end_date')
       .eq('company_id', companyId)
       .lte('start_date', dateStr)  // start_date <= dateStr (data da transação está depois ou no início do período)
       .gte('end_date', dateStr)     // end_date >= dateStr (data da transação está antes ou no fim do período)
@@ -35,7 +35,15 @@ export async function isPeriodClosed(
       return false;
     }
 
-    return !!data;
+    const isClosed = !!data;
+    console.log('[isPeriodClosed] Verificação:', {
+      companyId,
+      dateStr,
+      isClosed,
+      closureData: data
+    });
+
+    return isClosed;
   } catch (error: any) {
     console.error('[isPeriodClosed] Erro ao verificar período fechado:', error);
     // Em caso de erro, retornar false para não bloquear operações

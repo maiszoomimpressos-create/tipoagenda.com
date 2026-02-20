@@ -460,6 +460,90 @@ const CompanyRegistrationPage: React.FC = () => {
         console.log('[CompanyRegistration] type_user atualizado com sucesso para PROPRIETARIO');
       }
 
+      // Enviar email de notificação para admin sobre novo cadastro de empresa
+      // Fazendo de forma simples: chamando a Edge Function que já existe e funciona
+      try {
+        // Buscar telefone do usuário do perfil
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('phone_number')
+          .eq('id', session.user.id)
+          .single();
+
+        const userPhone = profileData?.phone_number || session?.user.user_metadata?.phone_number || '';
+
+        // Formatar dados para envio
+        const formatPhone = (phone: string) => {
+          if (!phone) return 'N/A';
+          const cleaned = phone.replace(/\D/g, '');
+          if (cleaned.length === 11) {
+            return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
+          } else if (cleaned.length === 10) {
+            return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 6)}-${cleaned.substring(6)}`;
+          }
+          return phone;
+        };
+
+        const formatCnpj = (cnpj: string) => {
+          if (!cnpj) return 'N/A';
+          const cleaned = cnpj.replace(/\D/g, '');
+          if (cleaned.length === 14) {
+            return `${cleaned.substring(0, 2)}.${cleaned.substring(2, 5)}.${cleaned.substring(5, 8)}/${cleaned.substring(8, 12)}-${cleaned.substring(12)}`;
+          }
+          return cnpj;
+        };
+
+        const formatZipCode = (zip: string) => {
+          if (!zip) return '';
+          const cleaned = zip.replace(/\D/g, '');
+          if (cleaned.length === 8) {
+            return `${cleaned.substring(0, 5)}-${cleaned.substring(5)}`;
+          }
+          return zip;
+        };
+
+        const formattedUserPhone = formatPhone(userPhone);
+        const formattedCompanyPhone = formatPhone(cleanedPhoneNumber);
+        const formattedCnpj = formatCnpj(cleanedCnpj);
+        const formattedZipCode = formatZipCode(cleanedZipCode);
+        
+        const addressParts = [
+          pendingCompanyData.address || '',
+          pendingCompanyData.number ? `Nº ${pendingCompanyData.number}` : '',
+          pendingCompanyData.neighborhood || '',
+          pendingCompanyData.complement || '',
+          pendingCompanyData.city || '',
+          pendingCompanyData.state || '',
+          formattedZipCode
+        ].filter(part => part.trim() !== '');
+        const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : 'N/A';
+
+        // Chamar Edge Function para enviar email - usando a mesma que já funciona
+        const { error: emailError } = await supabase.functions.invoke('send-company-registration-notification', {
+          body: {
+            companyName: pendingCompanyData.name,
+            razaoSocial: pendingCompanyData.razao_social,
+            cnpj: cleanedCnpj,
+            userPhone: userPhone,
+            companyPhone: cleanedPhoneNumber,
+            address: pendingCompanyData.address,
+            number: pendingCompanyData.number,
+            neighborhood: pendingCompanyData.neighborhood,
+            complement: pendingCompanyData.complement || '',
+            zipCode: cleanedZipCode,
+            city: pendingCompanyData.city,
+            state: pendingCompanyData.state,
+          },
+        });
+
+        if (emailError) {
+          console.warn('[CompanyRegistration] Email de notificação não enviado (não crítico):', emailError);
+        }
+      } catch (notificationError: any) {
+        // Não falhar o cadastro se o email de notificação falhar
+        console.warn('[CompanyRegistration] Erro ao enviar email de notificação (não crítico):', notificationError);
+      }
+
       // Verificar se deve mostrar alerta de permissões (primeira vez)
       const userId = session.user.id;
       const companyId = companyData.id;

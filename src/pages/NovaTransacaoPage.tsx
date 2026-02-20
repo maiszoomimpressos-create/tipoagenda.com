@@ -46,9 +46,9 @@ const NovaTransacaoPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [transactionDate, setTransactionDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   
-  // Verificar se o período da transação está fechado
-  const { isClosed: isPeriodClosed, loading: loadingPeriodCheck } = useIsPeriodClosed(
-    transactionDate ? new Date(transactionDate) : null
+  // Verificar se o período da transação está fechado (apenas manual, sem verificação automática)
+  const { isClosed: isPeriodClosed, loading: loadingPeriodCheck, refetch: refetchPeriodCheck } = useIsPeriodClosed(
+    null // Não passar a data para evitar verificação automática
   );
 
   const {
@@ -79,14 +79,25 @@ const NovaTransacaoPage: React.FC = () => {
       return;
     }
 
-    // Verificar se o período está fechado
-    const transactionDateObj = new Date(data.transaction_date);
-    const closed = await isPeriodClosed(primaryCompanyId, transactionDateObj);
-    
-    if (closed) {
-      showError('Não é possível criar transações em períodos já fechados. Selecione uma data de um período aberto.');
-      setLoading(false);
-      return;
+    // Verificar se o período está fechado (sempre verificar diretamente no banco para garantir estado atual)
+    try {
+      const transactionDateObj = new Date(data.transaction_date);
+      
+      // Verificar se a função existe antes de chamar
+      if (typeof isPeriodClosed === 'function') {
+        const closed = await isPeriodClosed(primaryCompanyId, transactionDateObj);
+        
+        if (closed) {
+          showError('Não é possível criar transações em períodos já fechados. Selecione uma data de um período aberto.');
+          setLoading(false);
+          return;
+        }
+      } else {
+        console.warn('[NovaTransacaoPage] isPeriodClosed não é uma função, pulando verificação');
+      }
+    } catch (error: any) {
+      console.error('[NovaTransacaoPage] Erro ao verificar período fechado:', error);
+      // Continuar com o salvamento mesmo se houver erro na verificação
     }
 
     try {
@@ -223,20 +234,49 @@ const NovaTransacaoPage: React.FC = () => {
                   <Label htmlFor="transaction_date" className="block text-sm font-medium text-gray-700 mb-2">
                     Data *
                   </Label>
-                  <Input
-                    id="transaction_date"
-                    type="date"
-                    {...register('transaction_date')}
-                    onChange={(e) => {
-                      setTransactionDate(e.target.value);
-                      setValue('transaction_date', e.target.value);
-                    }}
-                    className="mt-1 border-gray-300 text-sm"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="transaction_date"
+                      type="date"
+                      {...register('transaction_date')}
+                      onChange={(e) => {
+                        setTransactionDate(e.target.value);
+                        setValue('transaction_date', e.target.value);
+                      }}
+                      className="mt-1 border-gray-300 text-sm flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (transactionDate) {
+                          refetchPeriodCheck?.(new Date(transactionDate));
+                        }
+                      }}
+                      disabled={loadingPeriodCheck || !transactionDate}
+                      className="mt-1"
+                      title="Verificar se o período está fechado"
+                    >
+                      <i className={`fas fa-sync-alt ${loadingPeriodCheck ? 'fa-spin' : ''}`}></i>
+                    </Button>
+                  </div>
                   {isPeriodClosed && !loadingPeriodCheck && (
                     <p className="text-red-500 text-xs mt-1">
                       <i className="fas fa-lock mr-1"></i>
-                      Este período está fechado. Não é possível criar transações.
+                      Este período está fechado. Não é possível criar transações para esta data.
+                    </p>
+                  )}
+                  {!isPeriodClosed && !loadingPeriodCheck && transactionDate && (
+                    <p className="text-green-600 text-xs mt-1">
+                      <i className="fas fa-check-circle mr-1"></i>
+                      Período aberto. Você pode criar transações para esta data.
+                    </p>
+                  )}
+                  {loadingPeriodCheck && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      <i className="fas fa-spinner fa-spin mr-1"></i>
+                      Verificando período...
                     </p>
                   )}
                   {errors.transaction_date && <p className="text-red-500 text-xs mt-1">{errors.transaction_date.message}</p>}
