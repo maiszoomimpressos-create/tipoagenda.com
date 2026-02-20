@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from './usePrimaryCompany';
@@ -74,10 +74,12 @@ export function calculatePeriod(closureType: ClosureType, referenceDate: Date = 
 export function useIsPeriodClosed(transactionDate?: Date | string | null) {
   const { primaryCompanyId } = usePrimaryCompany();
   const [isClosed, setIsClosed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const checkPeriod = useCallback(async () => {
-    if (!primaryCompanyId || !transactionDate) {
+  const checkPeriod = useCallback(async (dateToCheck?: Date | string | null) => {
+    const date = dateToCheck || transactionDate;
+    
+    if (!primaryCompanyId || !date) {
       setIsClosed(false);
       setLoading(false);
       return;
@@ -85,36 +87,28 @@ export function useIsPeriodClosed(transactionDate?: Date | string | null) {
 
     setLoading(true);
     try {
-      const dateToCheck = typeof transactionDate === 'string' 
-        ? new Date(transactionDate) 
-        : transactionDate;
+      const dateObj = typeof date === 'string' 
+        ? new Date(date) 
+        : date;
       
-      const dateStr = format(dateToCheck, 'yyyy-MM-dd');
+      const dateStr = format(dateObj, 'yyyy-MM-dd');
 
-      const { data, error } = await supabase.rpc('is_period_closed', {
-        p_company_id: primaryCompanyId,
-        p_transaction_date: dateToCheck.toISOString(),
-      });
+      // Sempre fazer query direta para garantir que está verificando o estado atual
+      const { data: closureData, error: closureError } = await supabase
+        .from('cash_register_closures')
+        .select('id, start_date, end_date')
+        .eq('company_id', primaryCompanyId)
+        .lte('start_date', dateStr)
+        .gte('end_date', dateStr)
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        // Se a função não existir ainda, fazer query direta
-        const { data: closureData, error: closureError } = await supabase
-          .from('cash_register_closures')
-          .select('id')
-          .eq('company_id', primaryCompanyId)
-          .lte('start_date', dateStr)
-          .gte('end_date', dateStr)
-          .limit(1)
-          .maybeSingle();
-
-        if (closureError && closureError.code !== 'PGRST116') {
-          console.error('[useIsPeriodClosed] Erro:', closureError);
-        }
-        
-        setIsClosed(!!closureData);
-      } else {
-        setIsClosed(data || false);
+      if (closureError && closureError.code !== 'PGRST116') {
+        console.error('[useIsPeriodClosed] Erro:', closureError);
       }
+      
+      const isClosedResult = !!closureData;
+      setIsClosed(isClosedResult);
     } catch (error: any) {
       console.error('[useIsPeriodClosed] Erro ao verificar período:', error);
       setIsClosed(false);
@@ -123,11 +117,9 @@ export function useIsPeriodClosed(transactionDate?: Date | string | null) {
     }
   }, [primaryCompanyId, transactionDate]);
 
-  useEffect(() => {
-    checkPeriod();
-  }, [checkPeriod]);
+  // Não executar verificação automática - apenas manual através do refetch
 
-  return { isClosed, loading };
+  return { isClosed, loading, refetch: (date?: Date | string | null) => checkPeriod(date || transactionDate) };
 }
 
 // Hook para buscar fechamentos
@@ -205,9 +197,11 @@ export function useCheckPeriodClosed(period: ClosurePeriod | null) {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Verificar se existe um fechamento para este período exato
+      // Usar uma query mais específica para garantir que encontramos apenas fechamentos válidos
+      const { data, error, count } = await supabase
         .from('cash_register_closures')
-        .select('id')
+        .select('id, start_date, end_date, created_at', { count: 'exact' })
         .eq('company_id', primaryCompanyId)
         .eq('start_date', period.startDateDb)
         .eq('end_date', period.endDateDb)
@@ -215,10 +209,27 @@ export function useCheckPeriodClosed(period: ClosurePeriod | null) {
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('[useCheckPeriodClosed] Erro:', error);
+        console.error('[useCheckPeriodClosed] Erro na query:', error);
+        // Em caso de erro, considerar como não fechado para não bloquear
+        setIsClosed(false);
+        setLoading(false);
+        return;
       }
 
-      setIsClosed(!!data);
+      // Verificar se realmente existe um registro
+      const isClosedResult = !!data && data.id;
+      
+      console.log('[useCheckPeriodClosed] Verificação final:', {
+        companyId: primaryCompanyId,
+        startDate: period.startDateDb,
+        endDate: period.endDateDb,
+        isClosed: isClosedResult,
+        foundClosureId: data?.id || null,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Atualizar estado apenas se realmente encontrou um fechamento válido
+      setIsClosed(isClosedResult);
     } catch (error: any) {
       console.error('[useCheckPeriodClosed] Erro:', error);
       setIsClosed(false);
@@ -228,9 +239,67 @@ export function useCheckPeriodClosed(period: ClosurePeriod | null) {
   }, [primaryCompanyId, loadingPrimaryCompany, period]);
 
   useEffect(() => {
-    checkPeriod();
-  }, [checkPeriod]);
+    if (loadingPrimaryCompany) {
+      return;
+    }
 
-  return { isClosed, loading };
+    if (!primaryCompanyId || !period) {
+      setIsClosed(false);
+      setLoading(false);
+      return;
+    }
+
+    // Executar verificação inicial
+    checkPeriod();
+
+    // Listener para detectar mudanças na tabela cash_register_closures
+    // Isso permite atualizar automaticamente quando o caixa é reaberto
+    const channel = supabase
+      .channel(`cash_closure_${primaryCompanyId}_${period.startDateDb}_${period.endDateDb}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Escuta INSERT, UPDATE e DELETE
+          schema: 'public',
+          table: 'cash_register_closures',
+          filter: `company_id=eq.${primaryCompanyId}`,
+        },
+        (payload) => {
+          // Verificar se a mudança afeta o período atual
+          if (period && payload.new) {
+            const newRecord = payload.new as any;
+            if (newRecord.start_date === period.startDateDb && newRecord.end_date === period.endDateDb) {
+              // Fechamento foi criado para este período
+              setIsClosed(true);
+            }
+          } else if (payload.old && period) {
+            const oldRecord = payload.old as any;
+            if (oldRecord.start_date === period.startDateDb && oldRecord.end_date === period.endDateDb) {
+              // Fechamento foi deletado (reaberto) para este período
+              // Imediatamente marcar como não fechado
+              setIsClosed(false);
+              setLoading(false);
+              // Recarregar após um delay para garantir sincronização
+              setTimeout(() => {
+                checkPeriod();
+              }, 200);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            // Qualquer DELETE na tabela, verificar novamente após um delay
+            setTimeout(() => {
+              checkPeriod();
+            }, 200);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryCompanyId, period, loadingPrimaryCompany]);
+
+  return { isClosed, loading, refetch: checkPeriod };
 }
 

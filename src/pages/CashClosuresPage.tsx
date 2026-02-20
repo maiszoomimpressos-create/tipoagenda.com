@@ -3,15 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { useCashClosures, ClosureType } from '@/hooks/useCashClosure';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ReopenCashClosureModal } from '@/components/ReopenCashClosureModal';
+import { useIsProprietario } from '@/hooks/useIsProprietario';
 
 const CashClosuresPage: React.FC = () => {
   const navigate = useNavigate();
   const [closureTypeFilter, setClosureTypeFilter] = useState<ClosureType | null>(null);
-  const { closures, loading } = useCashClosures(closureTypeFilter);
+  const { closures, loading, refetch } = useCashClosures(closureTypeFilter);
+  const { isProprietario } = useIsProprietario();
+  const [selectedClosureId, setSelectedClosureId] = useState<string | null>(null);
+  const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
 
   const getClosureTypeLabel = (type: ClosureType) => {
     const labels = {
@@ -21,6 +26,15 @@ const CashClosuresPage: React.FC = () => {
       mes: 'Mês',
     };
     return labels[type];
+  };
+
+  const handleReopenClick = (closureId: string) => {
+    setSelectedClosureId(closureId);
+    setIsReopenModalOpen(true);
+  };
+
+  const handleReopened = () => {
+    refetch();
   };
 
   if (loading) {
@@ -84,7 +98,7 @@ const CashClosuresPage: React.FC = () => {
               {closures.map((closure) => (
                 <div key={closure.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex items-start justify-between mb-3">
-                    <div>
+                    <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded">
                           {getClosureTypeLabel(closure.closure_type)}
@@ -98,6 +112,17 @@ const CashClosuresPage: React.FC = () => {
                         Fechado em {format(parseISO(closure.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       </p>
                     </div>
+                    {isProprietario && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReopenClick(closure.id)}
+                        className="ml-4"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reabrir Caixa
+                      </Button>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                     <div>
@@ -137,6 +162,19 @@ const CashClosuresPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Reabertura */}
+      {selectedClosureId && (
+        <ReopenCashClosureModal
+          isOpen={isReopenModalOpen}
+          onClose={() => {
+            setIsReopenModalOpen(false);
+            setSelectedClosureId(null);
+          }}
+          closureId={selectedClosureId}
+          onReopened={handleReopened}
+        />
+      )}
     </div>
   );
 };
