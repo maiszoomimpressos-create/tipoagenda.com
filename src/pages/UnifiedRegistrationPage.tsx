@@ -409,12 +409,25 @@ const UnifiedRegistrationPage: React.FC = () => {
       });
 
       if (response.error) {
+        console.error('Edge Function Error Response:', response.error);
         let edgeFunctionErrorMessage = 'Erro desconhecido da Edge Function.';
-        if (response.error.context && response.error.context.data && response.error.context.data.error) {
-          edgeFunctionErrorMessage = response.error.context.data.error;
+        
+        // Tentar extrair mensagem de erro de diferentes formatos
+        if (response.error.context && response.error.context.data) {
+          const errorData = response.error.context.data;
+          if (errorData.error) {
+            edgeFunctionErrorMessage = errorData.error;
+            if (errorData.missingFields) {
+              edgeFunctionErrorMessage += ` Campos faltando: ${errorData.missingFields.join(', ')}`;
+            }
+          }
         } else if (response.error.message) {
           edgeFunctionErrorMessage = response.error.message;
+        } else if (response.error.error) {
+          edgeFunctionErrorMessage = response.error.error;
         }
+        
+        console.error('Erro extraído da Edge Function:', edgeFunctionErrorMessage);
         throw new Error(edgeFunctionErrorMessage);
       }
 

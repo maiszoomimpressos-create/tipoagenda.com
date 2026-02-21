@@ -42,9 +42,22 @@ const AgendamentosPage: React.FC = () => {
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
   const { companyId: companyIdFromUrl } = useParams<{ companyId: string }>(); // Pega o companyId da URL
 
-  // Determina o ID da empresa a ser usado, priorizando o da URL
-  const currentCompanyId = companyIdFromUrl || primaryCompanyId;
-  const loadingCompanyId = companyIdFromUrl ? false : loadingPrimaryCompany; // Se veio da URL, não está carregando
+  // CRÍTICO: Se a URL contém literalmente ":companyId", redirecionar para a URL correta
+  useEffect(() => {
+    // Se o companyId da URL é literalmente ":companyId" (placeholder não substituído)
+    if (companyIdFromUrl === ':companyId') {
+      // Aguardar o primaryCompanyId estar disponível
+      if (!loadingPrimaryCompany && primaryCompanyId) {
+        console.log('AgendamentosPage: Detectado :companyId literal na URL. Redirecionando para:', `/agendamentos/${primaryCompanyId}`);
+        navigate(`/agendamentos/${primaryCompanyId}`, { replace: true });
+      }
+    }
+  }, [companyIdFromUrl, primaryCompanyId, loadingPrimaryCompany, navigate]);
+
+  // Determina o ID da empresa a ser usado, priorizando o da URL (mas ignorando se for ":companyId")
+  const isValidCompanyId = companyIdFromUrl && companyIdFromUrl !== ':companyId';
+  const currentCompanyId = isValidCompanyId ? companyIdFromUrl : primaryCompanyId;
+  const loadingCompanyId = isValidCompanyId ? false : loadingPrimaryCompany; // Se veio da URL válida, não está carregando
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [selectedTab, setSelectedTab] = useState('dia'); // State to control the active tab
@@ -54,6 +67,8 @@ const AgendamentosPage: React.FC = () => {
 
   console.log('AgendamentosPage: session', session);
   console.log('AgendamentosPage: sessionLoading', sessionLoading);
+  console.log('AgendamentosPage: companyIdFromUrl', companyIdFromUrl);
+  console.log('AgendamentosPage: primaryCompanyId', primaryCompanyId);
   console.log('AgendamentosPage: currentCompanyId', currentCompanyId);
   console.log('AgendamentosPage: loadingCompanyId', loadingCompanyId);
 
