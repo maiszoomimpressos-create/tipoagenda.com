@@ -7,6 +7,210 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * Verifica se o plano tem o menu WhatsApp e envia email de notificação se necessário
+ * @param supabaseAdmin Cliente Supabase Admin
+ * @param companyId ID da empresa
+ * @param planId ID do plano
+ */
+async function checkAndNotifyWhatsAppPlan(supabaseAdmin: any, companyId: string, planId: string) {
+  try {
+    // 1. Buscar menu WhatsApp pelo menu_key
+    const { data: whatsappMenu, error: menuError } = await supabaseAdmin
+      .from('menus')
+      .select('id')
+      .eq('menu_key', 'mensagens-whatsapp')
+      .eq('is_active', true)
+      .single();
+
+    if (menuError || !whatsappMenu) {
+      console.log('[checkAndNotifyWhatsAppPlan] Menu WhatsApp não encontrado ou inativo. Email não será enviado.');
+      return; // Plano não tem WhatsApp, não precisa enviar email
+    }
+
+    // 2. Verificar se o menu está vinculado ao plano
+    const { data: menuPlan, error: menuPlanError } = await supabaseAdmin
+      .from('menu_plans')
+      .select('id')
+      .eq('plan_id', planId)
+      .eq('menu_id', whatsappMenu.id)
+      .single();
+
+    if (menuPlanError || !menuPlan) {
+      console.log('[checkAndNotifyWhatsAppPlan] Menu WhatsApp não está vinculado ao plano. Email não será enviado.');
+      return; // Plano não tem WhatsApp, não precisa enviar email
+    }
+
+    // 3. Plano TEM WhatsApp! Buscar dados da empresa
+    console.log('[checkAndNotifyWhatsAppPlan] ✅ Plano tem WhatsApp! Buscando dados da empresa...');
+    const { data: companyData, error: companyError } = await supabaseAdmin
+      .from('companies')
+      .select('name, razao_social, cnpj, phone_number, address, number, neighborhood, complement, zip_code, city, state')
+      .eq('id', companyId)
+      .single();
+
+    if (companyError || !companyData) {
+      console.error('[checkAndNotifyWhatsAppPlan] Erro ao buscar dados da empresa:', companyError);
+      return; // Não falhar o fluxo se não conseguir buscar dados
+    }
+
+    // 4. Formatar dados
+    const formatPhone = (phone: string) => {
+      if (!phone) return 'N/A';
+      const cleaned = phone.replace(/\D/g, '');
+      if (cleaned.length === 11) {
+        return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
+      } else if (cleaned.length === 10) {
+        return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 6)}-${cleaned.substring(6)}`;
+      }
+      return phone || 'N/A';
+    };
+
+    const formatCnpj = (cnpj: string) => {
+      if (!cnpj) return 'N/A';
+      const cleaned = cnpj.replace(/\D/g, '');
+      if (cleaned.length === 14) {
+        return `${cleaned.substring(0, 2)}.${cleaned.substring(2, 5)}.${cleaned.substring(5, 8)}/${cleaned.substring(8, 12)}-${cleaned.substring(12)}`;
+      }
+      return cnpj || 'N/A';
+    };
+
+    const formatZipCode = (zip: string) => {
+      if (!zip) return '';
+      const cleaned = zip.replace(/\D/g, '');
+      if (cleaned.length === 8) {
+        return `${cleaned.substring(0, 5)}-${cleaned.substring(5)}`;
+      }
+      return zip || '';
+    };
+
+    const formattedCompanyPhone = formatPhone(companyData.phone_number || '');
+    const formattedCnpj = formatCnpj(companyData.cnpj || '');
+    const formattedZipCode = formatZipCode(companyData.zip_code || '');
+    
+    // Build address string
+    const addressParts = [
+      companyData.address || '',
+      companyData.number ? `Nº ${companyData.number}` : '',
+      companyData.neighborhood || '',
+      companyData.complement || '',
+      companyData.city || '',
+      companyData.state || '',
+      formattedZipCode
+    ].filter(part => part.trim() !== '');
+    const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : 'N/A';
+
+    // 5. Gerar link WhatsApp
+    const whatsappNumber = companyData.phone_number?.replace(/\D/g, '') || '';
+    const whatsappLink = whatsappNumber ? `https://wa.me/55${whatsappNumber}` : 'N/A';
+
+    // 6. Montar e enviar email
+    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+    if (!RESEND_API_KEY) {
+      console.warn('[checkAndNotifyWhatsAppPlan] RESEND_API_KEY não configurada. Email não será enviado.');
+      return;
+    }
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #25D366; color: #fff; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+          .content { background-color: #f9f9f9; padding: 20px; border-radius: 0 0 5px 5px; }
+          .info-row { margin: 10px 0; padding: 10px; background-color: #fff; border-left: 3px solid #25D366; }
+          .label { font-weight: bold; color: #555; }
+          .value { color: #333; margin-top: 5px; }
+          .whatsapp-link { display: inline-block; padding: 12px 24px; background-color: #25D366; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px 0; }
+          .footer { margin-top: 30px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>🚀 NOVO CLIENTE WHATSAPP</h2>
+          </div>
+          <div class="content">
+            <p>Uma empresa acabou de assinar um plano que inclui o módulo de Mensagens WhatsApp.</p>
+            <p><strong>Ação necessária:</strong> Configure a API de WhatsApp para esta empresa.</p>
+            
+            <div class="info-row">
+              <div class="label">Razão Social:</div>
+              <div class="value">${companyData.razao_social || 'N/A'}</div>
+            </div>
+            
+            <div class="info-row">
+              <div class="label">Nome Fantasia:</div>
+              <div class="value">${companyData.name || 'N/A'}</div>
+            </div>
+            
+            <div class="info-row">
+              <div class="label">CNPJ:</div>
+              <div class="value">${formattedCnpj || 'N/A'}</div>
+            </div>
+            
+            <div class="info-row">
+              <div class="label">Endereço Completo:</div>
+              <div class="value">${fullAddress || 'N/A'}</div>
+            </div>
+            
+            <div class="info-row">
+              <div class="label">Telefones de Contato:</div>
+              <div class="value">${formattedCompanyPhone || 'N/A'}</div>
+            </div>
+            
+            <div class="info-row">
+              <div class="label">Link Direto WhatsApp:</div>
+              <div class="value">
+                ${whatsappLink !== 'N/A' ? `<a href="${whatsappLink}" class="whatsapp-link" target="_blank">Abrir WhatsApp</a>` : 'N/A'}
+              </div>
+            </div>
+            
+            <div class="footer">
+              <p>© TipoAgenda - Todos os direitos reservados</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const adminEmail = 'edricolpani@hotmail.com';
+    console.log('[checkAndNotifyWhatsAppPlan] Enviando email de notificação WhatsApp para:', adminEmail);
+
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'TipoAgenda <noreply@tipoagenda.com>',
+        to: adminEmail,
+        subject: `🚀 NOVO CLIENTE WHATSAPP - ${companyData.razao_social || companyData.name || 'Empresa'}`,
+        html: emailHtml,
+      }),
+    });
+
+    const emailData = await emailResponse.json();
+
+    if (emailResponse.ok) {
+      console.log('[checkAndNotifyWhatsAppPlan] ✅ Email de notificação WhatsApp enviado com sucesso!');
+    } else {
+      console.error('[checkAndNotifyWhatsAppPlan] ❌ Erro ao enviar email:', emailData);
+      if (emailData.statusCode === 403 && emailData.message?.includes('testing emails')) {
+        console.warn('[checkAndNotifyWhatsAppPlan] Resend está em modo de teste.');
+      }
+    }
+  } catch (error: any) {
+    console.error('[checkAndNotifyWhatsAppPlan] Erro inesperado (não crítico):', error.message);
+    // Não falhar o fluxo de assinatura se o email falhar
+  }
+}
+
 // Helper function to handle subscription creation/extension para fluxos sem pagamento (preço final <= 0)
 // Este helper mantém o comportamento de ativar diretamente a assinatura.
 async function handleSubscription(
@@ -92,6 +296,9 @@ async function handleSubscription(
         console.error(`Erro ao sincronizar flags (não crítico):`, syncErr);
         // Não lança erro para não quebrar o fluxo de assinatura
     }
+    
+    // Verificar se plano tem WhatsApp e enviar email de notificação
+    await checkAndNotifyWhatsAppPlan(supabaseAdmin, companyId, planId);
     
     return { subscriptionId, finalEndDate };
 }
@@ -317,6 +524,9 @@ serve(async (req) => {
             
             await supabaseAdmin.rpc('increment_coupon_usage', { coupon_id: couponId });
         }
+
+        // Verificar se plano tem WhatsApp e enviar email de notificação (já foi chamado em handleSubscription, mas garantindo aqui também)
+        await checkAndNotifyWhatsAppPlan(supabaseAdmin, companyId, planId);
 
         return new Response(
             JSON.stringify({ message: 'Subscription activated immediately (Free Trial/Discount)', subscriptionId }),
