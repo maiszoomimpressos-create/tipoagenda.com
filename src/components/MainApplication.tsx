@@ -79,8 +79,12 @@ const MainApplication: React.FC = () => {
     }
   }, [isMobile]);
 
-  const handleMenuItemClick = (path: string) => {
-    navigate(path);
+  const handleMenuItemClick = () => {
+    // No mobile, fechar o menu após clicar em um item
+    // O Link do React Router já faz a navegação automaticamente
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
   };
 
   // Usar menus dinâmicos se disponíveis, caso contrário usar estáticos (fallback)
@@ -243,11 +247,11 @@ const MainApplication: React.FC = () => {
               isMobile
                 ? sidebarCollapsed
                   ? 'hidden'
-                  : 'fixed inset-y-16 left-0 w-64 z-40'
+                  : 'fixed inset-y-16 left-0 w-64 z-40 overflow-y-auto max-h-[calc(100vh-4rem)]'
                 : sidebarCollapsed
                   ? 'w-16'
                   : 'w-64'
-            } min-h-full`}
+            } min-h-full ${!isMobile ? 'overflow-y-auto' : ''}`}
           >
             <nav className="p-4">
               <ul className="space-y-2">
@@ -269,6 +273,7 @@ const MainApplication: React.FC = () => {
                   <li key={item.id}>
                     <Link
                       to={item.path}
+                      onClick={handleMenuItemClick}
                       className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
                           isActive
                           ? 'bg-yellow-600 text-black'
@@ -287,6 +292,7 @@ const MainApplication: React.FC = () => {
                   <li>
                     <Link
                       to="/meus-agendamentos"
+                      onClick={handleMenuItemClick}
                       className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
                         location.pathname === '/meus-agendamentos'
                           ? 'bg-yellow-600 text-black'

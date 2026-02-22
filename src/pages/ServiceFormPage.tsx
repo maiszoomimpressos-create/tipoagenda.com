@@ -14,6 +14,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useServiceLimit } from '@/hooks/useServiceLimit';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, Package, XCircle } from 'lucide-react';
 
 // Zod schema for service registration
 const serviceSchema = z.object({
@@ -46,6 +49,7 @@ const ServiceFormPage: React.FC = () => {
   const { serviceId } = useParams<{ serviceId: string }>(); // Get serviceId from URL
   const { session } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const limitInfo = useServiceLimit(); // Hook para verificar limite de serviços
   const [loading, setLoading] = useState(false);
   const isEditing = !!serviceId;
 
@@ -122,6 +126,20 @@ const ServiceFormPage: React.FC = () => {
       return;
     }
 
+    // VALIDAÇÃO: Verificar limite de serviços ANTES de salvar (apenas para novos serviços)
+    if (!isEditing && limitInfo.maxAllowed !== null && limitInfo.maxAllowed > 0) {
+      // Se já excede o limite, permitir (grandfathering)
+      if (limitInfo.currentCount > limitInfo.maxAllowed) {
+        console.log(`ServiceFormPage: Empresa já excede o limite (${limitInfo.currentCount} > ${limitInfo.maxAllowed}). Permitindo adicionar (grandfathering).`);
+        // Permite continuar - não bloqueia
+      } else if (limitInfo.currentCount >= limitInfo.maxAllowed) {
+        // Está no limite - bloquear
+        showError(`Limite de serviços atingido! Seu plano permite até ${limitInfo.maxAllowed} serviços ativos. Você já possui ${limitInfo.currentCount}. Faça upgrade do seu plano para cadastrar mais serviços.`);
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       let error;
       if (isEditing) {
@@ -181,6 +199,14 @@ const ServiceFormPage: React.FC = () => {
   const pageTitle = isEditing ? 'Editar Serviço' : 'Adicionar Novo Serviço';
   const buttonText = isEditing ? 'Salvar Alterações' : 'Salvar Serviço';
 
+  // Calcular se o botão deve estar desabilitado por limite
+  const isLimitBlocked = !isEditing && 
+                         !limitInfo.loading && 
+                         limitInfo.maxAllowed !== null && 
+                         limitInfo.maxAllowed > 0 && 
+                         limitInfo.currentCount >= limitInfo.maxAllowed &&
+                         limitInfo.currentCount <= limitInfo.maxAllowed; // Não excede, mas está no limite
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
@@ -194,6 +220,68 @@ const ServiceFormPage: React.FC = () => {
         </Button>
         <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
       </div>
+
+      {/* Banner de Aviso de Limite de Serviços */}
+      {!isEditing && !limitInfo.loading && limitInfo.maxAllowed !== null && (
+        <div className="max-w-2xl">
+          {limitInfo.limitReached ? (
+            <Alert variant="destructive" className="border-red-500 bg-red-50">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle className="text-red-900 font-semibold">Limite de Serviços Atingido!</AlertTitle>
+              <AlertDescription className="text-red-800">
+                Seu plano permite até <strong>{limitInfo.maxAllowed}</strong> serviços ativos.
+                Você já possui <strong>{limitInfo.currentCount}</strong> serviços cadastrados.
+                <br />
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-red-800 underline font-semibold mt-2"
+                  onClick={() => navigate('/planos')}
+                >
+                  Faça upgrade do seu plano para cadastrar mais serviços →
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : limitInfo.nearLimit ? (
+            <Alert className="border-yellow-500 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertTitle className="text-yellow-900 font-semibold">Você está próximo do limite de serviços</AlertTitle>
+              <AlertDescription className="text-yellow-800">
+                Seu plano permite até <strong>{limitInfo.maxAllowed}</strong> serviços ativos.
+                Você já possui <strong>{limitInfo.currentCount}</strong> serviços ({limitInfo.percentage}% do limite).
+                <br />
+                <div className="mt-2 w-full bg-yellow-200 rounded-full h-2">
+                  <div
+                    className="bg-yellow-600 h-2 rounded-full transition-all"
+                    style={{ width: `${limitInfo.percentage}%` }}
+                  />
+                </div>
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-yellow-800 underline font-semibold mt-2"
+                  onClick={() => navigate('/planos')}
+                >
+                  Considere fazer upgrade do seu plano →
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-blue-200 bg-blue-50">
+              <Package className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900 font-semibold">Serviços</AlertTitle>
+              <AlertDescription className="text-blue-800">
+                Você possui <strong>{limitInfo.currentCount}</strong> de <strong>{limitInfo.maxAllowed}</strong> serviços ativos.
+                <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    style={{ width: `${limitInfo.percentage}%` }}
+                  />
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
       <div className="max-w-2xl">
         <Card className="border-gray-200">
           <CardContent className="p-6">
@@ -301,10 +389,11 @@ const ServiceFormPage: React.FC = () => {
                 </Button>
                 <Button
                   type="submit"
-                  className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black flex-1"
-                  disabled={loading}
+                  className="!rounded-button whitespace-nowrap cursor-pointer bg-yellow-600 hover:bg-yellow-700 text-black flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading || isLimitBlocked}
+                  title={isLimitBlocked ? 'Limite de serviços atingido. Faça upgrade do seu plano.' : ''}
                 >
-                  {loading ? (isEditing ? 'Salvando...' : 'Cadastrando...') : buttonText}
+                  {loading ? (isEditing ? 'Salvando...' : 'Cadastrando...') : isLimitBlocked ? 'Limite Atingido' : buttonText}
                 </Button>
               </div>
             </form>
