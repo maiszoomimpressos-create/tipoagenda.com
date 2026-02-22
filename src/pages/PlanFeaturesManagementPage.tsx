@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Edit, Trash2, ArrowLeft, Settings } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, ArrowLeft, Settings, Users, Package, User } from 'lucide-react';
 import { PlusCircle as PlusCircleIcon } from 'lucide-react'; // Importar PlusCircle para o botão de criar
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
@@ -30,6 +30,13 @@ interface PlanFeature {
   features: Feature; // Relação para obter detalhes da funcionalidade
 }
 
+interface PlanLimit {
+  id: string;
+  plan_id: string;
+  limit_type: string;
+  limit_value: number;
+}
+
 const PlanFeaturesManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { planId } = useParams<{ planId: string }>();
@@ -49,6 +56,15 @@ const PlanFeaturesManagementPage: React.FC = () => {
   const [featureName, setFeatureName] = useState(''); // Novo estado para o nome da funcionalidade
   const [featureDescription, setFeatureDescription] = useState<string | null>(null); // Novo estado para a descrição
   const [companyFlagName, setCompanyFlagName] = useState<string>(''); // Estado para o flag da empresa
+
+  // Estados para gerenciamento de limites
+  const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [editingLimit, setEditingLimit] = useState<PlanLimit | null>(null);
+  const [limitType, setLimitType] = useState<string>('collaborators');
+  const [limitValue, setLimitValue] = useState<string>('');
+  const [isConfirmDeleteLimitOpen, setIsConfirmDeleteLimitOpen] = useState(false);
+  const [limitToDelete, setLimitToDelete] = useState<PlanLimit | null>(null);
 
   const fetchPlanDetails = useCallback(async () => {
     if (!planId) return;
@@ -114,13 +130,32 @@ const PlanFeaturesManagementPage: React.FC = () => {
     }
   }, []);
 
+  // Função para buscar limites do plano
+  const fetchPlanLimits = useCallback(async () => {
+    if (!planId) return;
+    try {
+      const { data, error } = await supabase
+        .from('plan_limits')
+        .select('*')
+        .eq('plan_id', planId)
+        .order('limit_type', { ascending: true });
+
+      if (error) throw error;
+      setPlanLimits(data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar limites do plano:', error);
+      showError('Erro ao carregar limites do plano.');
+    }
+  }, [planId]);
+
   useEffect(() => {
     if (planId) {
       fetchPlanDetails();
       fetchPlanFeatures();
       fetchAvailableFeatures();
+      fetchPlanLimits(); // Buscar limites também
     }
-  }, [planId, fetchPlanDetails, fetchPlanFeatures, fetchAvailableFeatures]);
+  }, [planId, fetchPlanDetails, fetchPlanFeatures, fetchAvailableFeatures, fetchPlanLimits]);
 
   const handleAddFeatureClick = () => {
     setEditingPlanFeature(null);
@@ -308,6 +343,129 @@ const PlanFeaturesManagementPage: React.FC = () => {
     }
   };
 
+  // Funções para gerenciar limites
+  const handleAddLimitClick = () => {
+    setEditingLimit(null);
+    setLimitType('collaborators');
+    setLimitValue('');
+    setIsLimitModalOpen(true);
+  };
+
+  const handleEditLimitClick = (limit: PlanLimit) => {
+    setEditingLimit(limit);
+    setLimitType(limit.limit_type);
+    setLimitValue(limit.limit_value.toString());
+    setIsLimitModalOpen(true);
+  };
+
+  const handleSaveLimit = async () => {
+    if (!planId || !limitType.trim()) {
+      showError('O tipo de limite é obrigatório.');
+      return;
+    }
+
+    const limitValueNum = limitValue.trim() === '' ? 0 : parseInt(limitValue, 10);
+    if (isNaN(limitValueNum) || limitValueNum < 0) {
+      showError('O valor do limite deve ser um número positivo ou 0 para ilimitado.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (editingLimit) {
+        // Atualizar limite existente
+        const { error } = await supabase
+          .from('plan_limits')
+          .update({
+            limit_type: limitType,
+            limit_value: limitValueNum,
+          })
+          .eq('id', editingLimit.id);
+
+        if (error) throw error;
+        showSuccess('Limite atualizado com sucesso!');
+      } else {
+        // Criar novo limite
+        const { error } = await supabase
+          .from('plan_limits')
+          .insert({
+            plan_id: planId,
+            limit_type: limitType,
+            limit_value: limitValueNum,
+          });
+
+        if (error) throw error;
+        showSuccess('Limite adicionado com sucesso!');
+      }
+
+      setIsLimitModalOpen(false);
+      
+      // Recarregar a lista com tratamento de erro silencioso
+      try {
+        await fetchPlanLimits();
+      } catch (fetchError: any) {
+        // Se houver erro ao recarregar, não bloquear o sucesso do salvamento
+        console.warn('Aviso: Erro ao recarregar lista de limites (mas o limite foi salvo):', fetchError);
+        // Forçar recarregamento manual após um pequeno delay
+        setTimeout(() => {
+          fetchPlanLimits().catch(err => console.warn('Erro ao recarregar após delay:', err));
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error('Erro ao salvar limite:', error);
+      
+      // Verificar se é erro CORS ou de rede
+      const isCorsError = error?.message?.includes('CORS') || 
+                         error?.message?.includes('Failed to fetch') ||
+                         error?.code === 'PGRST301';
+      
+      if (isCorsError) {
+        showError('Erro de conexão. O limite pode ter sido salvo. Verifique a lista ou recarregue a página.');
+      } else {
+        showError('Erro ao salvar limite: ' + (error.message || 'Erro desconhecido'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLimitConfirm = (limit: PlanLimit) => {
+    setLimitToDelete(limit);
+    setIsConfirmDeleteLimitOpen(true);
+  };
+
+  const handleDeleteLimit = async () => {
+    if (!limitToDelete) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('plan_limits')
+        .delete()
+        .eq('id', limitToDelete.id);
+
+      if (error) throw error;
+      showSuccess('Limite removido com sucesso!');
+      setIsConfirmDeleteLimitOpen(false);
+      setLimitToDelete(null);
+      fetchPlanLimits(); // Recarrega a lista
+    } catch (error: any) {
+      console.error('Erro ao remover limite:', error);
+      showError('Erro ao remover limite: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getLimitTypeLabel = (type: string) => {
+    const labels: Record<string, { label: string; icon: React.ReactNode }> = {
+      collaborators: { label: 'Colaboradores', icon: <Users className="h-4 w-4" /> },
+      services: { label: 'Serviços', icon: <Package className="h-4 w-4" /> },
+      clients: { label: 'Clientes', icon: <User className="h-4 w-4" /> },
+    };
+    return labels[type] || { label: type, icon: <Settings className="h-4 w-4" /> };
+  };
+
   if (loading && planName === '') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -371,6 +529,93 @@ const PlanFeaturesManagementPage: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Seção de Limites do Plano */}
+      <Card className="border-gray-200">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
+          <div>
+            <CardTitle className="text-xl font-bold text-gray-900">Limites do Plano</CardTitle>
+            <p className="text-sm text-gray-500 mt-1">Configure limites para controlar o uso dos recursos</p>
+          </div>
+          <Button 
+            onClick={handleAddLimitClick} 
+            size="sm" 
+            className="h-9 gap-2 bg-yellow-600 hover:bg-yellow-700 text-black font-medium"
+          >
+            <PlusCircle className="h-4 w-4" /> Adicionar Limite
+          </Button>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {planLimits.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+              <Settings className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium mb-1">Nenhum limite configurado</p>
+              <p className="text-sm text-gray-400">Os recursos deste plano estarão ilimitados até você configurar limites.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {planLimits.map((limit) => {
+                const limitInfo = getLimitTypeLabel(limit.limit_type);
+                const isUnlimited = limit.limit_value === 0;
+                return (
+                  <div 
+                    key={limit.id} 
+                    className="group relative p-4 border-2 border-gray-200 rounded-lg bg-white hover:border-yellow-500 hover:shadow-md transition-all duration-200"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="p-2 bg-yellow-100 rounded-lg text-yellow-600 group-hover:bg-yellow-200 transition-colors">
+                          {limitInfo.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 mb-1">{limitInfo.label}</h3>
+                          <div className="flex items-center gap-2">
+                            {isUnlimited ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                Ilimitado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                {limit.limit_value} {limit.limit_value === 1 ? limitInfo.label.slice(0, -1) : limitInfo.label.toLowerCase()}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => handleEditLimitClick(limit)}
+                          className="h-8 w-8 border-gray-300 hover:border-yellow-500 hover:bg-yellow-50"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => handleDeleteLimitConfirm(limit)}
+                          className="h-8 w-8 border-gray-300 hover:border-red-500 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {planLimits.length > 0 && (
+            <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-800 flex items-start gap-2">
+                <span className="font-semibold">💡 Dica:</span>
+                <span>Configure limites para controlar o uso do plano. Deixe o valor em 0 para permitir quantidade ilimitada.</span>
+              </p>
             </div>
           )}
         </CardContent>
@@ -458,6 +703,129 @@ const PlanFeaturesManagementPage: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfirmDeleteOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleDeletePlanFeature}>Remover</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Adicionar/Editar Limite */}
+      <Dialog open={isLimitModalOpen} onOpenChange={setIsLimitModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-2xl font-bold text-gray-900">
+              {editingLimit ? 'Editar Limite' : 'Adicionar Limite'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 mt-2">
+              {editingLimit ? `Configure o limite para o plano "${planName}".` : `Defina um novo limite para o plano "${planName}".`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-6">
+            <div className="space-y-2">
+              <Label htmlFor="limit-type" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Settings className="h-4 w-4 text-gray-500" />
+                Tipo de Limite
+              </Label>
+              <Select value={limitType} onValueChange={setLimitType}>
+                <SelectTrigger className="h-11 border-gray-300 focus:border-yellow-500 focus:ring-yellow-500">
+                  <SelectValue placeholder="Selecione o tipo de limite" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="collaborators">
+                    <div className="flex items-center gap-3 py-1">
+                      <Users className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <div className="font-medium">Colaboradores</div>
+                        <div className="text-xs text-gray-500">Limite de pessoas na equipe</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="services">
+                    <div className="flex items-center gap-3 py-1">
+                      <Package className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <div className="font-medium">Serviços</div>
+                        <div className="text-xs text-gray-500">Limite de serviços cadastrados</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="clients">
+                    <div className="flex items-center gap-3 py-1">
+                      <User className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <div className="font-medium">Clientes</div>
+                        <div className="text-xs text-gray-500">Limite de clientes cadastrados</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="limit-value" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <span className="text-lg">🔢</span>
+                Valor do Limite
+              </Label>
+              <Input
+                id="limit-value"
+                type="number"
+                value={limitValue}
+                onChange={(e) => setLimitValue(e.target.value)}
+                className="h-11 text-lg border-gray-300 focus:border-yellow-500 focus:ring-yellow-500"
+                placeholder="Ex: 5"
+                min="0"
+              />
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800 flex items-start gap-2">
+                  <span className="font-bold mt-0.5">💡</span>
+                  <span>
+                    <strong>Ilimitado:</strong> Digite <strong>0</strong> ou deixe em branco<br />
+                    <strong>Com limite:</strong> Digite um número positivo (ex: 5, 10, 50)
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="border-t pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsLimitModalOpen(false)}
+              className="border-gray-300 hover:bg-gray-50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveLimit} 
+              disabled={loading}
+              className="bg-yellow-600 hover:bg-yellow-700 text-black font-semibold"
+            >
+              {loading ? (
+                <>
+                  <Settings className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Limite'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Exclusão de Limite */}
+      <Dialog open={isConfirmDeleteLimitOpen} onOpenChange={setIsConfirmDeleteLimitOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão de Limite</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover o limite de '{getLimitTypeLabel(limitToDelete?.limit_type || '').label}' do plano '{planName}'?
+              Isso permitirá quantidade ilimitada para este recurso.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfirmDeleteLimitOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteLimit} disabled={loading}>
+              {loading ? 'Removendo...' : 'Remover'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

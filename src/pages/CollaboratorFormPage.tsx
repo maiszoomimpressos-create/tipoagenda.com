@@ -13,8 +13,11 @@ import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useCollaboratorLimit } from '@/hooks/useCollaboratorLimit';
 import { CollaboratorSetupAlertModal } from '@/components/CollaboratorSetupAlertModal';
 import { ALERT_KEYS, hasSeenAlert, markAlertAsSeen } from '@/utils/onboardingAlerts';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, Users, XCircle } from 'lucide-react';
 
 // Zod schema for collaborator registration
 const collaboratorSchema = z.object({
@@ -51,6 +54,7 @@ const CollaboratorFormPage: React.FC = () => {
   const { collaboratorId } = useParams<{ collaboratorId: string }>(); // Get collaboratorId from URL
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const limitInfo = useCollaboratorLimit(); // Hook para verificar limite de colaboradores
   const [loading, setLoading] = useState(false);
   const [roleTypes, setRoleTypes] = useState<RoleType[]>([]);
   const [loadingRoleTypes, setLoadingRoleTypes] = useState(true);
@@ -247,6 +251,20 @@ const CollaboratorFormPage: React.FC = () => {
       showError('Erro de autenticação ou empresa primária não encontrada.');
       setLoading(false);
       return;
+    }
+
+    // VALIDAÇÃO: Verificar limite de colaboradores ANTES de salvar (apenas para novos colaboradores)
+    if (!isEditing && limitInfo.maxAllowed !== null && limitInfo.maxAllowed > 0) {
+      // Se já excede o limite, permitir (grandfathering)
+      if (limitInfo.currentCount > limitInfo.maxAllowed) {
+        console.log(`CollaboratorFormPage: Empresa já excede o limite (${limitInfo.currentCount} > ${limitInfo.maxAllowed}). Permitindo adicionar (grandfathering).`);
+        // Permite continuar - não bloqueia
+      } else if (limitInfo.currentCount >= limitInfo.maxAllowed) {
+        // Está no limite - bloquear
+        showError(`Limite de colaboradores atingido! Seu plano permite até ${limitInfo.maxAllowed} colaboradores ativos. Você já possui ${limitInfo.currentCount}. Faça upgrade do seu plano para cadastrar mais colaboradores.`);
+        setLoading(false);
+        return;
+      }
     }
 
     // Validação prévia: verificar se o email já está cadastrado como colaborador nesta empresa
@@ -553,6 +571,14 @@ const CollaboratorFormPage: React.FC = () => {
   const pageTitle = isEditing ? 'Editar Colaborador' : 'Adicionar Novo Colaborador';
   const buttonText = isEditing ? 'Salvar Alterações' : 'Salvar Colaborador';
 
+  // Calcular se o botão deve estar desabilitado por limite
+  const isLimitBlocked = !isEditing && 
+                         !limitInfo.loading && 
+                         limitInfo.maxAllowed !== null && 
+                         limitInfo.maxAllowed > 0 && 
+                         limitInfo.currentCount >= limitInfo.maxAllowed &&
+                         limitInfo.currentCount <= limitInfo.maxAllowed; // Não excede, mas está no limite
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
@@ -566,6 +592,68 @@ const CollaboratorFormPage: React.FC = () => {
         </Button>
         <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
       </div>
+
+      {/* Banner de Aviso de Limite de Colaboradores */}
+      {!isEditing && !limitInfo.loading && limitInfo.maxAllowed !== null && (
+        <div className="max-w-2xl">
+          {limitInfo.limitReached ? (
+            <Alert variant="destructive" className="border-red-500 bg-red-50">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle className="text-red-900 font-semibold">Limite de Colaboradores Atingido!</AlertTitle>
+              <AlertDescription className="text-red-800">
+                Seu plano permite até <strong>{limitInfo.maxAllowed}</strong> colaboradores ativos.
+                Você já possui <strong>{limitInfo.currentCount}</strong> colaboradores cadastrados.
+                <br />
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-red-800 underline font-semibold mt-2"
+                  onClick={() => navigate('/planos')}
+                >
+                  Faça upgrade do seu plano para cadastrar mais colaboradores →
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : limitInfo.nearLimit ? (
+            <Alert className="border-yellow-500 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertTitle className="text-yellow-900 font-semibold">Você está próximo do limite de colaboradores</AlertTitle>
+              <AlertDescription className="text-yellow-800">
+                Seu plano permite até <strong>{limitInfo.maxAllowed}</strong> colaboradores ativos.
+                Você já possui <strong>{limitInfo.currentCount}</strong> colaboradores ({limitInfo.percentage}% do limite).
+                <br />
+                <div className="mt-2 w-full bg-yellow-200 rounded-full h-2">
+                  <div
+                    className="bg-yellow-600 h-2 rounded-full transition-all"
+                    style={{ width: `${limitInfo.percentage}%` }}
+                  />
+                </div>
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-yellow-800 underline font-semibold mt-2"
+                  onClick={() => navigate('/planos')}
+                >
+                  Considere fazer upgrade do seu plano →
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-blue-200 bg-blue-50">
+              <Users className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900 font-semibold">Colaboradores</AlertTitle>
+              <AlertDescription className="text-blue-800">
+                Você possui <strong>{limitInfo.currentCount}</strong> de <strong>{limitInfo.maxAllowed}</strong> colaboradores ativos.
+                <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    style={{ width: `${limitInfo.percentage}%` }}
+                  />
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
       <div className="max-w-2xl">
         <Card className="border-gray-200">
           <CardContent className="p-6">
@@ -715,10 +803,11 @@ const CollaboratorFormPage: React.FC = () => {
                 </Button>
                 <Button
                   type="submit"
-                  className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base flex-1"
-                  disabled={loading || sessionLoading || loadingPrimaryCompany || loadingRoleTypes}
+                  className="w-full !rounded-button whitespace-nowrap bg-yellow-600 hover:bg-yellow-700 text-black font-semibold py-2.5 text-base flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading || sessionLoading || loadingPrimaryCompany || loadingRoleTypes || isLimitBlocked}
+                  title={isLimitBlocked ? 'Limite de colaboradores atingido. Faça upgrade do seu plano.' : ''}
                 >
-                  {loading || sessionLoading || loadingPrimaryCompany || loadingRoleTypes ? 'Carregando...' : buttonText}
+                  {loading || sessionLoading || loadingPrimaryCompany || loadingRoleTypes ? 'Carregando...' : isLimitBlocked ? 'Limite Atingido' : buttonText}
                 </Button>
               </div>
             </form>

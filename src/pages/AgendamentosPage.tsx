@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes, parseISO } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parse, addMinutes, parseISO, addWeeks, subWeeks, addMonths, subMonths, isSameWeek, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit } from 'lucide-react';
 import CheckoutModal from '@/components/CheckoutModal'; // Importar o novo modal
@@ -75,6 +75,53 @@ const AgendamentosPage: React.FC = () => {
   // Estados para o modal de checkout
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [appointmentToCheckout, setAppointmentToCheckout] = useState<{ id: string; status: string } | null>(null);
+
+  // Funções de navegação para Semana e Mês
+  const navigateWeek = (direction: 'prev' | 'next' | 'today') => {
+    if (direction === 'today') {
+      setSelectedDate(new Date());
+    } else if (direction === 'prev') {
+      setSelectedDate(subWeeks(selectedDate, 1));
+    } else if (direction === 'next') {
+      setSelectedDate(addWeeks(selectedDate, 1));
+    }
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next' | 'today') => {
+    if (direction === 'today') {
+      setSelectedDate(new Date());
+    } else if (direction === 'prev') {
+      setSelectedDate(subMonths(selectedDate, 1));
+    } else if (direction === 'next') {
+      setSelectedDate(addMonths(selectedDate, 1));
+    }
+  };
+
+  // Função para obter o intervalo formatado da semana
+  const getWeekRange = () => {
+    const start = startOfWeek(selectedDate, { locale: ptBR });
+    const end = endOfWeek(selectedDate, { locale: ptBR });
+    return {
+      start,
+      end,
+      formatted: `${format(start, 'dd/MM/yyyy')} - ${format(end, 'dd/MM/yyyy')}`
+    };
+  };
+
+  // Função para obter o intervalo formatado do mês
+  const getMonthRange = () => {
+    const start = startOfMonth(selectedDate);
+    const end = endOfMonth(selectedDate);
+    return {
+      start,
+      end,
+      formatted: format(selectedDate, 'MMMM yyyy', { locale: ptBR })
+    };
+  };
+
+  // Verificar se está na semana/mês atual
+  const isCurrentWeek = isSameWeek(selectedDate, new Date(), { locale: ptBR });
+  const isCurrentMonth = isSameMonth(selectedDate, new Date());
 
   const fetchAppointments = useCallback(async () => {
     if (sessionLoading || loadingCompanyId || !currentCompanyId) {
@@ -254,24 +301,96 @@ const AgendamentosPage: React.FC = () => {
         }, 'fas fa-plus', 'Novo Agendamento')}
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <Tabs value={selectedTab} className="w-auto" onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="dia">Dia</TabsTrigger>
-            <TabsTrigger value="semana">Semana</TabsTrigger>
-            <TabsTrigger value="mes">Mês</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <select
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-800 focus:border-yellow-600 focus:ring-1 focus:ring-yellow-600"
-          value={selectedCollaboratorFilter}
-          onChange={(e) => setSelectedCollaboratorFilter(e.target.value)}
-        >
-          <option value="all">Todos os Colaboradores</option>
-          {collaboratorsList.map(col => (
-            <option key={col.id} value={col.id}>{col.first_name} {col.last_name}</option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+          <Tabs value={selectedTab} className="w-auto" onValueChange={setSelectedTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="dia">Dia</TabsTrigger>
+              <TabsTrigger value="semana">Semana</TabsTrigger>
+              <TabsTrigger value="mes">Mês</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <select
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-800 focus:border-yellow-600 focus:ring-1 focus:ring-yellow-600"
+            value={selectedCollaboratorFilter}
+            onChange={(e) => setSelectedCollaboratorFilter(e.target.value)}
+          >
+            <option value="all">Todos os Colaboradores</option>
+            {collaboratorsList.map(col => (
+              <option key={col.id} value={col.id}>{col.first_name} {col.last_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Navegação para Semana */}
+        {selectedTab === 'semana' && (
+          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+            <Button
+              variant="outline"
+              size="sm"
+              className="!rounded-button"
+              onClick={() => navigateWeek('prev')}
+            >
+              <i className="fas fa-chevron-left"></i>
+            </Button>
+            <div className="flex-1 text-center">
+              <span className="font-medium text-gray-900">{getWeekRange().formatted}</span>
+              {!isCurrentWeek && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-2 text-xs !rounded-button text-yellow-600 hover:text-yellow-700"
+                  onClick={() => navigateWeek('today')}
+                >
+                  Hoje
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="!rounded-button"
+              onClick={() => navigateWeek('next')}
+            >
+              <i className="fas fa-chevron-right"></i>
+            </Button>
+          </div>
+        )}
+
+        {/* Navegação para Mês */}
+        {selectedTab === 'mes' && (
+          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+            <Button
+              variant="outline"
+              size="sm"
+              className="!rounded-button"
+              onClick={() => navigateMonth('prev')}
+            >
+              <i className="fas fa-chevron-left"></i>
+            </Button>
+            <div className="flex-1 text-center">
+              <span className="font-medium text-gray-900 capitalize">{getMonthRange().formatted}</span>
+              {!isCurrentMonth && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-2 text-xs !rounded-button text-yellow-600 hover:text-yellow-700"
+                  onClick={() => navigateMonth('today')}
+                >
+                  Hoje
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="!rounded-button"
+              onClick={() => navigateMonth('next')}
+            >
+              <i className="fas fa-chevron-right"></i>
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4">

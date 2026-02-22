@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
+import { useIsCollaborator } from '@/hooks/useIsCollaborator';
 import { getDateRange, getPreviousDateRange, DateRangeKey, DateRange } from '@/utils/date-utils';
 import { format } from 'date-fns';
 
@@ -83,31 +84,51 @@ const calculateComparison = (currentValue: number, previousValue: number, isInve
 };
 
 // Main function to fetch and calculate metrics for a given date range
-async function fetchMetrics(companyId: string, range: DateRange) {
+// collaboratorId: opcional - se fornecido, filtra dados apenas deste colaborador
+async function fetchMetrics(companyId: string, range: DateRange, collaboratorId?: string) {
   const { startDateDb, endDateDb } = range;
   const startDateTimeDb = `${startDateDb}T00:00:00`;
   const endDateTimeDb = format(range.endDate, "yyyy-MM-dd'T'HH:mm:ss");
 
   // 1. Fetch all relevant appointments (completed and cancelled)
-  const { data: appointmentsData, error: appError } = await supabase
+  // Se collaboratorId fornecido, filtrar apenas agendamentos deste colaborador
+  let appointmentsQuery = supabase
     .from('appointments')
     .select('id, client_id, collaborator_id, total_price, status, appointment_date') // Adicionado appointment_date
     .eq('company_id', companyId)
     .gte('appointment_date', startDateDb)
     .lte('appointment_date', endDateDb);
 
+  if (collaboratorId) {
+    appointmentsQuery = appointmentsQuery.eq('collaborator_id', collaboratorId);
+  }
+
+  const { data: appointmentsData, error: appError } = await appointmentsQuery;
+
   if (appError) throw appError;
 
   // 2. Fetch all cash movements (revenue)
-  const { data: cashMovementsData, error: cmError } = await supabase
+  // Se collaboratorId fornecido, filtrar apenas recebimentos de agendamentos deste colaborador
+  let cashMovementsQuery = supabase
     .from('cash_movements')
-    .select('total_amount, transaction_type')
+    .select('total_amount, transaction_type, appointment_id')
     .eq('company_id', companyId)
     .eq('transaction_type', 'recebimento')
     .gte('transaction_date', startDateTimeDb)
     .lte('transaction_date', endDateTimeDb);
 
+  const { data: cashMovementsData, error: cmError } = await cashMovementsQuery;
+
   if (cmError) throw cmError;
+
+  // Se collaboratorId fornecido, filtrar cash_movements apenas dos agendamentos deste colaborador
+  let filteredCashMovements = cashMovementsData || [];
+  if (collaboratorId && appointmentsData) {
+    const collaboratorAppointmentIds = new Set(appointmentsData.map(a => a.id));
+    filteredCashMovements = (cashMovementsData || []).filter((cm: any) => 
+      cm.appointment_id && collaboratorAppointmentIds.has(cm.appointment_id)
+    );
+  }
 
   // 3. Fetch appointment services for popular services calculation and service-level commission
   const completedAppointmentIds = appointmentsData.filter(a => a.status === 'concluido').map(a => a.id);
@@ -145,8 +166,8 @@ async function fetchMetrics(companyId: string, range: DateRange) {
 
   // --- Calculations ---
 
-  // Revenue
-  const totalRevenue = (cashMovementsData || []).reduce((sum: number, cm: any) => {
+  // Revenue (usar filteredCashMovements se foi filtrado por colaborador)
+  const totalRevenue = filteredCashMovements.reduce((sum: number, cm: any) => {
     const amount = parseFloat(cm.total_amount) || 0;
     return sum + amount;
   }, 0);
@@ -308,9 +329,40 @@ async function fetchMetrics(companyId: string, range: DateRange) {
 export function useReportsData(dateRangeKey: DateRangeKey = 'current_month') {
   const { session } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { isCollaborator } = useIsCollaborator();
   const [reportsData, setReportsData] = useState<ReportsData>(initialReportsData);
   const [loading, setLoading] = useState(true);
   const [collaborators, setCollaborators] = useState<CollaboratorPerformance[]>([]);
+  const [currentCollaboratorId, setCurrentCollaboratorId] = useState<string | null>(null);
+
+  // Buscar collaborator_id se o usuário for colaborador
+  useEffect(() => {
+    const fetchCollaboratorId = async () => {
+      if (!session?.user || !isCollaborator) {
+        setCurrentCollaboratorId(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('collaborators')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('useReportsData: Erro ao buscar collaborator_id:', error);
+        } else if (data) {
+          setCurrentCollaboratorId(data.id);
+        }
+      } catch (error) {
+        console.error('useReportsData: Erro ao buscar collaborator_id:', error);
+      }
+    };
+
+    fetchCollaboratorId();
+  }, [session?.user, isCollaborator]);
 
   const fetchReports = useCallback(async () => {
     if (!primaryCompanyId || !session?.user) {
@@ -324,11 +376,14 @@ export function useReportsData(dateRangeKey: DateRangeKey = 'current_month') {
       const currentRange = getDateRange(dateRangeKey);
       const previousRange = getPreviousDateRange(currentRange);
 
+      // Se for colaborador, usar collaboratorId para filtrar dados
+      const collaboratorId = isCollaborator ? currentCollaboratorId : undefined;
+
       // Fetch data for current period
-      const currentMetrics = await fetchMetrics(primaryCompanyId, currentRange);
+      const currentMetrics = await fetchMetrics(primaryCompanyId, currentRange, collaboratorId || undefined);
       
       // Fetch data for previous period
-      const previousMetrics = await fetchMetrics(primaryCompanyId, previousRange);
+      const previousMetrics = await fetchMetrics(primaryCompanyId, previousRange, collaboratorId || undefined);
 
       // --- KPI Calculations ---
       
@@ -340,77 +395,86 @@ export function useReportsData(dateRangeKey: DateRangeKey = 'current_month') {
       const cancellations = calculateComparison(currentMetrics.cancellationsCount, previousMetrics.cancellationsCount, true);
 
       // --- Collaborator Performance ---
+      // Se for colaborador, não mostrar performance de outros colaboradores
+      // (apenas mostrar seus próprios dados)
+      let collaboratorPerformance: CollaboratorPerformance[] = [];
       
-      // Fetch collaborator names and commission rates
-      const { data: collabNames, error: collabNamesError } = await supabase
-        .from('collaborators')
-        .select('id, first_name, last_name, commission_percentage')
-        .eq('company_id', primaryCompanyId);
-
-      if (collabNamesError) throw collabNamesError;
-
-      // Buscar comissões do período para obter os IDs e verificar pagamentos
-      const { startDateDb, endDateDb } = currentRange;
-      const startDateTimeDb = `${startDateDb}T00:00:00`;
-      const endDateTimeDb = `${endDateDb}T23:59:59`;
-      
-      const { data: commissionMovementsForPayments, error: commissionPaymentsError } = await supabase
-        .from('cash_movements')
-        .select('id, appointments!inner(collaborator_id)')
-        .eq('company_id', primaryCompanyId)
-        .eq('transaction_type', 'despesa')
-        .not('appointment_id', 'is', null)
-        .gte('transaction_date', startDateTimeDb)
-        .lte('transaction_date', endDateTimeDb);
-
-      if (commissionPaymentsError) {
-        console.warn('[useReportsData] Erro ao buscar comissões para verificar pagamentos:', commissionPaymentsError);
-      }
-
-      // Buscar pagamentos realizados para essas comissões
-      let paymentsMap = new Map<string, number>();
-      if (commissionMovementsForPayments && commissionMovementsForPayments.length > 0) {
-        const commissionCashMovementIds = commissionMovementsForPayments.map((cm: any) => cm.id);
-        
-        const { data: paymentsData, error: paymentsError } = await supabase
-          .from('commission_payments')
-          .select('cash_movement_id, amount_paid, collaborator_id')
-          .in('cash_movement_id', commissionCashMovementIds)
+      if (isCollaborator && currentCollaboratorId) {
+        // Para colaborador, não buscar lista de colaboradores
+        setCollaborators([]);
+        collaboratorPerformance = [];
+      } else {
+        // Fetch collaborator names and commission rates (apenas para proprietários/admins)
+        const { data: collabNames, error: collabNamesError } = await supabase
+          .from('collaborators')
+          .select('id, first_name, last_name, commission_percentage')
           .eq('company_id', primaryCompanyId);
 
-        if (paymentsError) {
-          console.warn('[useReportsData] Erro ao buscar pagamentos de comissões:', paymentsError);
-        } else if (paymentsData) {
-          // Agrupar pagamentos por colaborador
-          paymentsData.forEach((payment: any) => {
-            const collabId = payment.collaborator_id;
-            const currentPaid = paymentsMap.get(collabId) || 0;
-            paymentsMap.set(collabId, currentPaid + parseFloat(payment.amount_paid));
-          });
+        if (collabNamesError) throw collabNamesError;
+
+        // Buscar comissões do período para obter os IDs e verificar pagamentos
+        const { startDateDb, endDateDb } = currentRange;
+        const startDateTimeDb = `${startDateDb}T00:00:00`;
+        const endDateTimeDb = `${endDateDb}T23:59:59`;
+        
+        const { data: commissionMovementsForPayments, error: commissionPaymentsError } = await supabase
+          .from('cash_movements')
+          .select('id, appointments!inner(collaborator_id)')
+          .eq('company_id', primaryCompanyId)
+          .eq('transaction_type', 'despesa')
+          .not('appointment_id', 'is', null)
+          .gte('transaction_date', startDateTimeDb)
+          .lte('transaction_date', endDateTimeDb);
+
+        if (commissionPaymentsError) {
+          console.warn('[useReportsData] Erro ao buscar comissões para verificar pagamentos:', commissionPaymentsError);
         }
-      }
 
-      const collaboratorPerformance: CollaboratorPerformance[] = collabNames
-        .map(collab => {
-          const metrics = currentMetrics.collabPerformanceMap.get(collab.id) || { appointments: 0, revenue: 0, commission: 0 };
-          const totalCommission = metrics.commission || 0;
-          const paidAmount = paymentsMap.get(collab.id) || 0;
-          const pendingAmount = totalCommission - paidAmount;
+        // Buscar pagamentos realizados para essas comissões
+        let paymentsMap = new Map<string, number>();
+        if (commissionMovementsForPayments && commissionMovementsForPayments.length > 0) {
+          const commissionCashMovementIds = commissionMovementsForPayments.map((cm: any) => cm.id);
           
-          return {
-            id: collab.id,
-            name: `${collab.first_name} ${collab.last_name}`,
-            appointments: metrics.appointments,
-            revenue: metrics.revenue,
-            commission: totalCommission, // Total gerado
-            paid_amount: paidAmount, // Valor já pago
-            pending_amount: pendingAmount, // Valor pendente
-          };
-        })
-        .filter(collab => collab.commission > 0) // Filtrar apenas colaboradores com comissão > 0
-        .sort((a, b) => b.commission - a.commission); // Sort by commission descending
+          const { data: paymentsData, error: paymentsError } = await supabase
+            .from('commission_payments')
+            .select('cash_movement_id, amount_paid, collaborator_id')
+            .in('cash_movement_id', commissionCashMovementIds)
+            .eq('company_id', primaryCompanyId);
 
-      setCollaborators(collaboratorPerformance);
+          if (paymentsError) {
+            console.warn('[useReportsData] Erro ao buscar pagamentos de comissões:', paymentsError);
+          } else if (paymentsData) {
+            // Agrupar pagamentos por colaborador
+            paymentsData.forEach((payment: any) => {
+              const collabId = payment.collaborator_id;
+              const currentPaid = paymentsMap.get(collabId) || 0;
+              paymentsMap.set(collabId, currentPaid + parseFloat(payment.amount_paid));
+            });
+          }
+        }
+
+        collaboratorPerformance = collabNames
+          .map(collab => {
+            const metrics = currentMetrics.collabPerformanceMap.get(collab.id) || { appointments: 0, revenue: 0, commission: 0 };
+            const totalCommission = metrics.commission || 0;
+            const paidAmount = paymentsMap.get(collab.id) || 0;
+            const pendingAmount = totalCommission - paidAmount;
+            
+            return {
+              id: collab.id,
+              name: `${collab.first_name} ${collab.last_name}`,
+              appointments: metrics.appointments,
+              revenue: metrics.revenue,
+              commission: totalCommission, // Total gerado
+              paid_amount: paidAmount, // Valor já pago
+              pending_amount: pendingAmount, // Valor pendente
+            };
+          })
+          .filter(collab => collab.commission > 0) // Filtrar apenas colaboradores com comissão > 0
+          .sort((a, b) => b.commission - a.commission); // Sort by commission descending
+
+        setCollaborators(collaboratorPerformance);
+      }
 
       // --- Popular Services ---
       const totalServicesSold = Object.values(currentMetrics.serviceCounts).reduce((sum, count) => sum + count, 0);
@@ -445,7 +509,7 @@ export function useReportsData(dateRangeKey: DateRangeKey = 'current_month') {
     } finally {
       setLoading(false);
     }
-  }, [primaryCompanyId, session?.user, dateRangeKey]);
+  }, [primaryCompanyId, session?.user, dateRangeKey, isCollaborator, currentCollaboratorId]);
 
   useEffect(() => {
     if (!loadingPrimaryCompany) {

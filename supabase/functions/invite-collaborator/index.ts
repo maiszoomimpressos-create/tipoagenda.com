@@ -493,6 +493,88 @@ serve(async (req) => {
 
     console.log('Edge Function Debug (invite-collaborator): User invited/magic link sent successfully:', invitedAuthUser.id);
 
+    // VALIDAÇÃO: Verificar limite de colaboradores do plano ANTES de inserir
+    console.log('Edge Function Debug (invite-collaborator): Validando limite de colaboradores para company_id:', companyId);
+    try {
+      // 1. Buscar plano ativo da empresa
+      const { data: subscriptionData, error: subError } = await supabaseAdmin
+        .from('company_subscriptions')
+        .select('plan_id')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (subError && subError.code !== 'PGRST116') {
+        console.warn('Edge Function Warning (invite-collaborator): Erro ao buscar assinatura (continuando):', subError);
+      }
+
+      if (subscriptionData?.plan_id) {
+        // 2. Buscar limite de colaboradores do plano
+        const { data: limitData, error: limitError } = await supabaseAdmin
+          .from('plan_limits')
+          .select('limit_value')
+          .eq('plan_id', subscriptionData.plan_id)
+          .eq('limit_type', 'collaborators')
+          .maybeSingle();
+
+        if (limitError && limitError.code !== 'PGRST116') {
+          console.warn('Edge Function Warning (invite-collaborator): Erro ao buscar limite (continuando):', limitError);
+        }
+
+        // 3. Se tem limite configurado (e não é 0), validar
+        if (limitData && limitData.limit_value > 0) {
+          // 4. Contar colaboradores ativos da empresa
+          const { count, error: countError } = await supabaseAdmin
+            .from('collaborators')
+            .select('*', { count: 'exact', head: true })
+            .eq('company_id', companyId)
+            .eq('is_active', true);
+
+          if (countError) {
+            console.warn('Edge Function Warning (invite-collaborator): Erro ao contar colaboradores (continuando):', countError);
+          } else {
+            const currentCount = count || 0;
+            const maxAllowed = limitData.limit_value;
+
+            console.log(`Edge Function Debug (invite-collaborator): Limite de colaboradores - Atual: ${currentCount}, Máximo: ${maxAllowed}`);
+
+            // 5. Validar limite
+            // IMPORTANTE: Se a empresa já tem mais colaboradores que o limite (grandfathering),
+            // permitimos que continue adicionando. Só bloqueamos se está no limite ou abaixo e tentando adicionar mais.
+            if (currentCount >= maxAllowed) {
+              // Se já excede o limite, permitir (grandfathering - empresas antigas)
+              if (currentCount > maxAllowed) {
+                console.log(`Edge Function Debug (invite-collaborator): Empresa já excede o limite (${currentCount} > ${maxAllowed}). Permitindo adicionar (grandfathering).`);
+                // Permite continuar - não bloqueia
+              } else {
+                // Está exatamente no limite - bloquear
+                return new Response(JSON.stringify({
+                  error: `Limite de colaboradores atingido! Seu plano permite até ${maxAllowed} colaboradores ativos. Você já possui ${currentCount}. Faça upgrade do seu plano para cadastrar mais colaboradores.`,
+                  limit_reached: true,
+                  current_count: currentCount,
+                  max_allowed: maxAllowed,
+                  upgrade_url: '/planos'
+                }), {
+                  status: 403,
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+              }
+            }
+          }
+        } else {
+          console.log('Edge Function Debug (invite-collaborator): Plano não tem limite de colaboradores configurado ou limite é ilimitado (0).');
+        }
+      } else {
+        console.log('Edge Function Debug (invite-collaborator): Empresa não tem assinatura ativa. Permitindo criação de colaborador.');
+      }
+    } catch (limitValidationError: any) {
+      // Se houver erro na validação, logar mas não bloquear (fail-safe)
+      console.error('Edge Function Error (invite-collaborator): Erro na validação de limite (continuando):', limitValidationError);
+      // Continuar o processo mesmo se a validação falhar (não queremos bloquear por erro técnico)
+    }
+
     // Insert collaborator data into the public.collaborators table
     const { data: collaboratorData, error: insertCollaboratorError } = await supabaseAdmin
       .from('collaborators')

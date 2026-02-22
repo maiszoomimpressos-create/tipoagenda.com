@@ -8,6 +8,7 @@ import { usePrimaryCompany } from '@/hooks/usePrimaryCompany';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSession } from '@/components/SessionContextProvider';
+import { useIsCollaborator } from '@/hooks/useIsCollaborator';
 import { ServiceCommissionDetailModal } from '@/components/ServiceCommissionDetailModal'; // Importação do modal
 
 // Helper component for KPI cards
@@ -51,6 +52,7 @@ const RelatoriosPage: React.FC = () => {
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
   const { primaryCompanyId, loadingPrimaryCompany } = usePrimaryCompany();
+  const { isCollaborator } = useIsCollaborator();
   const [dateRangeKey, setDateRangeKey] = useState<DateRangeKey>('current_month');
   const { reportsData, loading, collaborators } = useReportsData(dateRangeKey);
 
@@ -174,7 +176,8 @@ const RelatoriosPage: React.FC = () => {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Performance por Colaborador */}
+        {/* Performance por Colaborador - Ocultar para colaboradores */}
+        {!isCollaborator && (
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900">Performance por Colaborador</CardTitle>
@@ -251,6 +254,7 @@ const RelatoriosPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+        )}
         
         {/* Serviços Mais Populares */}
         <Card className="border-gray-200">
