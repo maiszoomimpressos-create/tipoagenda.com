@@ -415,3 +415,4 @@ WHERE tgname IN ('trg_appointment_creation_whatsapp', 'trg_appointment_completio
 
 
 
+

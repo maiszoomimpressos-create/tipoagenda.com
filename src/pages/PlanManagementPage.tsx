@@ -71,20 +71,71 @@ const PlanManagementPage: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (planToDelete) {
-      setLoading(true);
+    if (!planToDelete) return;
+
+    setLoading(true);
+    try {
+      // 1. Verificar se o plano está sendo usado por alguma assinatura
+      const { data: subscriptions, error: checkError } = await supabase
+        .from('company_subscriptions')
+        .select('id, company_id, status')
+        .eq('plan_id', planToDelete)
+        .limit(1);
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      // 2. Se houver assinaturas usando este plano, bloquear a exclusão
+      if (subscriptions && subscriptions.length > 0) {
+        const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
+        if (activeSubscriptions.length > 0) {
+          showError(
+            `Não é possível excluir este plano! Ele está sendo usado por ${activeSubscriptions.length} assinatura(s) ativa(s). ` +
+            `Desative o plano ou migre as empresas para outro plano antes de excluir.`
+          );
+          setLoading(false);
+          setIsDeleteDialogOpen(false);
+          setPlanToDelete(null);
+          return;
+        } else {
+          // Há assinaturas históricas, mas nenhuma ativa - ainda assim não permitir exclusão
+          showError(
+            `Não é possível excluir este plano! Ele possui histórico de assinaturas. ` +
+            `Para manter a integridade dos dados, apenas desative o plano alterando seu status para "Inativo" ou "Descontinuado".`
+          );
+          setLoading(false);
+          setIsDeleteDialogOpen(false);
+          setPlanToDelete(null);
+          return;
+        }
+      }
+
+      // 3. Se não houver assinaturas, permitir a exclusão
       const { error } = await supabase
         .from('subscription_plans')
         .delete()
         .eq('id', planToDelete);
 
       if (error) {
-        showError('Erro ao excluir plano: ' + error.message);
-        console.error('Error deleting plan:', error);
-      } else {
-        showSuccess('Plano excluído com sucesso!');
-        fetchPlans();
+        throw error;
       }
+
+      showSuccess('Plano excluído com sucesso!');
+      fetchPlans();
+    } catch (error: any) {
+      console.error('Error deleting plan:', error);
+      
+      // Tratar erro específico de foreign key constraint
+      if (error.code === '23503' || error.message?.includes('foreign key constraint')) {
+        showError(
+          'Não é possível excluir este plano! Ele está sendo referenciado por assinaturas existentes. ' +
+          'Desative o plano alterando seu status para "Inativo" ou "Descontinuado" em vez de excluí-lo.'
+        );
+      } else {
+        showError('Erro ao excluir plano: ' + (error.message || 'Erro desconhecido'));
+      }
+    } finally {
       setLoading(false);
       setIsDeleteDialogOpen(false);
       setPlanToDelete(null);
@@ -192,7 +243,10 @@ const PlanManagementPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir este plano? Esta ação não pode ser desfeita e pode afetar empresas que o utilizam.
+              Tem certeza que deseja excluir este plano? Esta ação não pode ser desfeita.
+              <br /><br />
+              <strong>Importante:</strong> Planos que estão sendo usados por assinaturas (ativas ou históricas) não podem ser excluídos. 
+              Se o plano estiver em uso, você receberá uma mensagem de erro e deverá desativá-lo em vez de excluí-lo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
