@@ -44,6 +44,7 @@ const LandingPage: React.FC = () => {
           plans.map(async (plan) => {
             console.log(`[LandingPage] Buscando menus do plano: ${plan.name} (${plan.id})`);
             
+            // Buscar menus vinculados ao plano
             const { data: menuPlansData, error: menuPlansError } = await supabase
               .from('menu_plans')
               .select('menu_id, menus(id, menu_key, label, icon, description, display_order)')
@@ -51,19 +52,34 @@ const LandingPage: React.FC = () => {
 
             if (menuPlansError) {
               console.error(`[LandingPage] Erro ao buscar menus do plano ${plan.name}:`, menuPlansError);
-              return { ...plan, menus: [] };
             }
-
-            console.log(`[LandingPage] Dados brutos de menu_plans para ${plan.name}:`, menuPlansData);
 
             const menus = (menuPlansData || [])
               .map((mp: any) => mp.menus)
               .filter((menu: any) => menu !== null && menu !== undefined)
               .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
 
-            console.log(`[LandingPage] Menus processados para ${plan.name}:`, menus.length, menus.map((m: any) => m.label));
+            // Buscar limites do plano (colaboradores e serviços)
+            const { data: planLimitsData, error: limitsError } = await supabase
+              .from('plan_limits')
+              .select('limit_type, limit_value')
+              .eq('plan_id', plan.id)
+              .in('limit_type', ['collaborators', 'services']);
 
-            return { ...plan, menus };
+            if (limitsError) {
+              console.error(`[LandingPage] Erro ao buscar limites do plano ${plan.name}:`, limitsError);
+            }
+
+            const limits: { collaborators?: number; services?: number } = {};
+            (planLimitsData || []).forEach((limit: any) => {
+              if (limit.limit_type === 'collaborators') {
+                limits.collaborators = limit.limit_value;
+              } else if (limit.limit_type === 'services') {
+                limits.services = limit.limit_value;
+              }
+            });
+
+            return { ...plan, menus, limits };
           })
         );
 
@@ -380,51 +396,90 @@ const LandingPage: React.FC = () => {
                         })()}
                       </div>
                       
-                      {/* Exibir menus vinculados ao plano */}
+                      {/* Exibir features do plano com limites integrados */}
                       {(() => {
-                        console.log(`[LandingPage] Renderizando card do plano ${plan.name}:`, {
-                          hasMenus: !!plan.menus,
-                          menusLength: plan.menus?.length || 0,
-                          menus: plan.menus,
-                          hasFeatures: !!plan.features,
-                          featuresLength: plan.features?.length || 0
-                        });
+                        const limits = (plan as any).limits || {};
+                        let featuresToShow: string[] = [];
                         
-                        if (plan.menus && plan.menus.length > 0) {
+                        // Se o plano tem features definidas, usar elas
+                        if (plan.features && Array.isArray(plan.features) && plan.features.length > 0) {
+                          featuresToShow = [...plan.features];
+                          
+                          // Integrar limites nas features (substituir placeholders ou adicionar)
+                          featuresToShow = featuresToShow.map(feature => {
+                            // Se a feature contém placeholder para colaboradores, substituir
+                            if (feature.includes('{collaborators}') || feature.toLowerCase().includes('colaborador')) {
+                              const collaboratorLimit = limits.collaborators !== undefined && limits.collaborators > 0 
+                                ? limits.collaborators 
+                                : null;
+                              if (collaboratorLimit !== null) {
+                                return `Até ${collaboratorLimit} Colaborador${collaboratorLimit > 1 ? 'es' : ''}${collaboratorLimit === 1 ? ' (Proprietário)' : ''}`;
+                              }
+                            }
+                            // Se a feature contém placeholder para serviços, substituir
+                            if (feature.includes('{services}') || feature.toLowerCase().includes('serviço')) {
+                              const serviceLimit = limits.services !== undefined && limits.services > 0 
+                                ? limits.services 
+                                : null;
+                              if (serviceLimit !== null) {
+                                return `Até ${serviceLimit} Serviço${serviceLimit > 1 ? 's' : ''}`;
+                              }
+                            }
+                            return feature;
+                          });
+                          
+                          // Adicionar limites se não estiverem nas features
+                          if (limits.collaborators !== undefined && limits.collaborators > 0) {
+                            const hasCollaboratorFeature = featuresToShow.some(f => 
+                              f.toLowerCase().includes('colaborador')
+                            );
+                            if (!hasCollaboratorFeature) {
+                              // Inserir após a segunda feature (ou no início se houver menos de 2)
+                              const insertIndex = featuresToShow.length >= 2 ? 2 : featuresToShow.length;
+                              featuresToShow.splice(insertIndex, 0, 
+                                `Até ${limits.collaborators} Colaborador${limits.collaborators > 1 ? 'es' : ''}${limits.collaborators === 1 ? ' (Proprietário)' : ''}`
+                              );
+                            }
+                          }
+                          
+                          if (limits.services !== undefined && limits.services > 0) {
+                            const hasServiceFeature = featuresToShow.some(f => 
+                              f.toLowerCase().includes('serviço')
+                            );
+                            if (!hasServiceFeature) {
+                              // Inserir após colaboradores ou no final
+                              const collaboratorIndex = featuresToShow.findIndex(f => 
+                                f.toLowerCase().includes('colaborador')
+                              );
+                              const insertIndex = collaboratorIndex >= 0 ? collaboratorIndex + 1 : featuresToShow.length;
+                              featuresToShow.splice(insertIndex, 0, 
+                                `Até ${limits.services} Serviço${limits.services > 1 ? 's' : ''}`
+                              );
+                            }
+                          }
+                        } else if (plan.menus && plan.menus.length > 0) {
+                          // Fallback para menus se não houver features
+                          featuresToShow = plan.menus.map((menu: any) => menu.label || menu.menu_key);
+                        }
+                        
+                        if (featuresToShow.length > 0) {
                           return (
-                            <div className="space-y-3">
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                Módulos Inclusos:
-                              </p>
-                              <ul className="space-y-2 text-sm text-gray-700">
-                                {plan.menus.map((menu: any) => (
-                                  <li key={menu.id || menu.menu_key} className="flex items-center gap-2">
-                                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                    <span>{menu.label || menu.menu_key}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        } else if (plan.features && plan.features.length > 0) {
-                          // Fallback para features antigas se não houver menus
-                          return (
-                            <ul className="space-y-3 text-sm text-gray-700 border-t pt-4">
-                              {plan.features.map((feature, index) => (
+                            <ul className="space-y-2 text-sm text-gray-700">
+                              {featuresToShow.map((feature, index) => (
                                 <li key={index} className="flex items-center gap-2">
                                   <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                  {feature}
+                                  <span>{feature}</span>
                                 </li>
                               ))}
                             </ul>
                           );
-                        } else {
-                          return (
-                            <p className="text-sm text-gray-500 text-center">
-                              Nenhum módulo configurado para este plano.
-                            </p>
-                          );
                         }
+                        
+                        return (
+                          <p className="text-sm text-gray-500 text-center">
+                            Nenhum módulo configurado para este plano.
+                          </p>
+                        );
                       })()}
                       
                       <Button

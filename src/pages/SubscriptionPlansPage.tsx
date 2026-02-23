@@ -96,9 +96,10 @@ const SubscriptionPlansPage: React.FC = () => {
           duration_months: p.duration_months,
         })) as Plan[];
         
-      // Buscar menus vinculados a cada plano
+          // Buscar menus vinculados a cada plano e limites
       const plansWithMenus = await Promise.all(
         activePlans.map(async (plan) => {
+          // Buscar menus vinculados ao plano
           const { data: menuPlansData, error: menuPlansError } = await supabase
             .from('menu_plans')
             .select('menu_id, menus(id, menu_key, label, icon, description, display_order)')
@@ -106,7 +107,6 @@ const SubscriptionPlansPage: React.FC = () => {
 
           if (menuPlansError) {
             console.error(`Erro ao buscar menus do plano ${plan.name}:`, menuPlansError);
-            return { ...plan, menus: [] };
           }
 
           const menus = (menuPlansData || [])
@@ -114,7 +114,27 @@ const SubscriptionPlansPage: React.FC = () => {
             .filter((menu: any) => menu !== null)
             .sort((a: Menu, b: Menu) => a.display_order - b.display_order) as Menu[];
 
-          return { ...plan, menus };
+          // Buscar limites do plano (colaboradores e serviços)
+          const { data: planLimitsData, error: limitsError } = await supabase
+            .from('plan_limits')
+            .select('limit_type, limit_value')
+            .eq('plan_id', plan.id)
+            .in('limit_type', ['collaborators', 'services']);
+
+          if (limitsError) {
+            console.error(`Erro ao buscar limites do plano ${plan.name}:`, limitsError);
+          }
+
+          const limits: { collaborators?: number; services?: number } = {};
+          (planLimitsData || []).forEach((limit: any) => {
+            if (limit.limit_type === 'collaborators') {
+              limits.collaborators = limit.limit_value;
+            } else if (limit.limit_type === 'services') {
+              limits.services = limit.limit_value;
+            }
+          });
+
+          return { ...plan, menus, limits };
         })
       );
         
@@ -823,34 +843,87 @@ const SubscriptionPlansPage: React.FC = () => {
                   })()}
                 </div>
                 
-                {/* Exibir menus vinculados ao plano */}
-                {plan.menus && plan.menus.length > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Módulos Inclusos:
-                    </p>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      {plan.menus.map((menu) => (
-                        <li key={menu.id} className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span>{menu.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  /* Fallback para features antigas se não houver menus */
-                  plan.features && plan.features.length > 0 && (
-                <ul className="space-y-2 text-sm text-gray-700">
-                      {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-green-500" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                  )
-                )}
+                {/* Exibir features do plano com limites integrados */}
+                {(() => {
+                  const limits = (plan as any).limits || {};
+                  let featuresToShow: string[] = [];
+                  
+                  // Se o plano tem features definidas, usar elas
+                  if (plan.features && Array.isArray(plan.features) && plan.features.length > 0) {
+                    featuresToShow = [...plan.features];
+                    
+                    // Integrar limites nas features (substituir placeholders ou adicionar)
+                    featuresToShow = featuresToShow.map(feature => {
+                      // Se a feature contém placeholder para colaboradores, substituir
+                      if (feature.includes('{collaborators}') || feature.toLowerCase().includes('colaborador')) {
+                        const collaboratorLimit = limits.collaborators !== undefined && limits.collaborators > 0 
+                          ? limits.collaborators 
+                          : null;
+                        if (collaboratorLimit !== null) {
+                          return `Até ${collaboratorLimit} Colaborador${collaboratorLimit > 1 ? 'es' : ''}${collaboratorLimit === 1 ? ' (Proprietário)' : ''}`;
+                        }
+                      }
+                      // Se a feature contém placeholder para serviços, substituir
+                      if (feature.includes('{services}') || feature.toLowerCase().includes('serviço')) {
+                        const serviceLimit = limits.services !== undefined && limits.services > 0 
+                          ? limits.services 
+                          : null;
+                        if (serviceLimit !== null) {
+                          return `Até ${serviceLimit} Serviço${serviceLimit > 1 ? 's' : ''}`;
+                        }
+                      }
+                      return feature;
+                    });
+                    
+                    // Adicionar limites se não estiverem nas features
+                    if (limits.collaborators !== undefined && limits.collaborators > 0) {
+                      const hasCollaboratorFeature = featuresToShow.some(f => 
+                        f.toLowerCase().includes('colaborador')
+                      );
+                      if (!hasCollaboratorFeature) {
+                        // Inserir após a segunda feature (ou no início se houver menos de 2)
+                        const insertIndex = featuresToShow.length >= 2 ? 2 : featuresToShow.length;
+                        featuresToShow.splice(insertIndex, 0, 
+                          `Até ${limits.collaborators} Colaborador${limits.collaborators > 1 ? 'es' : ''}${limits.collaborators === 1 ? ' (Proprietário)' : ''}`
+                        );
+                      }
+                    }
+                    
+                    if (limits.services !== undefined && limits.services > 0) {
+                      const hasServiceFeature = featuresToShow.some(f => 
+                        f.toLowerCase().includes('serviço')
+                      );
+                      if (!hasServiceFeature) {
+                        // Inserir após colaboradores ou no final
+                        const collaboratorIndex = featuresToShow.findIndex(f => 
+                          f.toLowerCase().includes('colaborador')
+                        );
+                        const insertIndex = collaboratorIndex >= 0 ? collaboratorIndex + 1 : featuresToShow.length;
+                        featuresToShow.splice(insertIndex, 0, 
+                          `Até ${limits.services} Serviço${limits.services > 1 ? 's' : ''}`
+                        );
+                      }
+                    }
+                  } else if (plan.menus && plan.menus.length > 0) {
+                    // Fallback para menus se não houver features
+                    featuresToShow = plan.menus.map((menu: any) => menu.label || menu.menu_key);
+                  }
+                  
+                  if (featuresToShow.length > 0) {
+                    return (
+                      <ul className="space-y-2 text-sm text-gray-700">
+                        {featuresToShow.map((feature, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }
+                  
+                  return null;
+                })()}
                 <Button
                   className={`!rounded-button whitespace-nowrap w-full font-semibold py-2.5 text-base ${buttonClass}`}
                   onClick={() => handleSubscribe(plan)}
