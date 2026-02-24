@@ -78,6 +78,7 @@ import ContractList from "./components/ContractList";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import ColaboradorAgendamentosPage from "./pages/ColaboradorAgendamentosPage";
 import WaitingApprovalPage from "./pages/WaitingApprovalPage"; // Importar página de aprovação pendente
+import HelpPage from "./pages/HelpPage"; // Importar página de ajuda
 
 const queryClient = new QueryClient();
 
@@ -270,6 +271,7 @@ const App = () => (
               <Route path="fidelidade" element={<ProtectedRoute><FidelidadePage /></ProtectedRoute>} />
               <Route path="planos" element={<ProtectedRoute><SubscriptionPlansPage /></ProtectedRoute>} />
               <Route path="config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} /> {/* NOVA ROTA DE CONFIGURAÇÃO */}
+              <Route path="help" element={<ProtectedRoute><HelpPage /></ProtectedRoute>} /> {/* ROTA DE AJUDA */}
               <Route path="mensagens-whatsapp" element={<CompanyAdminProtectedRoute><WhatsAppMessagingPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTÃO DE MENSAGENS WHATSAPP */}
               <Route path="mensagens-whatsapp/gerenciar-mensagens" element={<CompanyAdminProtectedRoute><WhatsAppMessageQueuePage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GERENCIAR FILA DE MENSAGENS WHATSAPP */}
               <Route path="empresa/editar" element={<CompanyAdminProtectedRoute><EditMyCompanyPage /></CompanyAdminProtectedRoute>} /> {/* ROTA PARA GESTORES EDITAREM DADOS DA EMPRESA */}

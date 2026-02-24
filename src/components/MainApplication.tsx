@@ -288,6 +288,34 @@ const MainApplication: React.FC = () => {
                   </li>
                   );
                 })}
+                
+                {/* Separador visual antes do item de Ajuda */}
+                {finalMenuItems.length > 0 && (
+                  <li className="my-2">
+                    <div className="h-px bg-gray-700"></div>
+                  </li>
+                )}
+                
+                {/* Item de Ajuda - sempre visível para usuários autenticados */}
+                {session && (
+                  <li>
+                    <Link
+                      to="/help"
+                      onClick={handleMenuItemClick}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                        location.pathname === '/help' || location.pathname.startsWith('/help')
+                          ? 'bg-yellow-600 text-black'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <i className="fas fa-question-circle text-lg"></i>
+                      {!sidebarCollapsed && (
+                        <span className="font-medium">Ajuda</span>
+                      )}
+                    </Link>
+                  </li>
+                )}
+                
                 {!loadingClientCheck && isClient && (
                   <li>
                     <Link
