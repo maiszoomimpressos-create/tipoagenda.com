@@ -60,7 +60,13 @@ const SubscriptionPlansPage: React.FC = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [couponCode, setCouponCode] = useState(''); // Novo estado para o cupom
   const [couponValidationMessage, setCouponValidationMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  const [validatedCoupon, setValidatedCoupon] = useState<{ id: string, discount_type: string, discount_value: number, plan_id: string | null } | null>(null);
+  const [validatedCoupon, setValidatedCoupon] = useState<{
+    id: string;
+    discount_type: string;
+    discount_value: number;
+    plan_id: string | null;
+    billing_period?: 'any' | 'monthly' | 'yearly' | null;
+  } | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Novo estado para o modal de cancelamento
   const [cancelling, setCancelling] = useState(false); // Novo estado para o loading do cancelamento
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly'); // Estado para período de cobrança
@@ -262,7 +268,7 @@ const SubscriptionPlansPage: React.FC = () => {
       // 1. Check if coupon exists and is active
       const { data: couponData, error: couponError } = await supabase
         .from('admin_coupons')
-        .select('id, discount_type, discount_value, valid_until, max_uses, current_uses, status, plan_id')
+        .select('id, discount_type, discount_value, valid_until, max_uses, current_uses, status, plan_id, billing_period')
         .eq('code', couponCode.toUpperCase())
         .single();
 
@@ -282,7 +288,17 @@ const SubscriptionPlansPage: React.FC = () => {
         throw new Error('Cupom atingiu o limite máximo de usos.');
       }
 
-      // 2. Check if company already used this coupon (using the new table)
+      // 2. Validar período de cobrança permitido pelo cupom em relação ao período atual selecionado
+      if (couponData.billing_period && couponData.billing_period !== 'any') {
+        if (couponData.billing_period === 'yearly' && billingPeriod !== 'yearly') {
+          throw new Error('Este cupom é válido apenas para o plano anual. Selecione a opção Anual para utilizá-lo.');
+        }
+        if (couponData.billing_period === 'monthly' && billingPeriod !== 'monthly') {
+          throw new Error('Este cupom é válido apenas para o plano mensal. Selecione a opção Mensal para utilizá-lo.');
+        }
+      }
+
+      // 3. Check if company already used this coupon (using the new table)
       const { data: usageData, error: usageError } = await supabase
         .from('coupon_usages')
         .select('id')
@@ -296,19 +312,30 @@ const SubscriptionPlansPage: React.FC = () => {
         throw new Error('Esta empresa já utilizou este cupom.');
       }
 
-      // Success! Armazenar também o plan_id do cupom para validação posterior
+      // Success! Armazenar também o plan_id e billing_period do cupom para validação posterior
       setValidatedCoupon({
         id: couponData.id,
         discount_type: couponData.discount_type,
         discount_value: couponData.discount_value,
         plan_id: couponData.plan_id || null, // Adicionar plan_id ao validatedCoupon
+        billing_period: couponData.billing_period || 'any',
       });
       
       const planRestriction = couponData.plan_id 
-        ? ' (válido apenas para o plano específico)' 
+        ? ' (válido apenas para um plano específico)' 
         : ' (válido para todos os planos)';
+
+      let periodRestriction = '';
+      if (couponData.billing_period === 'yearly') {
+        periodRestriction = ' e somente para cobrança Anual';
+      } else if (couponData.billing_period === 'monthly') {
+        periodRestriction = ' e somente para cobrança Mensal';
+      }
       
-      setCouponValidationMessage({ type: 'success', message: `Cupom '${couponCode.toUpperCase()}' aplicado!${planRestriction} Você receberá ${couponData.discount_type === 'percentual' ? `${couponData.discount_value}%` : `R$ ${couponData.discount_value.toFixed(2).replace('.', ',')}`} de desconto e 30 dias grátis.` });
+      setCouponValidationMessage({
+        type: 'success',
+        message: `Cupom '${couponCode.toUpperCase()}' aplicado!${planRestriction}${periodRestriction}. Você receberá ${couponData.discount_type === 'percentual' ? `${couponData.discount_value}%` : `R$ ${couponData.discount_value.toFixed(2).replace('.', ',')}`} de desconto e 30 dias grátis.`,
+      });
 
     } catch (error: any) {
       setCouponValidationMessage({ type: 'error', message: error.message });
@@ -341,6 +368,20 @@ const SubscriptionPlansPage: React.FC = () => {
         if (validatedCoupon && validatedCoupon.plan_id) {
           if (validatedCoupon.plan_id !== plan.id) {
             showError(`Este cupom é válido apenas para um plano específico. Por favor, selecione o plano correto ou remova o cupom.`);
+            setLoadingData(false);
+            return;
+          }
+        }
+
+        // VALIDAÇÃO: Garantir que o período de cobrança atual respeita a restrição do cupom
+        if (validatedCoupon && validatedCoupon.billing_period && validatedCoupon.billing_period !== 'any') {
+          if (validatedCoupon.billing_period === 'yearly' && billingPeriod !== 'yearly') {
+            showError('Este cupom é válido apenas para o plano anual. Altere para Anual ou remova o cupom.');
+            setLoadingData(false);
+            return;
+          }
+          if (validatedCoupon.billing_period === 'monthly' && billingPeriod !== 'monthly') {
+            showError('Este cupom é válido apenas para o plano mensal. Altere para Mensal ou remova o cupom.');
             setLoadingData(false);
             return;
           }
