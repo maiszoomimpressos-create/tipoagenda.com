@@ -49,6 +49,7 @@ const adminCouponSchema = z.object({
   status: z.enum(['active', 'inactive', 'expired'], {
     errorMap: () => ({ message: "O status é obrigatório." })
   }),
+  billing_period: z.enum(['any', 'monthly', 'yearly']).default('any'),
   plan_id: z.string().uuid().nullable().optional(),
 });
 
@@ -64,6 +65,7 @@ interface AdminCoupon {
   current_uses: number;
   status: 'active' | 'inactive' | 'expired';
   plan_id: string | null;
+  billing_period?: 'any' | 'monthly' | 'yearly';
 }
 
 interface AdminCouponFormModalProps {
@@ -99,6 +101,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
       valid_until: '',
       max_uses: 1,
       status: 'active',
+      billing_period: 'any',
       plan_id: null,
     },
   });
@@ -106,6 +109,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
   const discountTypeValue = watch('discount_type');
   const statusValue = watch('status');
   const codeValue = watch('code'); // Watch code value for input display
+  const billingPeriodValue = watch('billing_period');
   const planIdValue = watch('plan_id');
 
   // Carregar planos disponíveis quando o modal abrir
@@ -142,6 +146,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
           valid_until: editingCoupon.valid_until || '',
           max_uses: editingCoupon.max_uses,
           status: editingCoupon.status,
+          billing_period: editingCoupon.billing_period || 'any',
           plan_id: editingCoupon.plan_id || null,
         });
       } else {
@@ -153,6 +158,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
           valid_until: '',
           max_uses: 1,
           status: 'active',
+          billing_period: 'any',
           plan_id: null,
         });
       }
@@ -180,6 +186,7 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
       valid_until: data.valid_until || null,
       max_uses: data.max_uses,
       status: data.status,
+      billing_period: data.billing_period || 'any',
       plan_id: data.plan_id || null,
       created_by_user_id: session.user.id,
     };
@@ -247,6 +254,27 @@ const AdminCouponFormModal: React.FC<AdminCouponFormModalProps> = ({
               maxLength={20}
             />
             {errors.code && <p className="col-span-4 text-red-500 text-xs text-right">{errors.code.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="billing_period" className="text-right">
+              Período *
+            </Label>
+            <Select
+              onValueChange={(value) =>
+                setValue('billing_period', value as 'any' | 'monthly' | 'yearly', { shouldValidate: true })
+              }
+              value={billingPeriodValue || 'any'}
+            >
+              <SelectTrigger id="billing_period" className="col-span-3">
+                <SelectValue placeholder="Selecione o período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Mensal ou Anual (qualquer)</SelectItem>
+                <SelectItem value="monthly">Apenas mensal</SelectItem>
+                <SelectItem value="yearly">Apenas anual</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="grid grid-cols-4 items-center gap-4">

@@ -42,3 +42,4 @@ WHERE appointment_id = (SELECT id FROM appointments WHERE appointment_time::TEXT
 
 
 
+

@@ -22,6 +22,7 @@ interface AdminCoupon {
   current_uses: number;
   status: 'active' | 'inactive' | 'expired';
   plan_id: string | null;
+  billing_period?: 'any' | 'monthly' | 'yearly';
   created_at: string;
 }
 

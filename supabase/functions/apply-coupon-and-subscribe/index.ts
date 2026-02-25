@@ -409,7 +409,7 @@ serve(async (req) => {
         // VALIDAÇÃO: Verificar se o cupom é válido para o plano selecionado
         const { data: couponDetails, error: couponDetailsError } = await supabaseAdmin
             .from('admin_coupons')
-            .select('plan_id, status, valid_until, max_uses, current_uses')
+            .select('plan_id, status, valid_until, max_uses, current_uses, billing_period')
             .eq('id', couponId)
             .single();
 
@@ -436,6 +436,26 @@ serve(async (req) => {
                 status: 400, 
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             });
+        }
+
+        // Verificar se o cupom é válido para o período de cobrança (mensal/anual)
+        if (couponDetails.billing_period && couponDetails.billing_period !== 'any') {
+            const isYearly = numericDurationMonths >= 12;
+            const isMonthly = numericDurationMonths === 1;
+
+            if (couponDetails.billing_period === 'yearly' && !isYearly) {
+                return new Response(JSON.stringify({ error: 'Este cupom é válido apenas para planos anuais.' }), { 
+                    status: 400, 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                });
+            }
+
+            if (couponDetails.billing_period === 'monthly' && !isMonthly) {
+                return new Response(JSON.stringify({ error: 'Este cupom é válido apenas para planos mensais.' }), { 
+                    status: 400, 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                });
+            }
         }
         
         // Re-validate coupon usage (security check against race conditions)
