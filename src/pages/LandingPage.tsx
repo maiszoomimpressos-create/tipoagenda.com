@@ -12,7 +12,7 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { CompanySelectionModal } from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, MapPin, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag, Clock } from 'lucide-react'; // Adicionar Menu e CalendarDays
+import { Check, Zap, Search, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag, Clock } from 'lucide-react'; // Adicionar Menu e CalendarDays
 import { Input } from '@/components/ui/input';
 import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
@@ -101,8 +101,6 @@ const LandingPage: React.FC = () => {
   }, [plans, loadingPlans]);
   
   const [searchTerm, setSearchTerm] = useState(''); // Estado para busca (mantido para UI, mas não usado para empresas)
-  const [locationTerm, setLocationTerm] = useState(''); // Novo estado para localização
-  const [selectedCategory, setSelectedCategory] = useState('todos');
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
   const [isConfirmLogoutDialogOpen, setIsConfirmLogoutDialogOpen] = useState(false); // Novo estado para o diálogo de confirmação de logout
@@ -110,18 +108,6 @@ const LandingPage: React.FC = () => {
   const [plansWithMenus, setPlansWithMenus] = useState<any[]>([]); // Planos com menus vinculados
 
   const loadingRoles = loadingProprietarioCheck || loadingCompanyAdminCheck || loadingGlobalAdminCheck || loadingClientCheck;
-
-  const categories = [
-    { id: 'todos', name: 'Todos os Serviços', icon: 'fas fa-th-large' },
-    { id: 'beleza', name: 'Beleza & Estética', icon: 'fas fa-spa' },
-    { id: 'saude', name: 'Saúde & Bem-estar', icon: 'fas fa-heartbeat' },
-    { id: 'fitness', name: 'Fitness & Personal', icon: 'fas fa-dumbbell' },
-    { id: 'educacao', name: 'Educação & Coaching', icon: 'fas fa-graduation-cap' },
-    { id: 'negocios', name: 'Consultoria & Negócios', icon: 'fas fa-briefcase' },
-    { id: 'casa', name: 'Casa & Manutenção', icon: 'fas fa-home' },
-    { id: 'auto', name: 'Automotivo', icon: 'fas fa-car' },
-    { id: 'pet', name: 'Pet Care', icon: 'fas fa-paw' }
-  ];
 
   // NOTA: O redirecionamento pós-login é tratado pelo Index.tsx
   // Esta página não deve fazer redirecionamentos automáticos
@@ -137,6 +123,20 @@ const LandingPage: React.FC = () => {
     setTargetCompanyId(companyId);
     setIsSelectionModalOpen(false);
     navigate(`/agendar/${companyId}`, { replace: true });
+  };
+
+  const scrollToPlans = () => {
+    const element = document.getElementById('plans-section');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const scrollToContact = () => {
+    const element = document.getElementById('contact-section');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
   
   // Determine the most expensive plan for visual highlight (usando plansWithMenus se disponível, senão plans)
@@ -204,63 +204,267 @@ const LandingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section 
-        className="relative flex items-center justify-center bg-white pt-20 pb-10 min-h-[500px]" // Fundo branco e altura ajustada
-      >
-        <div className="container mx-auto px-6 text-center text-gray-900">
-          <h1 className="text-5xl font-bold mb-4 leading-tight text-gray-900">
-            Encontre o Serviço Ideal
-          </h1>
-          <p className="text-lg mb-6 max-w-3xl mx-auto text-gray-600">
-            Navegue pelas categorias ou use a busca para encontrar o que você precisa.
-          </p>
+      {/* Hero Section focado em WhatsApp */}
+      <section className="bg-white pt-20 pb-10">
+        <div className="container mx-auto px-6 grid md:grid-cols-2 gap-10 items-center">
+          {/* Texto principal */}
+          <div>
+            <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight text-gray-900">
+              Pare de perder dinheiro com clientes que não aparecem
+            </h1>
+            <p className="text-lg text-gray-600 mb-6">
+              O TipoAgenda envia <span className="font-semibold text-gray-900">lembretes automáticos pelo WhatsApp</span> antes de cada horário marcado.
+              Menos esquecimentos, <span className="font-semibold text-gray-900">mais clientes chegando na hora certa</span>, sem você mandar uma única mensagem manual.
+            </p>
+            <ul className="space-y-2 mb-8 text-sm text-gray-700">
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Lembretes 100% automáticos para cada agendamento</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Mensagens com nome do cliente, empresa e horário</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Integrado direto com a sua agenda online</span>
+              </li>
+            </ul>
+            <div className="flex flex-wrap gap-3 items-center">
+              <Button
+                className="!rounded-button px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-black font-semibold text-base"
+                onClick={scrollToPlans}
+              >
+                Começar Agora
+              </Button>
+              <Button
+                variant="outline"
+                className="!rounded-button px-6 py-3 text-sm border-gray-300 text-gray-700 hover:bg-gray-50"
+                onClick={scrollToContact}
+              >
+                Falar com especialista
+              </Button>
+            </div>
+          </div>
 
-          {/* Search Bar (novo design) */}
-          <div className="max-w-4xl mx-auto mb-12">
-            <div className="bg-white rounded-2xl p-6 shadow-2xl">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                  <Input
-                    type="text"
-                    placeholder="Que serviço você procura?"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-12 h-14 text-lg border-gray-200 text-gray-800"
-                  />
+          {/* Mock visual dos lembretes no WhatsApp */}
+          <div className="relative">
+            <div className="rounded-3xl border border-gray-200 shadow-xl p-4 bg-gradient-to-br from-yellow-50 to-white">
+              <div className="text-sm font-semibold mb-3 text-gray-800">
+                Como seus lembretes aparecem no WhatsApp:
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white rounded-2xl shadow p-3">
+                  <div className="text-xs text-gray-500 mb-1">Hoje • 10:03</div>
+                  <p className="text-gray-800">
+                    Olá <span className="font-semibold">[CLIENTE]</span> 👋<br />
+                    Seu horário em <span className="font-semibold">[EMPRESA]</span> está confirmado para <span className="font-semibold">[DATA_HORA]</span>.
+                    Qualquer dúvida, é só responder aqui.
+                  </p>
                 </div>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                  <Input
-                    type="text"
-                    placeholder="Sua localização (Cidade/Estado)"
-                    value={locationTerm}
-                    onChange={(e) => setLocationTerm(e.target.value)}
-                    className="pl-12 h-14 text-lg border-gray-200 text-gray-800"
-                  />
+                <div className="bg-white rounded-2xl shadow p-3">
+                  <div className="text-xs text-gray-500 mb-1">1 dia antes do horário</div>
+                  <p className="text-gray-800">
+                    Lembrete: você tem um atendimento amanhã em <span className="font-semibold">[EMPRESA]</span> às <span className="font-semibold">[DATA_HORA]</span>.
+                    Te esperamos! ✨
+                  </p>
                 </div>
-                <Button 
-                  className="!rounded-button whitespace-nowrap h-14 text-lg font-semibold bg-yellow-600 hover:bg-yellow-700 text-black"
-                  onClick={() => {}} // Botão desabilitado - empresas não são mais exibidas
-                  disabled
-                >
-                  <Search className="h-5 w-5 mr-2" />
-                  Buscar Serviços
-                </Button>
+                <div className="bg-white rounded-2xl shadow p-3">
+                  <div className="text-xs text-gray-500 mb-1">2 horas antes do horário</div>
+                  <p className="text-gray-800">
+                    Está quase na hora! ⏰<br />
+                    Seu atendimento começa às <span className="font-semibold">[DATA_HORA]</span>. Qualquer imprevisto, nos avise para liberar o horário para outro cliente.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section (New) */}
+      {/* Seção de dor: agenda vazando dinheiro */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Sem um sistema eficiente, sua agenda vaza dinheiro todos os dias
+            </h2>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              Papel, caderninho e WhatsApp &quot;no improviso&quot; parecem funcionar… até você perceber quantos clientes{' '}
+              <span className="font-semibold text-gray-900">esquecem o horário</span> e quantos atendimentos ficam vazios sem necessidade.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            <Card className="border border-gray-200 rounded-2xl shadow-sm">
+              <CardContent className="p-6">
+                <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 text-lg">
+                  ✖
+                </div>
+                <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                  Clientes que simplesmente não aparecem
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Sem lembretes automáticos, muita gente esquece do compromisso. Cada falta é um horário bloqueado que{' '}
+                  <span className="font-semibold text-gray-800">não volta mais</span>.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-200 rounded-2xl shadow-sm">
+              <CardContent className="p-6">
+                <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center mb-4 text-lg">
+                  📅
+                </div>
+                <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                  Agenda confusa e difícil de controlar
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Misturar agenda de papel, mensagens soltas e memória é receita para{' '}
+                  <span className="font-semibold text-gray-800">erros, furos e horários duplicados</span>, principalmente quando o movimento aumenta.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-200 rounded-2xl shadow-sm">
+              <CardContent className="p-6">
+                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-4 text-lg">
+                  💬
+                </div>
+                <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                  Você vira &quot;secretário&quot; do próprio negócio
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Ficar lembrando manualmente cada cliente no WhatsApp toma tempo e energia. No fim do dia, você está{' '}
+                  <span className="font-semibold text-gray-800">exausto</span> e ainda assim alguns esquecem.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Seção de como funcionam os lembretes automáticos */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Lembretes automáticos no WhatsApp que trabalham por você
+            </h2>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              O TipoAgenda envia a mensagem certa, na hora certa, para o cliente certo –{' '}
+              <span className="font-semibold text-gray-900">sem você precisar tocar no celular</span>.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            <Card className="border border-gray-200 rounded-2xl bg-gray-50">
+              <CardContent className="p-6">
+                <p className="text-xs font-semibold text-gray-500 mb-2">Passo 1</p>
+                <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                  Confirmação na hora do agendamento
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Assim que o cliente agenda, ele recebe{' '}
+                  <span className="font-semibold text-gray-800">uma mensagem de confirmação no WhatsApp</span> com data e horário certinhos.
+                  Menos dúvidas, menos remarcações.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-200 rounded-2xl bg-gray-50">
+              <CardContent className="p-6">
+                <p className="text-xs font-semibold text-gray-500 mb-2">Passo 2</p>
+                <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                  Lembrete 1 dia antes
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Um dia antes, o sistema envia um lembrete automático. O cliente se organiza e{' '}
+                  <span className="font-semibold text-gray-800">diminui muito a chance de esquecer</span>.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-200 rounded-2xl bg-gray-50">
+              <CardContent className="p-6">
+                <p className="text-xs font-semibold text-gray-500 mb-2">Passo 3</p>
+                <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                  Lembrete poucas horas antes
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Algumas horas antes, o cliente recebe outro lembrete. Você mantém o compromisso fresco na mente dele e evita a{' '}
+                  <span className="font-semibold text-gray-800">cadeira vazia</span>.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <p className="mt-10 text-center text-base text-gray-800 font-semibold max-w-3xl mx-auto">
+            Resultado: <span className="text-yellow-600">menos faltas, mais horários preenchidos e mais dinheiro no caixa</span>, enquanto o sistema cuida dos lembretes para você.
+          </p>
+        </div>
+      </section>
+
+      {/* Benefícios Principais */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Por Que Profissionais Escolhem TipoAgenda?</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              A plataforma completa que você precisa para gerenciar seu negócio
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CalendarDays className="h-8 w-8 text-black" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Agendamentos 24/7</h3>
+                <p className="text-lg text-gray-600">
+                  Seus clientes agendam a qualquer hora, mesmo quando você está dormindo. <strong className="text-gray-900">Aumente sua receita sem trabalhar mais horas.</strong>
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="fas fa-money-bag text-2xl text-black"></i>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Controle Financeiro Completo</h3>
+                <p className="text-lg text-gray-600">
+                  Gerencie caixa, estoque e relatórios em um só lugar. <strong className="text-gray-900">Tenha clareza total sobre o que entra e sai do seu negócio.</strong>
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="fas fa-chart-bar text-2xl text-black"></i>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Relatórios que Geram Resultados</h3>
+                <p className="text-lg text-gray-600">
+                  Veja exatamente quais serviços vendem mais, em que horários e dias. <strong className="text-gray-900">Decisões baseadas em dados, não em achismos.</strong>
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section (New) */}
+      <section id="plans-section" className="py-20 bg-white">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Planos Para Profissionais</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-4">
               Escolha o plano ideal para gerenciar seu negócio e crescer sem limites.
+            </p>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              <strong className="text-gray-900">Mais de 2.500 profissionais confiam em nós.</strong> Junte-se a eles e transforme seu negócio hoje mesmo.
             </p>
             
             {/* Toggle Mensal/Anual */}
@@ -497,93 +701,150 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Categories Section */}
+      {/* Depoimentos */}
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Explore Por Categoria</h2>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">O Que Nossos Clientes Dizem</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Encontre exatamente o que precisa navegando pelas nossas categorias especializadas
+              Histórias reais de profissionais que transformaram seus negócios
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-12">
-            {categories.slice(1).map((category) => (
-              <Card
-                key={category.id}
-                className={`border-2 cursor-pointer transition-all hover:shadow-lg ${
-                  selectedCategory === category.id
-                    ? 'border-yellow-400 bg-yellow-50'
-                    : 'border-gray-200 hover:border-yellow-200'
-                }`}
-                onClick={() => setSelectedCategory(category.id)}
-              >
-                <CardContent className="p-6 text-center">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                    selectedCategory === category.id
-                      ? 'bg-yellow-400 text-black'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    <i className={`${category.icon} text-2xl`}></i>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-yellow-600 rounded-full flex-shrink-0"></div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Maria Silva</h3>
+                    <p className="text-sm text-gray-600">Salão de Beleza - São Paulo</p>
                   </div>
-                  <h3 className="font-semibold text-gray-900 text-sm">{category.name}</h3>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+                <div className="flex gap-1 mb-3">
+                  {[...Array(5)].map((_, i) => (
+                    <span key={i} className="text-yellow-600">★</span>
+                  ))}
+                </div>
+                <p className="text-gray-700 mb-4">
+                  "Em 3 meses, aumentei meus agendamentos em 45%. O sistema de lembretes automáticos reduziu faltas em 80%. Não consigo mais imaginar meu negócio sem o TipoAgenda!"
+                </p>
+                <p className="text-sm font-bold text-yellow-600">
+                  Resultado: +45% de agendamentos em 3 meses
+                </p>
+              </CardContent>
+            </Card>
 
-          {/* Services/Companies Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {/* Removido a seção de cards de empresas */}
+            <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-yellow-600 rounded-full flex-shrink-0"></div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">João Santos</h3>
+                    <p className="text-sm text-gray-600">Personal Trainer - Rio de Janeiro</p>
+                  </div>
+                </div>
+                <div className="flex gap-1 mb-3">
+                  {[...Array(5)].map((_, i) => (
+                    <span key={i} className="text-yellow-600">★</span>
+                  ))}
+                </div>
+                <p className="text-gray-700 mb-4">
+                  "O controle financeiro mudou tudo! Agora sei exatamente quanto ganho por cliente, quais horários são mais rentáveis e consigo planejar melhor meu mês. Recomendo para qualquer profissional!"
+                </p>
+                <p className="text-sm font-bold text-yellow-600">
+                  Resultado: Controle total das finanças
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-yellow-600 rounded-full flex-shrink-0"></div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Ana Costa</h3>
+                    <p className="text-sm text-gray-600">Clínica de Estética - Belo Horizonte</p>
+                  </div>
+                </div>
+                <div className="flex gap-1 mb-3">
+                  {[...Array(5)].map((_, i) => (
+                    <span key={i} className="text-yellow-600">★</span>
+                  ))}
+                </div>
+                <p className="text-gray-700 mb-4">
+                  "O sistema de fidelidade e WhatsApp automático são incríveis! Meus clientes adoram receber lembretes e ganhar pontos. A retenção de clientes aumentou muito desde que comecei a usar."
+                </p>
+                <p className="text-sm font-bold text-yellow-600">
+                  Resultado: +60% de retenção de clientes
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* Por Que Escolher */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Como Funciona</h2>
-            <p className="text-xl text-gray-600">Agendar nunca foi tão simples e rápido</p>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Por Que Escolher TipoAgenda?</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {[
-              {
-                step: '1',
-                title: 'Busque e Compare',
-                description: 'Encontre profissionais qualificados na sua região e compare preços e avaliações',
-                icon: 'fas fa-search'
-              },
-              {
-                step: '2',
-                title: 'Escolha o Horário',
-                description: 'Selecione o dia e horário que funciona melhor para você em tempo real',
-                icon: 'fas fa-calendar-check'
-              },
-              {
-                step: '3',
-                title: 'Confirme e Relaxe',
-                description: 'Receba confirmação instantânea e lembretes automáticos do seu agendamento',
-                icon: 'fas fa-check-circle'
-              }
-            ].map((item, index) => (
-              <div key={index} className="text-center">
-                <div className="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <i className={`${item.icon} text-2xl text-black`}></i>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="h-8 w-8 text-black" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                  <span className="text-yellow-600">#{item.step}</span> {item.title}
-                </h3>
-                <p className="text-gray-600 text-lg">{item.description}</p>
-              </div>
-            ))}
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Setup em 24h</h3>
+                <p className="text-gray-600">
+                  Configure sua conta e comece a receber agendamentos em menos de 1 dia
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="fas fa-lock text-2xl text-black"></i>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">100% Seguro</h3>
+                <p className="text-gray-600">
+                  Seus dados protegidos com criptografia de nível bancário
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="fas fa-mobile-alt text-2xl text-black"></i>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Acesse de Qualquer Lugar</h3>
+                <p className="text-gray-600">
+                  Funciona perfeitamente no celular, tablet ou computador
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <MessageSquare className="h-8 w-8 text-black" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Suporte Dedicado</h3>
+                <p className="text-gray-600">
+                  Equipe pronta para ajudar você a ter sucesso
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
       {/* Seção de Contato (Agora com Cards) */}
-      <section className="py-20 bg-gray-900 text-white">
+      <section id="contact-section" className="py-20 bg-gray-900 text-white">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-4xl font-bold mb-12">
             Vamos conversar sobre o seu negócio?

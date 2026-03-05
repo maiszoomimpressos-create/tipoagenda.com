@@ -534,14 +534,17 @@ serve(async (req) => {
       });
     }
 
-    console.log('2) Buscando provedor de WhatsApp ativo...');
-    // 2) Buscar provedor de WhatsApp ativo (global)
-    const { data: providers, error: providersError } = await supabaseAdmin
+    console.log('2) Buscando provedores de WhatsApp ativos por empresa...');
+    // 2) Buscar provedores de WhatsApp ativos por empresa
+    // Criar um mapa de company_id -> provider para acesso rápido
+    const providersByCompany = new Map<string, MessagingProviderRow>();
+    
+    // Buscar todos os provedores ativos (por empresa ou globais)
+    const { data: allProviders, error: providersError } = await supabaseAdmin
       .from<MessagingProviderRow>('messaging_providers')
       .select('*')
       .eq('channel', 'WHATSAPP')
-      .eq('is_active', true)
-      .limit(1);
+      .eq('is_active', true);
 
     if (providersError) {
       console.error('Erro ao buscar messaging_providers:', providersError);
@@ -551,15 +554,29 @@ serve(async (req) => {
       });
     }
 
-    const provider = providers && providers[0];
+    // Organizar provedores por empresa
+    if (allProviders) {
+      for (const provider of allProviders) {
+        if (provider.company_id) {
+          // Provedor específico da empresa
+          providersByCompany.set(provider.company_id, provider);
+        } else {
+          // Provedor global (legado) - associar a todas as empresas sem provedor específico
+          // Não adicionamos ao mapa, será usado como fallback
+          console.log('Provedor global encontrado (legado):', provider.id);
+        }
+      }
+    }
 
     if (providersError) {
       console.error('ERRO ao buscar providers:', providersError);
     } else {
-      console.log(`2) Provedores encontrados: ${providers?.length || 0}`);
+      console.log(`2) Provedores encontrados: ${allProviders?.length || 0} (${providersByCompany.size} por empresa)`);
     }
 
-    if (!provider) {
+    // Verificar se há pelo menos um provedor (global ou por empresa)
+    const hasGlobalProvider = allProviders?.some(p => !p.company_id) || false;
+    if (!hasGlobalProvider && providersByCompany.size === 0) {
       console.warn('❌ Nenhum provedor WHATSAPP ativo encontrado em messaging_providers.');
       return new Response(JSON.stringify({ error: 'Nenhum provedor WHATSAPP ativo configurado.' }), {
         status: 500,
@@ -641,6 +658,25 @@ serve(async (req) => {
     for (const schedule of schedules!) {
       console.log(`Processando schedule ${schedule.id} para company ${schedule.company_id}`);
       const companyId = schedule.company_id;
+
+      // Buscar provedor para esta empresa específica
+      let provider = providersByCompany.get(companyId);
+      
+      // Se não encontrou provedor específico, usar provedor global (legado)
+      if (!provider) {
+        provider = allProviders?.find(p => !p.company_id) || null;
+        if (provider) {
+          console.log(`Usando provedor global (legado) para empresa ${companyId}`);
+        }
+      } else {
+        console.log(`Usando provedor específico da empresa ${companyId}: ${provider.id}`);
+      }
+
+      // Se não há provedor (nem específico nem global), pular esta empresa
+      if (!provider) {
+        console.warn(`⚠️ Empresa ${companyId} não possui provedor WhatsApp configurado. Pulando...`);
+        continue;
+      }
 
       // Apenas APPOINTMENT_START implementado por enquanto
       if (schedule.reference !== 'APPOINTMENT_START') {
