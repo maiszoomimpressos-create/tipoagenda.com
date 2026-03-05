@@ -34,7 +34,13 @@ interface MessagingProvider {
   content_type?: string | null;
   user_id: string | null;
   queue_id: string | null;
+  company_id: string | null;
   is_active: boolean;
+}
+
+interface Company {
+  id: string;
+  name: string;
 }
 
 const WhatsAppProviderManagementPage: React.FC = () => {
@@ -45,8 +51,11 @@ const WhatsAppProviderManagementPage: React.FC = () => {
   const [editingProvider, setEditingProvider] = useState<MessagingProvider | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [providerToDelete, setProviderToDelete] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   
   const [formData, setFormData] = useState({
+    company_id: '',
     name: '',
     base_url: '',
     http_method: 'POST' as 'GET' | 'POST' | 'PUT',
@@ -59,17 +68,36 @@ const WhatsAppProviderManagementPage: React.FC = () => {
     is_active: true,
   });
 
-  useEffect(() => {
-    fetchProviders();
+  const fetchCompanies = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('ativo', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setCompanies(data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar empresas:', error);
+      showError('Erro ao carregar empresas: ' + error.message);
+    }
   }, []);
 
   const fetchProviders = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('messaging_providers')
         .select('*')
-        .eq('channel', 'WHATSAPP')
+        .eq('channel', 'WHATSAPP');
+
+      // Se uma empresa foi selecionada (e não é "all"), filtrar por ela
+      if (selectedCompanyId && selectedCompanyId !== 'all') {
+        query = query.eq('company_id', selectedCompanyId);
+      }
+
+      const { data, error } = await query
         .order('is_active', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -81,11 +109,17 @@ const WhatsAppProviderManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
+    fetchCompanies();
+    fetchProviders();
+  }, [fetchCompanies, fetchProviders]);
 
   const handleEdit = (provider: MessagingProvider) => {
     setEditingProvider(provider);
     setFormData({
+      company_id: provider.company_id || '',
       name: provider.name,
       base_url: provider.base_url,
       http_method: provider.http_method,
@@ -99,11 +133,16 @@ const WhatsAppProviderManagementPage: React.FC = () => {
       queue_id: provider.queue_id || '',
       is_active: provider.is_active,
     });
+    // Atualizar seletor de empresa também
+    if (provider.company_id) {
+      setSelectedCompanyId(provider.company_id);
+    }
   };
 
   const handleCancelEdit = () => {
     setEditingProvider(null);
     setFormData({
+      company_id: '',
       name: '',
       base_url: '',
       http_method: 'POST',
@@ -118,8 +157,13 @@ const WhatsAppProviderManagementPage: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!formData.company_id.trim()) {
+      showError('Selecione uma empresa.');
+      return;
+    }
+
     if (!formData.name.trim() || !formData.base_url.trim() || !formData.user_id.trim() || !formData.queue_id.trim()) {
-      showError('Preencha todos os campos obrigatórios (Nome, URL, ID do Usuário e ID da Fila).');
+      showError('Preencha todos os campos obrigatórios (Empresa, Nome, URL, ID do Usuário e ID da Fila).');
       return;
     }
 
@@ -140,6 +184,7 @@ const WhatsAppProviderManagementPage: React.FC = () => {
         const { error } = await supabase
           .from('messaging_providers')
           .update({
+            company_id: formData.company_id.trim() || null,
             name: formData.name.trim(),
             base_url: formData.base_url.trim(),
             http_method: formData.http_method,
@@ -160,6 +205,7 @@ const WhatsAppProviderManagementPage: React.FC = () => {
         const { error } = await supabase
           .from('messaging_providers')
           .insert({
+            company_id: formData.company_id.trim() || null,
             name: formData.name.trim(),
             channel: 'WHATSAPP',
             base_url: formData.base_url.trim(),
@@ -250,6 +296,34 @@ const WhatsAppProviderManagementPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <Label>Empresa *</Label>
+                <Select
+                  value={formData.company_id}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, company_id: value });
+                    setSelectedCompanyId(value);
+                  }}
+                  disabled={!!editingProvider?.id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {editingProvider?.id 
+                    ? 'Empresa não pode ser alterada após criação.'
+                    : 'Selecione a empresa para a qual este provedor será configurado.'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Nome do Provedor *</Label>
@@ -410,6 +484,7 @@ const WhatsAppProviderManagementPage: React.FC = () => {
                 onClick={() => {
                   setEditingProvider({} as MessagingProvider);
                   setFormData({
+                    company_id: '',
                     name: '',
                     base_url: '',
                     http_method: 'POST',
@@ -428,6 +503,31 @@ const WhatsAppProviderManagementPage: React.FC = () => {
                 Novo Provedor
               </Button>
             )}
+          </div>
+
+          {/* Filtro por Empresa */}
+          <div className="mb-4">
+            <Label>Filtrar por Empresa</Label>
+            <Select
+              value={selectedCompanyId || 'all'}
+              onValueChange={(value) => {
+                setSelectedCompanyId(value === 'all' ? '' : value);
+                setEditingProvider(null);
+                handleCancelEdit();
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Todas as empresas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as empresas</SelectItem>
+                {companies.map((company) => (
+                  <SelectItem key={company.id} value={company.id}>
+                    {company.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {providers.map((provider) => (
@@ -476,6 +576,14 @@ const WhatsAppProviderManagementPage: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
+                {provider.company_id && (
+                  <div>
+                    <Label className="text-xs text-gray-500">Empresa</Label>
+                    <p className="text-sm">
+                      {companies.find(c => c.id === provider.company_id)?.name || 'N/A'}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs text-gray-500">URL Base</Label>
                   <p className="text-sm font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded">

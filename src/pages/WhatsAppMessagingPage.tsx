@@ -154,13 +154,32 @@ const WhatsAppMessagingPage: React.FC = () => {
       if (schedulesError) throw schedulesError;
       setSchedules(schedulesData || []);
 
-      // 5. Carregar provedores ativos (apenas leitura)
-      const { data: providersData, error: providersError } = await supabase
+      // 5. Carregar provedor ativo da empresa (apenas leitura)
+      // Primeiro tenta buscar provedor específico da empresa
+      let { data: providersData, error: providersError } = await supabase
         .from('messaging_providers')
         .select('id, name, channel, base_url, http_method, is_active')
         .eq('channel', 'WHATSAPP')
         .eq('is_active', true)
+        .eq('company_id', primaryCompanyId)
         .limit(1);
+
+      // Se não encontrou provedor específico, busca provedor global (legado)
+      if (!providersData || providersData.length === 0) {
+        const { data: globalProviders, error: globalError } = await supabase
+          .from('messaging_providers')
+          .select('id, name, channel, base_url, http_method, is_active')
+          .eq('channel', 'WHATSAPP')
+          .eq('is_active', true)
+          .is('company_id', null)
+          .limit(1);
+
+        if (globalError) {
+          providersError = globalError;
+        } else {
+          providersData = globalProviders;
+        }
+      }
 
       if (providersError) throw providersError;
       setProviders(providersData || []);
@@ -632,12 +651,13 @@ const WhatsAppMessagingPage: React.FC = () => {
         {/* Aba Provedor */}
         <TabsContent value="provider" className="space-y-4">
           <CardDescription>
-            Informações sobre o provedor de WhatsApp configurado no sistema
+            Informações sobre o provedor de WhatsApp configurado para sua empresa (somente leitura)
           </CardDescription>
           {providers.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-gray-500">
-                Nenhum provedor de WhatsApp ativo configurado. Entre em contato com o suporte.
+                <p className="mb-2">Nenhum provedor de WhatsApp ativo configurado para sua empresa.</p>
+                <p className="text-sm">Entre em contato com o suporte para configurar o provedor.</p>
               </CardContent>
             </Card>
           ) : (
@@ -659,6 +679,9 @@ const WhatsAppMessagingPage: React.FC = () => {
                   <Badge className={provider.is_active ? 'bg-green-500' : 'bg-gray-500'}>
                     {provider.is_active ? 'Ativo' : 'Inativo'}
                   </Badge>
+                  <p className="text-xs text-gray-500 mt-2">
+                    ℹ️ As configurações do provedor são gerenciadas pelo suporte técnico.
+                  </p>
                 </CardContent>
               </Card>
             ))

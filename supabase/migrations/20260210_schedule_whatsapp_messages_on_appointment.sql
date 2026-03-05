@@ -142,7 +142,8 @@ BEGIN
         );
     END IF;
 
-    -- 5. Buscar provedor de WhatsApp ativo
+    -- 5. Buscar provedor de WhatsApp ativo para a empresa
+    -- Primeiro tenta buscar provedor específico da empresa
     SELECT 
         mp.id,
         mp.name
@@ -150,12 +151,26 @@ BEGIN
     FROM messaging_providers mp
     WHERE mp.channel = 'WHATSAPP'
       AND mp.is_active = TRUE
+      AND mp.company_id = v_appointment.company_id
     LIMIT 1;
+
+    -- Se não encontrou provedor específico, busca provedor global (legado)
+    IF v_provider.id IS NULL THEN
+        SELECT 
+            mp.id,
+            mp.name
+        INTO v_provider
+        FROM messaging_providers mp
+        WHERE mp.channel = 'WHATSAPP'
+          AND mp.is_active = TRUE
+          AND mp.company_id IS NULL
+        LIMIT 1;
+    END IF;
 
     IF v_provider.id IS NULL THEN
         RETURN jsonb_build_object(
             'success', FALSE,
-            'error', 'Nenhum provedor de WhatsApp ativo encontrado.'
+            'error', 'Nenhum provedor de WhatsApp ativo encontrado para esta empresa.'
         );
     END IF;
 
