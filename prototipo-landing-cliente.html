@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>TipoAgenda - Selecionar Empresa (Protótipo)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#ca8a04', // amarelo
+          },
+        },
+      },
+    };
+  </script>
+  <!-- Font Awesome para ícones -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-white text-gray-900">
+  
+  <!-- Header Fixo -->
+  <header class="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
+    <div class="flex items-center justify-between max-w-7xl mx-auto">
+      <!-- Logo -->
+      <a href="#" class="flex items-center gap-3 cursor-pointer">
+        <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+          <i class="fas fa-calendar text-white text-xl"></i>
+        </div>
+        <h1 class="text-xl font-bold text-gray-900">TipoAgenda</h1>
+      </a>
+
+      <!-- Menu do Usuário -->
+      <div class="flex items-center gap-4">
+        <button class="px-4 py-2 text-sm border border-gray-300 rounded-full hover:bg-gray-50">
+          Menu
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="pt-24">
+
+    <!-- Seção de Busca -->
+    <section class="pt-6 pb-10 bg-white">
+      <div class="container mx-auto px-6">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-gray-900 mb-4">
+            Selecione uma Empresa para Agendar
+          </h2>
+          <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+            Encontre a empresa ideal para o seu próximo serviço.
+          </p>
+        </div>
+
+        <!-- Barra de Busca e Filtros -->
+        <div class="max-w-4xl mx-auto mb-12">
+          <div class="bg-white rounded-2xl p-6 shadow-2xl">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="relative">
+                <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input
+                  type="text"
+                  placeholder="Nome da empresa ou serviço"
+                  class="w-full pl-12 pr-4 h-10 rounded-full border border-gray-200 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div class="relative">
+                <i class="fas fa-map-marker-alt absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input
+                  type="text"
+                  placeholder="Sua localização (Cidade/Estado)"
+                  class="w-full pl-12 pr-4 h-10 rounded-full border border-gray-200 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <button class="rounded-full h-10 font-semibold bg-primary hover:bg-yellow-500 text-black px-4 flex items-center justify-center gap-2">
+                <i class="fas fa-search"></i>
+                Buscar Empresas
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NOVA SEÇÃO: Como Funciona -->
+    <section class="py-20 bg-white">
+      <div class="container mx-auto px-6">
+        <div class="text-center mb-16">
+          <h2 class="text-4xl font-bold text-gray-900 mb-4">Como Funciona</h2>
+          <p class="text-xl text-gray-600">Agendar nunca foi tão simples e rápido</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-5xl mx-auto">
+          <!-- Passo 1 -->
+          <div class="text-center">
+            <div class="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i class="fas fa-search text-2xl text-black"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">
+              <span class="text-primary">#1</span> Busque e Compare
+            </h3>
+            <p class="text-gray-600 text-lg">
+              Encontre profissionais qualificados na sua região e compare preços e avaliações
+            </p>
+          </div>
+
+          <!-- Passo 2 -->
+          <div class="text-center">
+            <div class="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i class="fas fa-calendar-check text-2xl text-black"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">
+              <span class="text-primary">#2</span> Escolha o Horário
+            </h3>
+            <p class="text-gray-600 text-lg">
+              Selecione o dia e horário que funciona melhor para você em tempo real
+            </p>
+          </div>
+
+          <!-- Passo 3 -->
+          <div class="text-center">
+            <div class="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i class="fas fa-check-circle text-2xl text-black"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">
+              <span class="text-primary">#3</span> Confirme e Relaxe
+            </h3>
+            <p class="text-gray-600 text-lg">
+              Receba confirmação instantânea e lembretes automáticos do seu agendamento
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NOVA SEÇÃO: Explore Por Categoria -->
+    <section class="py-20 bg-gray-50">
+      <div class="container mx-auto px-6">
+        <div class="text-center mb-16">
+          <h2 class="text-4xl font-bold text-gray-900 mb-4">Explore Por Categoria</h2>
+          <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+            Encontre exatamente o que precisa navegando pelas nossas categorias especializadas
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          <!-- Categoria 1: Beleza & Estética -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-spa text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Beleza & Estética</h3>
+          </div>
+
+          <!-- Categoria 2: Saúde & Bem-estar -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-heartbeat text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Saúde & Bem-estar</h3>
+          </div>
+
+          <!-- Categoria 3: Fitness & Personal -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-dumbbell text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Fitness & Personal</h3>
+          </div>
+
+          <!-- Categoria 4: Educação & Coaching -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-graduation-cap text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Educação & Coaching</h3>
+          </div>
+
+          <!-- Categoria 5: Consultoria & Negócios -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-briefcase text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Consultoria & Negócios</h3>
+          </div>
+
+          <!-- Categoria 6: Casa & Manutenção -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-home text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Casa & Manutenção</h3>
+          </div>
+
+          <!-- Categoria 7: Automotivo -->
+          <div class="bg-white border-2 border-primary rounded-2xl p-6 text-center cursor-pointer hover:shadow-lg transition-all bg-yellow-50">
+            <div class="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-car text-2xl text-black"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Automotivo</h3>
+          </div>
+
+          <!-- Categoria 8: Pet Care -->
+          <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-primary hover:shadow-lg transition-all">
+            <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-paw text-2xl text-gray-600"></i>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Pet Care</h3>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Grid de Empresas (Exemplo - não mexer) -->
+    <section class="py-20 bg-white">
+      <div class="container mx-auto px-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          
+          <!-- Card Empresa 1 -->
+          <div class="bg-white border border-gray-200 rounded-lg cursor-pointer hover:shadow-lg transition-shadow">
+            <div class="p-6">
+              <div class="relative mb-4">
+                <div class="w-full h-48 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-building text-4xl text-gray-400"></i>
+                </div>
+                <div class="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
+                  <div class="flex items-center gap-1">
+                    <i class="fas fa-star text-yellow-500 text-sm"></i>
+                    <span class="text-sm font-semibold">4.8</span>
+                  </div>
+                </div>
+              </div>
+              <h3 class="font-bold text-gray-900 text-lg mb-2">Salão Beleza Pura</h3>
+              <p class="text-primary font-semibold mb-4">
+                A partir de R$ 50,00
+              </p>
+              <div class="flex items-center text-gray-500 text-sm">
+                <i class="fas fa-map-marker-alt h-4 w-4 mr-1"></i>
+                <span>São Paulo, SP</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Empresa 2 -->
+          <div class="bg-white border border-gray-200 rounded-lg cursor-pointer hover:shadow-lg transition-shadow">
+            <div class="p-6">
+              <div class="relative mb-4">
+                <div class="w-full h-48 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-building text-4xl text-gray-400"></i>
+                </div>
+                <div class="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
+                  <div class="flex items-center gap-1">
+                    <i class="fas fa-star text-yellow-500 text-sm"></i>
+                    <span class="text-sm font-semibold">4.9</span>
+                  </div>
+                </div>
+              </div>
+              <h3 class="font-bold text-gray-900 text-lg mb-2">Clínica Saúde Total</h3>
+              <p class="text-primary font-semibold mb-4">
+                A partir de R$ 120,00
+              </p>
+              <div class="flex items-center text-gray-500 text-sm">
+                <i class="fas fa-map-marker-alt h-4 w-4 mr-1"></i>
+                <span>Rio de Janeiro, RJ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Empresa 3 -->
+          <div class="bg-white border border-gray-200 rounded-lg cursor-pointer hover:shadow-lg transition-shadow">
+            <div class="p-6">
+              <div class="relative mb-4">
+                <div class="w-full h-48 bg-gradient-to-br from-green-100 to-green-200 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-building text-4xl text-gray-400"></i>
+                </div>
+                <div class="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
+                  <div class="flex items-center gap-1">
+                    <i class="fas fa-star text-yellow-500 text-sm"></i>
+                    <span class="text-sm font-semibold">4.7</span>
+                  </div>
+                </div>
+              </div>
+              <h3 class="font-bold text-gray-900 text-lg mb-2">Academia Fit Life</h3>
+              <p class="text-primary font-semibold mb-4">
+                A partir de R$ 80,00
+              </p>
+              <div class="flex items-center text-gray-500 text-sm">
+                <i class="fas fa-map-marker-alt h-4 w-4 mr-1"></i>
+                <span>Belo Horizonte, MG</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Empresa 4 -->
+          <div class="bg-white border border-gray-200 rounded-lg cursor-pointer hover:shadow-lg transition-shadow">
+            <div class="p-6">
+              <div class="relative mb-4">
+                <div class="w-full h-48 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-building text-4xl text-gray-400"></i>
+                </div>
+                <div class="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg shadow">
+                  <div class="flex items-center gap-1">
+                    <i class="fas fa-star text-yellow-500 text-sm"></i>
+                    <span class="text-sm font-semibold">4.6</span>
+                  </div>
+                </div>
+              </div>
+              <h3 class="font-bold text-gray-900 text-lg mb-2">Oficina Auto Center</h3>
+              <p class="text-primary font-semibold mb-4">
+                A partir de R$ 150,00
+              </p>
+              <div class="flex items-center text-gray-500 text-sm">
+                <i class="fas fa-map-marker-alt h-4 w-4 mr-1"></i>
+                <span>Curitiba, PR</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer simples -->
+  <footer class="bg-gray-900 text-gray-400 text-sm py-6">
+    <div class="container mx-auto px-6 text-center">
+      <p>© 2025 TipoAgenda. Todos os direitos reservados.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
+

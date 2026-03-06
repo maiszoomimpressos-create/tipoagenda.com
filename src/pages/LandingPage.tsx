@@ -12,8 +12,7 @@ import { useIsCompanyAdmin } from '@/hooks/useIsCompanyAdmin';
 import { useIsGlobalAdmin } from '@/hooks/useIsGlobalAdmin';
 import { CompanySelectionModal } from '@/components/CompanySelectionModal';
 import { useActivePlans } from '@/hooks/useActivePlans';
-import { Check, Zap, Search, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag, Clock } from 'lucide-react'; // Adicionar Menu e CalendarDays
-import { Input } from '@/components/ui/input';
+import { Check, Zap, Phone, MessageSquare, PhoneCall, Menu, CalendarDays, Tag, Clock } from 'lucide-react'; // Adicionar Menu e CalendarDays
 import ContactRequestModal from '@/components/ContactRequestModal'; // Importar o novo modal
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"; // Importar DropdownMenu
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Importar componentes de diálogo
@@ -100,7 +99,6 @@ const LandingPage: React.FC = () => {
     }
   }, [plans, loadingPlans]);
   
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para busca (mantido para UI, mas não usado para empresas)
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); // Novo estado para o modal de contato
   const [isConfirmLogoutDialogOpen, setIsConfirmLogoutDialogOpen] = useState(false); // Novo estado para o diálogo de confirmação de logout
@@ -125,19 +123,23 @@ const LandingPage: React.FC = () => {
     navigate(`/agendar/${companyId}`, { replace: true });
   };
 
-  const scrollToPlans = () => {
-    const element = document.getElementById('plans-section');
+  // Funções de scroll para navegação por âncoras
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const headerOffset = 80; // Altura do header fixo
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
     }
   };
 
-  const scrollToContact = () => {
-    const element = document.getElementById('contact-section');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  const scrollToPlans = () => scrollToSection('plans-section');
+  const scrollToContact = () => scrollToSection('contact-section');
   
   // Determine the most expensive plan for visual highlight (usando plansWithMenus se disponível, senão plans)
   const plansToUse = plansWithMenus.length > 0 ? plansWithMenus : plans;
@@ -149,63 +151,129 @@ const LandingPage: React.FC = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 cursor-pointer">
+          <Link to="/" className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <div className="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center">
               <CalendarDays className="text-white h-6 w-6" />
             </div>
             <h1 className="text-xl font-bold text-gray-900">TipoAgenda</h1>
           </Link>
 
-          {/* Barra de Busca Centralizada */}
-          <div className="flex-1 max-w-md mx-auto relative hidden md:block">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <Input
-              type="text"
-              placeholder="Buscar..."
-              className="pl-12 h-10 rounded-full border-gray-200 focus:border-yellow-600 focus:ring-1 focus:ring-yellow-600 pr-4"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          {/* Menu de Navegação - Desktop: Links visíveis, Mobile: Menu hamburger */}
+          <nav className="hidden md:flex items-center gap-6 flex-1 justify-center">
+            <button
+              onClick={() => scrollToSection('inicio')}
+              className="text-sm font-medium text-gray-700 hover:text-yellow-600 transition-colors"
+            >
+              Início
+            </button>
+            <button
+              onClick={() => scrollToSection('beneficios')}
+              className="text-sm font-medium text-gray-700 hover:text-yellow-600 transition-colors"
+            >
+              Benefícios
+            </button>
+            <button
+              onClick={() => scrollToSection('plans-section')}
+              className="text-sm font-medium text-gray-700 hover:text-yellow-600 transition-colors"
+            >
+              Planos
+            </button>
+            <button
+              onClick={() => scrollToSection('depoimentos')}
+              className="text-sm font-medium text-gray-700 hover:text-yellow-600 transition-colors"
+            >
+              Depoimentos
+            </button>
+            <button
+              onClick={() => scrollToSection('contact-section')}
+              className="text-sm font-medium text-gray-700 hover:text-yellow-600 transition-colors"
+            >
+              Contato
+            </button>
+          </nav>
 
-          {/* Menu de Login/Cadastro */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="!rounded-button">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {session ? (
-                <>
+          {/* Menu de Login/Cadastro - Desktop: Botões visíveis, Mobile: Menu hamburger */}
+          <div className="flex items-center gap-3">
+            {session ? (
+              // Usuário logado: dropdown com perfil e sair (funciona em desktop e mobile)
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="!rounded-button flex items-center gap-2">
+                    <span className="hidden md:inline text-sm font-medium text-gray-700">Meu Perfil</span>
+                    <Menu className="h-5 w-5 md:hidden" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => navigate('/profile')}>
                     Meu Perfil
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {
                     supabase.auth.signOut();
-                    navigate('/'); // Redireciona para a landing page após logout
+                    navigate('/');
                   }}>
                     Sair
                   </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem onClick={() => navigate('/login')}>
-                    Login/Cadastro
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/register-professional')}>
-                    Cadastro da Empresa
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              // Usuário não logado: botões visíveis no desktop, menu hamburger no mobile
+              <>
+                {/* Desktop: Botões visíveis */}
+                <div className="hidden md:flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    className="!rounded-button text-gray-700 hover:text-gray-900"
+                    onClick={() => navigate('/login')}
+                  >
+                    Login
+                  </Button>
+                  <Button
+                    className="!rounded-button bg-yellow-600 hover:bg-yellow-700 text-black font-semibold"
+                    onClick={scrollToPlans}
+                  >
+                    Comece Agora
+                  </Button>
+                </div>
+                {/* Mobile: Menu hamburger com navegação e login */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="!rounded-button md:hidden">
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => scrollToSection('inicio')}>
+                      Início
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => scrollToSection('beneficios')}>
+                      Benefícios
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => scrollToSection('plans-section')}>
+                      Planos
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => scrollToSection('depoimentos')}>
+                      Depoimentos
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => scrollToSection('contact-section')}>
+                      Contato
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/login')}>
+                      Login/Cadastro
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/register-professional')}>
+                      Cadastro da Empresa
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Hero Section focado em WhatsApp */}
-      <section className="bg-white pt-20 pb-10">
+      <section id="inicio" className="bg-white pt-20 pb-10">
         <div className="container mx-auto px-6 grid md:grid-cols-2 gap-10 items-center">
           {/* Texto principal */}
           <div>
@@ -406,7 +474,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Benefícios Principais */}
-      <section className="py-20 bg-gray-50">
+      <section id="beneficios" className="py-20 bg-gray-50">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Por Que Profissionais Escolhem TipoAgenda?</h2>
@@ -702,7 +770,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Depoimentos */}
-      <section className="py-20 bg-gray-50">
+      <section id="depoimentos" className="py-20 bg-gray-50">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">O Que Nossos Clientes Dizem</h2>
@@ -711,14 +779,18 @@ const LandingPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
             <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-yellow-600 rounded-full flex-shrink-0"></div>
+                  <img 
+                    src="https://randomuser.me/api/portraits/women/44.jpg" 
+                    alt="Maria Silva" 
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-gray-200"
+                  />
                   <div>
                     <h3 className="font-bold text-gray-900">Maria Silva</h3>
-                    <p className="text-sm text-gray-600">Salão de Beleza - São Paulo</p>
+                    <p className="text-sm text-gray-600">Salão de Beleza</p>
                   </div>
                 </div>
                 <div className="flex gap-1 mb-3">
@@ -738,10 +810,14 @@ const LandingPage: React.FC = () => {
             <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-yellow-600 rounded-full flex-shrink-0"></div>
+                  <img 
+                    src="https://i.pravatar.cc/150?img=12" 
+                    alt="João Santos" 
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-gray-200"
+                  />
                   <div>
                     <h3 className="font-bold text-gray-900">João Santos</h3>
-                    <p className="text-sm text-gray-600">Personal Trainer - Rio de Janeiro</p>
+                    <p className="text-sm text-gray-600">Personal Trainer</p>
                   </div>
                 </div>
                 <div className="flex gap-1 mb-3">
@@ -761,10 +837,14 @@ const LandingPage: React.FC = () => {
             <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-yellow-600 rounded-full flex-shrink-0"></div>
+                  <img 
+                    src="https://i.pravatar.cc/150?img=47" 
+                    alt="Ana Costa" 
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-gray-200"
+                  />
                   <div>
                     <h3 className="font-bold text-gray-900">Ana Costa</h3>
-                    <p className="text-sm text-gray-600">Clínica de Estética - Belo Horizonte</p>
+                    <p className="text-sm text-gray-600">Clínica de Estética</p>
                   </div>
                 </div>
                 <div className="flex gap-1 mb-3">
@@ -777,6 +857,33 @@ const LandingPage: React.FC = () => {
                 </p>
                 <p className="text-sm font-bold text-yellow-600">
                   Resultado: +60% de retenção de clientes
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-gray-200 hover:border-yellow-600 transition-all shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <img 
+                    src="https://randomuser.me/api/portraits/men/32.jpg" 
+                    alt="Carlos Mendes" 
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-gray-200"
+                  />
+                  <div>
+                    <h3 className="font-bold text-gray-900">Carlos Mendes</h3>
+                    <p className="text-sm text-gray-600">Barbearia</p>
+                  </div>
+                </div>
+                <div className="flex gap-1 mb-3">
+                  {[...Array(5)].map((_, i) => (
+                    <span key={i} className="text-yellow-600">★</span>
+                  ))}
+                </div>
+                <p className="text-gray-700 mb-4">
+                  "Antes eu perdia muito tempo ligando para confirmar horários. Agora o sistema envia os lembretes automaticamente pelo WhatsApp e meus clientes sempre aparecem no horário certo. Minha agenda está sempre cheia!"
+                </p>
+                <p className="text-sm font-bold text-yellow-600">
+                  Resultado: Agenda sempre cheia e sem faltas
                 </p>
               </CardContent>
             </Card>
