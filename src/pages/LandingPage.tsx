@@ -965,10 +965,10 @@ const LandingPage: React.FC = () => {
                 <PhoneCall className="h-12 w-12 mx-auto text-purple-500" />
                 <h3 className="text-xl font-semibold">Ligue Gratuitamente</h3>
                 <a 
-                  href="tel:+5546988212387" 
+                  href="tel:+5546999151842" 
                   className="text-gray-400 hover:text-white transition-colors text-sm block"
                 >
-                  +55 46 98821-2387
+                  +55 46 99915-1842
                 </a>
               </CardContent>
             </Card>
@@ -979,7 +979,7 @@ const LandingPage: React.FC = () => {
                 <MessageSquare className="h-12 w-12 mx-auto text-green-500" />
                 <h3 className="text-xl font-semibold">Converse por WhatsApp</h3>
                 <a 
-                  href="https://wa.me/5546988212387" 
+                  href="https://wa.me/5546999151842" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white transition-colors text-sm block"
